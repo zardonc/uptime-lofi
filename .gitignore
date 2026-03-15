@@ -2,3 +2,5 @@
 /.agent/
 /.history/
 /.gemini/
+.adocs/
+/.opencode/
