@@ -43,8 +43,10 @@
 ## 4. Development & Testing Workflow
 
 - **Local Workflow:** 
-  - Build: `npm run build`
-  - Typecheck: `npm run typecheck`
+  - Build: `pnpm run build`
+  - Typecheck: `pnpm run typecheck`
+  - *Cleanup:* Always terminate local services or processes after testing or calls to avoid conflicts and resource waste.
+  - *Package Manager:* Prioritize `pnpm` commands in all scenarios. Downgrade to `npm` only if unresolvable exceptions occur during testing.
   - *Action:* Run linters/typecheckers after every change.
 - **Git Workflow:** 
   - Format: `<type>: <description>`
