@@ -53,20 +53,26 @@
   - PRs: Analyze history, draft summary, and include a test plan.
 - **Testing Standard:** Write isolated, fast tests. Always write a **failing test** to reproduce a bug before fixing it.
 
+## 5. Document Management Routing
+
+You **MUST** proactively consult and strictly adhere to `@.adocs/rules/doc_management.md` during the following lifecycle events:
+
+1. **Epic/Feature Initialization:** Before writing code for a new feature, read the rules to create a high-level plan document in the `@.adocs/plan/` directory.
+2. **Task Breakdown:** Before implementing specific logic, break down the feature into atomic tasks and create corresponding task documents in the `@.adocs/tasks/` directory.
+3. **Task Status Updates:** After completing a logical block of code, immediately update the corresponding task document's status and move it to the correct directory.
+
+⚠️ **CRITICAL:** Never skip document updates. Your primary responsibility is ensuring the codebase state and document state remain 100% synchronized.
+
 ---
 
-## 5. Execution Mechanics (Plan Mode)
+## 6. Execution Mechanics (Plan Mode)
 
 ### Standard Lifecycle
 `Receive` -> `Gather Context` -> `Plan` -> `Execute` -> `Test/Reflect` -> `Deliver`
 
-- **Triggers:** Manually via `/prompts:plan` or automatically for tasks with **≥3 steps**.
-- **Tooling:** Use `sequential-thinking` to generate a plan file in `{workspace_root}/.adocs/plan/`.
-- **Plan Metadata:** Files must contain YAML frontmatter: `mode`, `cwd`, `task`, `complexity`, `tool`, `total_thoughts`, and `created_at`.
-
 ---
 
-## 6. Advanced Tooling (MCP)
+## 7. Advanced Tooling (MCP)
 *Max 2 MCP calls per turn.*
 
 - **Context7:** Primary source for library/framework APIs and SDK usage. Resolve library ID first.
@@ -75,7 +81,7 @@
 
 ---
 
-## 7. Output Modes & Reflection
+## 8. Output Modes & Reflection
 
 ### Visual Structure
 - Maintain empty lines around headers.
