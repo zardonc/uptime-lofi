@@ -1,0 +1,9 @@
+{
+  "name": "uptime-lofi-monorepo",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --parallel dev",
+    "build": "pnpm --parallel build",
+    "typecheck": "pnpm --parallel typecheck"
+  }
+}
