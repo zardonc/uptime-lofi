@@ -31,3 +31,8 @@ pnpm-debug.log*
 .env
 .env.*
 !.env.example
+
+# Golang Binaries
+/server-probe/uptime-lofi-probe
+/server-probe/uptime-lofi-probe.exe
+/server-probe/*.test
