@@ -1,1 +1,0 @@
-../Notes-sur-l-IA/docs/example-docs/AGENT.md
