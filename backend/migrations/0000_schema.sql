@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS raw_metrics (
     cpu_usage REAL,
     mem_usage REAL,
     is_up BOOLEAN NOT NULL,
+    containers_json TEXT, -- Optional JSON string recording Docker container states 
     FOREIGN KEY(node_id) REFERENCES nodes(id) ON DELETE CASCADE
 );
 
