@@ -35,4 +35,12 @@ pnpm-debug.log*
 # Golang Binaries
 /server-probe/uptime-lofi-probe
 /server-probe/uptime-lofi-probe.exe
+/server-probe/probe
+/server-probe/probe.exe
 /server-probe/*.test
+
+# Golang Testcases
+/server-probe/tests/
+
+# 强制保障探针核心代码不被任何 IDE 或隐式规则排除
+!/server-probe/internal/config/config.go
