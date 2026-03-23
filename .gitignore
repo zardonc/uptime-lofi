@@ -4,13 +4,11 @@
 .DS_Store
 
 # Agent & AI generated dirs
-/.adocs/
+.adocs
 /.agent/
 /.history/
 /.gemini/
-.adocs/
 /.opencode/
-/@.adocs/
 GEMINI.md
 AGENT.md
 
