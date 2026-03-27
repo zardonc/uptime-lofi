@@ -1,0 +1,29 @@
+import type { ReactNode } from 'react';
+
+interface MetricCardProps {
+  icon: ReactNode;
+  label: string;
+  value: string | number;
+  suffix?: string;
+  trend?: { direction: 'up' | 'down'; text: string };
+}
+
+export function MetricCard({ icon, label, value, suffix, trend }: MetricCardProps) {
+  return (
+    <div className="metric-card card">
+      <div className="metric-card__header">
+        <span className="metric-card__icon">{icon}</span>
+        <span className="metric-card__label">{label}</span>
+      </div>
+      <div className="metric-card__value">
+        {value}
+        {suffix && <span className="metric-card__suffix">{suffix}</span>}
+      </div>
+      {trend && (
+        <div className={`metric-card__trend trend--${trend.direction}`}>
+          {trend.direction === 'up' ? '↑' : '↓'} {trend.text}
+        </div>
+      )}
+    </div>
+  );
+}
