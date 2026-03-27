@@ -39,7 +39,7 @@
   --morandi-700: #34766b;
 
   /* Backgrounds */
-  --bg-page: #F7F9F8;
+  --bg-page: #EFF1F0;
   --bg-card: #FFFFFF;
   --bg-hover: #F0F5F3;
   --bg-sidebar: #FAFCFB;
@@ -401,6 +401,8 @@ h1, h2, h3, h4, h5, h6 {
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
+  min-height: 130px;
+  justify-content: space-between;
 }
 
 .metric-card__header {

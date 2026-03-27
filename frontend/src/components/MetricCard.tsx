@@ -19,11 +19,9 @@ export function MetricCard({ icon, label, value, suffix, trend }: MetricCardProp
         {value}
         {suffix && <span className="metric-card__suffix">{suffix}</span>}
       </div>
-      {trend && (
-        <div className={`metric-card__trend trend--${trend.direction}`}>
-          {trend.direction === 'up' ? '↑' : '↓'} {trend.text}
-        </div>
-      )}
+      <div className={`metric-card__trend ${trend ? `trend--${trend.direction}` : 'trend--placeholder'}`}>
+        {trend ? `${trend.direction === 'up' ? '↑' : '↓'} ${trend.text}` : '\u00A0'}
+      </div>
     </div>
   );
 }
