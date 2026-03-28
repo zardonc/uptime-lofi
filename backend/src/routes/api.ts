@@ -1,6 +1,8 @@
 import { Hono } from "hono";
 import { authMiddleware } from "../middleware/auth";
 import { pushApi } from "./push";
+import { nodesApi } from "./nodes";
+import { statsApi } from "./stats";
 
 export type Bindings = {
   DB: D1Database;
@@ -13,5 +15,7 @@ const api = new Hono<{ Bindings: Bindings }>();
 api.use("*", authMiddleware);
 
 api.route("/push", pushApi);
+api.route("/nodes", nodesApi);
+api.route("/stats", statsApi);
 
 export { api };
