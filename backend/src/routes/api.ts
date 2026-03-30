@@ -1,8 +1,10 @@
 import { Hono } from "hono";
-import { authMiddleware } from "../middleware/auth";
+import { dashboardAuthMiddleware } from "../middleware/dashboardAuth";
+import { probeAuthMiddleware } from "../middleware/auth";
 import { pushApi } from "./push";
 import { nodesApi } from "./nodes";
 import { statsApi } from "./stats";
+import { authApi } from "./auth";
 
 export type Bindings = {
   DB: D1Database;
@@ -11,11 +13,20 @@ export type Bindings = {
 
 const api = new Hono<{ Bindings: Bindings }>();
 
-// All /api/* requests must pass auth verification
-api.use("*", authMiddleware);
+// 1. Unprotected auth endpoints
+api.route("/auth", authApi);
 
-api.route("/push", pushApi);
-api.route("/nodes", nodesApi);
-api.route("/stats", statsApi);
+// 2. Protected Dashboard endpoints
+const dashboard = new Hono<{ Bindings: Bindings }>();
+dashboard.use("*", dashboardAuthMiddleware);
+dashboard.route("/nodes", nodesApi);
+dashboard.route("/stats", statsApi);
+api.route("/", dashboard);
+
+// 3. Protected Probe endpoints
+const probe = new Hono<{ Bindings: Bindings }>();
+probe.use("*", probeAuthMiddleware);
+probe.route("/push", pushApi);
+api.route("/", probe);
 
 export { api };
