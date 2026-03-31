@@ -9,6 +9,8 @@
 /.history/
 /.gemini/
 /.opencode/
+.claude/
+.planning/
 GEMINI.md
 AGENT.md
 
