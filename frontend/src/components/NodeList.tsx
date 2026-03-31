@@ -1,8 +1,15 @@
 import { StatusBadge } from './StatusBadge';
-import type { MonitorNode } from '../data/mockData';
+import type { ApiNode } from '../api/types';
+
+function formatHeartbeat(epoch: number): string {
+  const diff = Math.floor(Date.now() / 1000) - epoch;
+  if (diff < 60) return `${diff}s ago`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  return `${Math.floor(diff / 3600)}h ago`;
+}
 
 interface NodeListProps {
-  nodes: MonitorNode[];
+  readonly nodes: ReadonlyArray<ApiNode>;
 }
 
 export function NodeList({ nodes }: NodeListProps) {
@@ -16,17 +23,21 @@ export function NodeList({ nodes }: NodeListProps) {
           <span>Ping</span>
           <span>Last Seen</span>
         </div>
+        {nodes.length === 0 && (
+          <div className="node-list__empty">No nodes registered yet</div>
+        )}
         {nodes.map((node) => (
           <div key={node.id} className="node-list__row">
             <span className="node-list__name">{node.name}</span>
             <span><StatusBadge status={node.status} /></span>
             <span className="node-list__ping">
-              {node.pingMs > 0 ? `${node.pingMs}ms` : '—'}
+              {node.ping_ms != null && node.ping_ms > 0 ? `${node.ping_ms}ms` : '—'}
             </span>
-            <span className="node-list__heartbeat">{node.lastHeartbeat}</span>
+            <span className="node-list__heartbeat">{formatHeartbeat(node.last_heartbeat)}</span>
           </div>
         ))}
       </div>
     </div>
   );
 }
+
