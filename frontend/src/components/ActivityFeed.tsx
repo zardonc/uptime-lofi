@@ -1,5 +1,14 @@
 import { AlertTriangle, CheckCircle, XCircle, RefreshCw } from 'lucide-react';
-import type { ActivityEvent } from '../data/mockData';
+
+export type ActivityEventType = 'online' | 'offline' | 'warning' | 'recovery';
+
+export interface ActivityEvent {
+  readonly id: string;
+  readonly timestamp: string;
+  readonly type: ActivityEventType;
+  readonly node: string;
+  readonly message: string;
+}
 
 const eventIcons: Record<ActivityEvent['type'], typeof CheckCircle> = {
   online: CheckCircle,
