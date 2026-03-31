@@ -11,6 +11,7 @@ import type { ActivityEvent } from './components/ActivityFeed';
 import { MetricCardSkeleton } from './components/Skeleton';
 import { ErrorBanner } from './components/ErrorBanner';
 import { LoginGate } from './components/LoginGate';
+import { Settings } from './components/Settings';
 import { useNodes } from './hooks/useNodes';
 import { useOverview } from './hooks/useOverview';
 import { useMetrics } from './hooks/useMetrics';
@@ -38,10 +39,8 @@ function deriveActivity(nodes: ReadonlyArray<{ readonly name: string; readonly s
   }));
 }
 
-export default function App() {
-  const [activeNav, setActiveNav] = useState('dashboard');
-  const { logout, isAuthenticated } = useAuth();
-
+function DashboardContent() {
+  const { isAuthenticated } = useAuth();
   const { nodes, loading: nodesLoading, error: nodesError, refetch: refetchNodes } = useNodes(isAuthenticated);
   const { stats, loading: statsLoading, error: statsError, refetch: refetchStats } = useOverview(isAuthenticated);
 
@@ -56,8 +55,106 @@ export default function App() {
   }, [trendData]);
 
   const activityEvents = useMemo(() => deriveActivity(nodes), [nodes]);
-
   const lastRefreshText = nodesLoading ? 'Loading...' : `Last refresh: just now`;
+
+  return (
+    <div className="dashboard">
+      {/* ── Header ── */}
+      <header className="dashboard-header animate-in">
+        <div>
+          <h1>Dashboard</h1>
+          <p className="subtitle">System overview and real-time monitoring</p>
+        </div>
+        <span className="header-timestamp">{lastRefreshText}</span>
+      </header>
+
+      {/* ── Error Banners ── */}
+      {nodesError && <ErrorBanner message={nodesError} onRetry={refetchNodes} />}
+      {statsError && <ErrorBanner message={statsError} onRetry={refetchStats} />}
+
+      {/* ── Stats Row ── */}
+      <section className="stats-grid">
+        {statsLoading ? (
+          <>
+            <div className="animate-in delay-1"><MetricCardSkeleton /></div>
+            <div className="animate-in delay-2"><MetricCardSkeleton /></div>
+            <div className="animate-in delay-3"><MetricCardSkeleton /></div>
+            <div className="animate-in delay-4"><MetricCardSkeleton /></div>
+          </>
+        ) : (
+          <>
+            <div className="animate-in delay-1">
+              <MetricCard
+                icon={<Server size={18} />}
+                label="Total Nodes"
+                value={stats.totalNodes}
+              />
+            </div>
+            <div className="animate-in delay-2">
+              <MetricCard
+                icon={<Wifi size={18} />}
+                label="Online"
+                value={stats.onlineNodes}
+                suffix={` / ${stats.totalNodes}`}
+              />
+            </div>
+            <div className="animate-in delay-3">
+              <MetricCard
+                icon={<Activity size={18} />}
+                label="Avg Uptime"
+                value={typeof stats.avgUptimeRatio === 'number' ? stats.avgUptimeRatio.toFixed(2) : '—'}
+                suffix="%"
+              />
+            </div>
+            <div className="animate-in delay-4">
+              <MetricCard
+                icon={<Clock size={18} />}
+                label="Avg Ping"
+                value={stats.avgPing}
+                suffix="ms"
+              />
+            </div>
+          </>
+        )}
+      </section>
+
+      {/* ── Charts Row ── */}
+      <section className="charts-row">
+        <div className="animate-in delay-5">
+          {metricsLoading ? (
+            <div className="card trend-chart"><div className="skeleton" style={{ width: '100%', height: 260 }} /></div>
+          ) : (
+            <TrendChart data={chartData as TrendPoint[]} />
+          )}
+        </div>
+        <div className="animate-in delay-5">
+          <UptimeRing percentage={typeof stats.avgUptimeRatio === 'number' ? stats.avgUptimeRatio : 100} />
+        </div>
+      </section>
+
+      {/* ── Bottom Row ── */}
+      <section className="bottom-row">
+        <div className="animate-in delay-6">
+          {nodesLoading ? (
+            <div className="card node-list">
+              <h3 className="section-title">Monitored Nodes</h3>
+              <div className="skeleton" style={{ width: '100%', height: 180 }} />
+            </div>
+          ) : (
+            <NodeList nodes={nodes} />
+          )}
+        </div>
+        <div className="animate-in delay-7">
+          <ActivityFeed events={activityEvents as ActivityEvent[]} />
+        </div>
+      </section>
+    </div>
+  );
+}
+
+export default function App() {
+  const [activeNav, setActiveNav] = useState('dashboard');
+  const { logout } = useAuth();
 
   return (
     <LoginGate>
@@ -68,97 +165,7 @@ export default function App() {
         }} />
 
         <main className="main-content">
-          <div className="dashboard">
-            {/* ── Header ── */}
-            <header className="dashboard-header animate-in">
-              <div>
-                <h1>Dashboard</h1>
-                <p className="subtitle">System overview and real-time monitoring</p>
-              </div>
-              <span className="header-timestamp">{lastRefreshText}</span>
-            </header>
-
-            {/* ── Error Banners ── */}
-            {nodesError && <ErrorBanner message={nodesError} onRetry={refetchNodes} />}
-            {statsError && <ErrorBanner message={statsError} onRetry={refetchStats} />}
-
-            {/* ── Stats Row ── */}
-            <section className="stats-grid">
-              {statsLoading ? (
-                <>
-                  <div className="animate-in delay-1"><MetricCardSkeleton /></div>
-                  <div className="animate-in delay-2"><MetricCardSkeleton /></div>
-                  <div className="animate-in delay-3"><MetricCardSkeleton /></div>
-                  <div className="animate-in delay-4"><MetricCardSkeleton /></div>
-                </>
-              ) : (
-                <>
-                  <div className="animate-in delay-1">
-                    <MetricCard
-                      icon={<Server size={18} />}
-                      label="Total Nodes"
-                      value={stats.totalNodes}
-                    />
-                  </div>
-                  <div className="animate-in delay-2">
-                    <MetricCard
-                      icon={<Wifi size={18} />}
-                      label="Online"
-                      value={stats.onlineNodes}
-                      suffix={` / ${stats.totalNodes}`}
-                    />
-                  </div>
-                  <div className="animate-in delay-3">
-                    <MetricCard
-                      icon={<Activity size={18} />}
-                      label="Avg Uptime"
-                      value={typeof stats.avgUptimeRatio === 'number' ? stats.avgUptimeRatio.toFixed(2) : '—'}
-                      suffix="%"
-                    />
-                  </div>
-                  <div className="animate-in delay-4">
-                    <MetricCard
-                      icon={<Clock size={18} />}
-                      label="Avg Ping"
-                      value={stats.avgPing}
-                      suffix="ms"
-                    />
-                  </div>
-                </>
-              )}
-            </section>
-
-            {/* ── Charts Row ── */}
-            <section className="charts-row">
-              <div className="animate-in delay-5">
-                {metricsLoading ? (
-                  <div className="card trend-chart"><div className="skeleton" style={{ width: '100%', height: 260 }} /></div>
-                ) : (
-                  <TrendChart data={chartData as TrendPoint[]} />
-                )}
-              </div>
-              <div className="animate-in delay-5">
-                <UptimeRing percentage={typeof stats.avgUptimeRatio === 'number' ? stats.avgUptimeRatio : 100} />
-              </div>
-            </section>
-
-            {/* ── Bottom Row ── */}
-            <section className="bottom-row">
-              <div className="animate-in delay-6">
-                {nodesLoading ? (
-                  <div className="card node-list">
-                    <h3 className="section-title">Monitored Nodes</h3>
-                    <div className="skeleton" style={{ width: '100%', height: 180 }} />
-                  </div>
-                ) : (
-                  <NodeList nodes={nodes} />
-                )}
-              </div>
-              <div className="animate-in delay-7">
-                <ActivityFeed events={activityEvents as ActivityEvent[]} />
-              </div>
-            </section>
-          </div>
+          {activeNav === 'settings' ? <Settings /> : <DashboardContent />}
         </main>
       </div>
     </LoginGate>

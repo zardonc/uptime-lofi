@@ -100,6 +100,9 @@ export class ApiClientError extends Error {
 
 // ── Public API methods ──
 export const api = {
+  getAuthStatus: () =>
+    apiFetch<{ is_ui_lock_enabled: boolean }>('/auth/status', { auth: false }),
+
   login: (password: string) =>
     apiFetch<LoginResponse>('/auth/login', {
       method: 'POST',
@@ -111,4 +114,10 @@ export const api = {
   getOverview: () => apiFetch<{ data: OverviewStats }>('/stats/overview'),
   getMetrics: (nodeId: string, hours = 24) =>
     apiFetch<{ data: ApiMetric[] }>(`/nodes/${nodeId}/metrics?hours=${hours}`),
+
+  updateSecuritySettings: (payload: { enabled: boolean; password?: string }) =>
+    apiFetch<{ success: boolean }>('/settings/security', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
 } as const;

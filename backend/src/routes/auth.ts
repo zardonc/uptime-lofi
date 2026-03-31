@@ -28,6 +28,12 @@ authApi.post("/setup", zValidator("json", z.object({ admin_key: z.string(), new_
   return c.json({ success: true, message: "UI Lock enabled" });
 });
 
+authApi.get("/status", async (c) => {
+  const db = c.env.DB;
+  const isEnabledRecord = await db.prepare("SELECT value FROM kv_settings WHERE key = 'ui_lock_enabled'").first<{ value: string }>();
+  return c.json({ is_ui_lock_enabled: isEnabledRecord?.value === 'true' });
+});
+
 authApi.post("/unlock", zValidator("json", z.object({ admin_key: z.string() })), async (c) => {
   const { admin_key } = c.req.valid("json");
   if (admin_key !== c.env.API_SECRET_KEY) {

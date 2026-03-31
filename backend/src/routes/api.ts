@@ -5,6 +5,7 @@ import { pushApi } from "./push";
 import { nodesApi } from "./nodes";
 import { statsApi } from "./stats";
 import { authApi } from "./auth";
+import { settingsApi } from "./settings";
 
 export type Bindings = {
   DB: D1Database;
@@ -21,6 +22,7 @@ const dashboard = new Hono<{ Bindings: Bindings }>();
 dashboard.use("*", dashboardAuthMiddleware);
 dashboard.route("/nodes", nodesApi);
 dashboard.route("/stats", statsApi);
+dashboard.route("/settings", settingsApi);
 api.route("/", dashboard);
 
 // 3. Protected Probe endpoints

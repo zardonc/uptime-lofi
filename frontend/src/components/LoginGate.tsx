@@ -4,7 +4,7 @@
 // user doesn't have an active JWT session.
 // ═══════════════════════════════════════════
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { Shield, Loader2 } from 'lucide-react';
 
@@ -12,6 +12,13 @@ export function LoginGate({ children }: { readonly children: React.ReactNode }) 
   const { isAuthenticated, isLoading: authLoading, error, login } = useAuth();
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [isUiLock, setIsUiLock] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    import('../api/client').then((module) => {
+      module.api.getAuthStatus().then((res) => setIsUiLock(res.is_ui_lock_enabled)).catch(() => setIsUiLock(true));
+    });
+  }, []);
 
   if (authLoading) {
     return (
@@ -48,13 +55,17 @@ export function LoginGate({ children }: { readonly children: React.ReactNode }) 
           <Shield size={28} />
         </div>
         <h2 className="login-card__title">Uptime LoFi</h2>
-        <p className="login-card__subtitle">Enter your access key to continue</p>
+        <p className="login-card__subtitle">
+          {isUiLock === false 
+            ? 'First-time Setup: Enter Admin API Key' 
+            : 'Enter your access key to continue'}
+        </p>
 
         <input
           id="login-password"
           className="login-card__input"
           type="password"
-          placeholder="Access Key"
+          placeholder={isUiLock === false ? 'Admin API Key' : 'Access Key'}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           autoFocus
