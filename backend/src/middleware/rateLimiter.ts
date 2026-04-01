@@ -23,24 +23,18 @@ function cleanupExpiredEntries(store: Map<string, RateStoreEntry>) {
   }
 }
 
-function extractClientId(req: Request): string {
+function extractClientId(c: Context): string {
   // Prefer CF-Connecting-IP as per requirement
-  const cfIp = req.headers.get("CF-Connecting-IP") || "";
+  const cfIp = c.req.header("CF-Connecting-IP") || "";
   if (cfIp) return cfIp;
-  // Fallbacks
-  const xff = req.headers.get("X-Forwarded-For") || "";
+  // Fallbacks - try X-Forwarded-For
+  const xff = c.req.header("X-Forwarded-For") || "";
   if (xff) return xff.split(",")[0].trim();
   return "unknown";
 }
 
-function getPathKey(req: Request): string {
-  try {
-    const u = new URL(req.url);
-    return u.pathname;
-  } catch {
-    // Fallback if URL parsing fails
-    return "";
-  }
+function getPathKey(c: Context): string {
+  return c.req.path;
 }
 
 function createLimiter(store: Map<string, RateStoreEntry>, limit: number, windowMs: number) {
@@ -49,8 +43,8 @@ function createLimiter(store: Map<string, RateStoreEntry>, limit: number, window
     cleanupExpiredEntries(store);
     
     // Access to request is via c.req; cast to any to avoid DOM lib type issues
-    const clientId = extractClientId((c.req as any));
-    const pathKey = getPathKey((c.req as any));
+    const clientId = extractClientId(c);
+    const pathKey = getPathKey(c);
     const mapKey = `${clientId}:${pathKey}`;
     const now = Date.now();
     let entry = store.get(mapKey);
