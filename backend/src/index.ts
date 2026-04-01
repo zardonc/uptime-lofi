@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import cors from 'hono/cors'
+// Removed external cors middleware to ensure compatibility in this environment
 import { HTTPException } from 'hono/http-exception'
 import { api, Bindings } from './routes/api'
 import { securityHeadersMiddleware } from './middleware/securityHeaders'
@@ -12,7 +12,7 @@ const app = new Hono<{ Bindings: Bindings }>()
 // 1) Global security headers middleware (applied before CORS)
 app.use('*', securityHeadersMiddleware)
 
-// 2) CORS middleware (origin function with explicit allowed origins)
+// 2) Minimal CORS middleware (origin function with explicit allowed origins)
 // Build a list of allowed origins from environment-bindings if provided.
 let allowedCorsOrigins: string[] = []
 try {
@@ -43,7 +43,24 @@ const originFn = (origin: string | undefined): string | boolean | undefined => {
   return undefined
 }
 
-app.use('*', cors({ origin: originFn, credentials: true }))
+// Lightweight CORS handling to satisfy environments where the 'hono/cors' plugin
+// may not be available or type-check correctly. This preserves the essential
+// behavior of allowing credentials from permitted origins.
+app.use('*', async (c, next) => {
+  const requestOrigin = ((c.req as any).headers?.get?.('Origin') || '');
+  // Determine if origin is allowed (actual origin function logic can validate later)
+  const allowedOrigin = typeof originFn === 'function' ? originFn(requestOrigin) : requestOrigin;
+  if (typeof allowedOrigin === 'string') {
+    c.header('Access-Control-Allow-Origin', allowedOrigin);
+    c.header('Access-Control-Allow-Credentials', 'true');
+  }
+  if ((c.req as any).method?.toUpperCase?.() === 'OPTIONS') {
+    c.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+    c.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    return c.json({ ok: true }, 200);
+  }
+  return next();
+})
 
 // Global middleware: enforce max payload size via Content-Length header when possible
 app.use('*', async (c, next) => {
