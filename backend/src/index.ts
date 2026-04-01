@@ -2,7 +2,23 @@ import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { api, Bindings } from './routes/api'
 
+// Payload size enforcement
+const MAX_BODY_SIZE = 1024 * 1024 // 1 MB
+
 const app = new Hono<{ Bindings: Bindings }>()
+
+// Global middleware: enforce max payload size via Content-Length header when possible
+app.use('*', async (c, next) => {
+  // Access headers without tying to strict typings of Hono Request
+  const contentLength = (c.req as any).headers?.get?.('content-length') ?? (c.req as any).header?.('content-length')
+  if (contentLength) {
+    const len = Number(contentLength)
+    if (!Number.isNaN(len) && len > MAX_BODY_SIZE) {
+      return c.json({ error: 'Payload Too Large' }, 413)
+    }
+  }
+  return next()
+})
 
 // Global Error Handler returning standardized JSON wrapper
 app.onError((err, c) => {
