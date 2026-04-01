@@ -3,8 +3,12 @@ import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { sign } from "hono/jwt";
 import { getCookie } from "hono/cookie";
+import { strictRateLimit } from "../middleware/rateLimiter";
 
 const authApi = new Hono<{ Bindings: { DB: D1Database; API_SECRET_KEY: string } }>();
+
+// Apply strict rate limiting to login endpoint
+authApi.use("/login", strictRateLimit);
 
 async function calculateHash(input: string): Promise<string> {
   const encoder = new TextEncoder();
@@ -45,6 +49,9 @@ authApi.post("/unlock", zValidator("json", z.object({ admin_key: z.string() })),
   return c.json({ success: true, message: "UI Lock disabled" });
 });
 
+// Simple in-memory failed login attempt tracker (optional feature)
+const loginFailTracker: Map<string, { count: number; windowStart: number }> = new Map();
+
 authApi.post("/login", zValidator("json", z.object({ password: z.string() })), async (c) => {
   const { password } = c.req.valid("json");
   const db = c.env.DB;
@@ -66,7 +73,22 @@ authApi.post("/login", zValidator("json", z.object({ password: z.string() })), a
     isValid = (password === c.env.API_SECRET_KEY);
   }
 
-  if (!isValid) return c.json({ error: "Unauthorized" }, 401);
+  // Optional: track failed login attempts by client IP
+  const clientIp = (c.req.headers.get("CF-Connecting-IP") || c.req.headers.get("X-Forwarded-For") || "unknown").split(",")[0].trim();
+  const now = Date.now();
+  const tracker = loginFailTracker.get(clientIp) ?? { count: 0, windowStart: now };
+  // Reset window if started more than 15 minutes ago
+  if (now - tracker.windowStart > 15 * 60 * 1000) {
+    tracker.count = 0;
+    tracker.windowStart = now;
+  }
+  tracker.count += 1;
+  loginFailTracker.set(clientIp, tracker);
+  if (tracker.count > 5) {
+    return c.json({ error: "Too many login attempts" }, 429);
+  }
+
+  if (!isValid) return c.json({ error: "Invalid credentials" }, 401);
 
   const sessionId = crypto.randomUUID();
   const rawRefreshToken = crypto.randomUUID() + crypto.randomUUID();
@@ -81,6 +103,8 @@ authApi.post("/login", zValidator("json", z.object({ password: z.string() })), a
   const jwt = await sign({
       session_id: sessionId,
       role: 'admin',
+      aud: c.env.JWT_AUDIENCE as string | undefined,
+      iss: c.env.JWT_ISSUER as string | undefined,
       exp: Math.floor(Date.now() / 1000) + (15 * 60)
   }, c.env.API_SECRET_KEY);
 
@@ -123,6 +147,8 @@ authApi.post("/refresh", async (c) => {
   const jwt = await sign({
       session_id: tokenRecord.session_id,
       role: 'admin',
+      aud: c.env.JWT_AUDIENCE as string | undefined,
+      iss: c.env.JWT_ISSUER as string | undefined,
       exp: Math.floor(Date.now() / 1000) + (15 * 60)
   }, c.env.API_SECRET_KEY);
 
