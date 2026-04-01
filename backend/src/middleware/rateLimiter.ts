@@ -11,20 +11,17 @@ const strictStore = new Map<string, RateStoreEntry>();
 const standardStore = new Map<string, RateStoreEntry>();
 const permissiveStore = new Map<string, RateStoreEntry>();
 
-// Shared cleanup every 60 seconds
-setInterval(() => {
+// Cleanup runs lazily - no setInterval (not allowed in Cloudflare Workers global scope)
+function cleanupExpiredEntries(store: Map<string, RateStoreEntry>) {
   const now = Date.now();
-  const stores = [strictStore, standardStore, permissiveStore] as const;
-  for (const store of stores) {
-    for (const [key, entry] of store.entries()) {
-      const cutoff = now - entry.windowMs;
-      entry.timestamps = entry.timestamps.filter(ts => ts > cutoff);
-      if (entry.timestamps.length === 0) {
-        store.delete(key);
-      }
+  for (const [key, entry] of store.entries()) {
+    const cutoff = now - entry.windowMs;
+    entry.timestamps = entry.timestamps.filter(ts => ts > cutoff);
+    if (entry.timestamps.length === 0) {
+      store.delete(key);
     }
   }
-}, 60_000);
+}
 
 function extractClientId(req: Request): string {
   // Prefer CF-Connecting-IP as per requirement
@@ -48,6 +45,9 @@ function getPathKey(req: Request): string {
 
 function createLimiter(store: Map<string, RateStoreEntry>, limit: number, windowMs: number) {
   return async (c: Context, next: Next) => {
+    // Cleanup expired entries lazily (Cloudflare Workers doesn't allow global setInterval)
+    cleanupExpiredEntries(store);
+    
     // Access to request is via c.req; cast to any to avoid DOM lib type issues
     const clientId = extractClientId((c.req as any));
     const pathKey = getPathKey((c.req as any));
