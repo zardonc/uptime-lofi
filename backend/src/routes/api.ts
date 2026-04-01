@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { strictRateLimit, standardRateLimit, permissiveRateLimit } from "../middleware/rateLimiter";
 import { dashboardAuthMiddleware } from "../middleware/dashboardAuth";
 import { probeAuthMiddleware } from "../middleware/auth";
 import { pushApi } from "./push";
@@ -7,12 +8,21 @@ import { statsApi } from "./stats";
 import { authApi } from "./auth";
 import { settingsApi } from "./settings";
 
+// Rate-limiting: apply before authentication on selected routes
+
 export type Bindings = {
   DB: D1Database;
   API_SECRET_KEY: string;
 };
 
 const api = new Hono<{ Bindings: Bindings }>();
+
+// Rate-limiting: apply before authentication on selected routes
+api.use("/auth/login", strictRateLimit);
+api.use("/auth/*", standardRateLimit);
+api.use("/nodes", standardRateLimit);
+api.use("/stats", standardRateLimit);
+api.use("/push", permissiveRateLimit);
 
 // 1. Unprotected auth endpoints
 api.route("/auth", authApi);
