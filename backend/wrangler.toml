@@ -1,6 +1,7 @@
 name = "uptime-lofi-backend"
 main = "src/index.ts"
 compatibility_date = "2024-03-20"
+limits = { body_size = "1mb" }
 
 # Production environment variables
 [vars]
