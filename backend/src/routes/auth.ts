@@ -74,7 +74,7 @@ authApi.post("/login", zValidator("json", z.object({ password: z.string() })), a
   }
 
   // Optional: track failed login attempts by client IP
-  const clientIp = (c.req.headers.get("CF-Connecting-IP") || c.req.headers.get("X-Forwarded-For") || "unknown").split(",")[0].trim();
+  const clientIp = (c.req.header("CF-Connecting-IP") || c.req.header("X-Forwarded-For") || "unknown").split(",")[0].trim();
   const now = Date.now();
   const tracker = loginFailTracker.get(clientIp) ?? { count: 0, windowStart: now };
   // Reset window if started more than 15 minutes ago
