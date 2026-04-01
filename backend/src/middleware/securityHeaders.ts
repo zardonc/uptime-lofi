@@ -2,13 +2,14 @@
 // Applies a conservative set of headers to mitigate common web vulnerabilities
 import { Context, Next } from 'hono'
 
-export const securityHeadersMiddleware = async (c: any, next: any) => {
-  const res = await next(c)
-  // Ensure response exists
-  if (!res || typeof res.headers === 'undefined') {
-    return res
-  }
-
+export const securityHeadersMiddleware = async (c: Context, next: Next) => {
+  // Continue to next middleware/handler
+  await next()
+  
+  // Get the response after handler completes
+  const res = c.res
+  if (!res) return
+  
   // Standard security headers
   res.headers.set('X-Content-Type-Options', 'nosniff')
   res.headers.set('X-Frame-Options', 'DENY')
@@ -22,6 +23,4 @@ export const securityHeadersMiddleware = async (c: any, next: any) => {
     'Permissions-Policy',
     "accelerometer=(), camera=(), clipboard-read=(), clipboard-write=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=(), fullscreen=()"
   )
-
-  return res
 }
