@@ -13,6 +13,8 @@ import { settingsApi } from "./settings";
 export type Bindings = {
   DB: D1Database;
   API_SECRET_KEY: string;
+  // Comma-separated list of allowed origins for production CORS
+  CORS_ORIGINS?: string;
 };
 
 const api = new Hono<{ Bindings: Bindings }>();
