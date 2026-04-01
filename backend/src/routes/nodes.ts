@@ -5,7 +5,7 @@ import { Bindings } from "./api";
 
 const nodesApi = new Hono<{ Bindings: Bindings }>();
 
-nodesApi.get("/", async (c) => {
+ nodesApi.get("/", async (c) => {
   const db = c.env.DB;
   const { results } = await db.prepare(
     `SELECT * FROM nodes ORDER BY status DESC, last_heartbeat DESC`
@@ -20,14 +20,24 @@ nodesApi.get("/", async (c) => {
   return c.json({ data: nodes });
 });
 
+ // Input sanitization: validate id and hours
 nodesApi.get(
   "/:id/metrics",
   zValidator("query", z.object({
-    hours: z.string().optional().default("24").transform((v) => parseInt(v, 10))
+    hours: z.string().optional().default("24").transform((v) => {
+      const n = parseInt(v, 10);
+      if (Number.isNaN(n)) throw new Error("Invalid hours");
+      if (n < 1 || n > 168) throw new Error("Hours must be between 1 and 168");
+      return n;
+    })
   })),
   async (c) => {
     const db = c.env.DB;
     const id = c.req.param("id");
+    // Validate node_id against allowed pattern to prevent injection
+    if (!/^[a-zA-Z0-9_-]+$/.test(id)) {
+      return c.json({ error: "Invalid node id" }, 400);
+    }
     const { hours } = c.req.valid("query");
 
     const since = Math.floor(Date.now() / 1000) - hours * 3600;
