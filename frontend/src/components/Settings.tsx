@@ -22,10 +22,15 @@ export function Settings() {
       });
   }, []);
 
-  const generateRandom = () => {
-    const randomPass = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8);
-    setPassword(randomPass);
-  };
+	const generateRandom = () => {
+		// Secure password generation using Web Crypto API
+		const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+		const length = 12;
+		const values = new Uint32Array(length);
+		crypto.getRandomValues(values);
+		const randomPass = Array.from(values, v => charset[v % charset.length]).join('');
+		setPassword(randomPass);
+	};
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
