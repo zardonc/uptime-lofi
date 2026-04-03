@@ -1,7 +1,15 @@
 // Type augmentation for Hono Context to expose JWT payload on the request
+
+export interface JwtPayload {
+	session_id: string;
+	role: string;
+	exp: number;
+	aud?: string;
+	iss?: string;
+}
+
 declare module "hono" {
-  interface Context {
-    // Optional JWT payload decoded from the Authorization header
-    jwtPayload?: any;
-  }
+	interface ContextVariableMap {
+		jwtPayload?: JwtPayload;
+	}
 }
