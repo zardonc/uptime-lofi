@@ -81,7 +81,7 @@ progress:
 | 260403-kh7 | 修订 architect.md 对齐 Phase 4 安全加固变更，添加 Mermaid 凭证流转图 | 2026-04-03 | c54eda4 | [260403-kh7-adocs-research-architect-md-phase-4-dash](./quick/260403-kh7-adocs-research-architect-md-phase-4-dash/) |
 | 260403-ktu | 审阅并修订 architect.md Dashboard 凭证体系章节，对齐代码实现 | 2026-04-03 | 3d5a71e | [260403-ktu-architect-md-dashboard](./quick/260403-ktu-architect-md-dashboard/) |
 | 260403-l3l | 补充 architect.md 面板首次登录绑定后端流程描述 | 2026-04-03 | 1a6a0d5 | [260403-l3l-architect-md-dashboard](./quick/260403-l3l-architect-md-dashboard/) |
-| 260403-lbf | 更新 architect.md Mermaid 流程图对齐凭证体系文字描述 | 2026-04-03 | TBD | [260403-lbf-architect-md-mermaid-dashboard](./quick/260403-lbf-architect-md-mermaid-dashboard/) |
+| 260403-lbf | 更新 architect.md Mermaid 流程图对齐凭证体系文字描述 | 2026-04-03 | 2f01893 | [260403-lbf-architect-md-mermaid-dashboard](./quick/260403-lbf-architect-md-mermaid-dashboard/) |
 
 ---
 
