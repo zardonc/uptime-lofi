@@ -123,6 +123,21 @@ Continue with Zod v4. No issues detected.
 
 **Last checked:** 2026-04-03
 
+#### Backend (Node.js/Cloudflare Workers)
+| Package | Advisory | Severity | Status |
+|---------|----------|----------|--------|
+| None | - | - | Clean |
+
+#### Frontend (devDependencies only)
+| Package | Advisory | Severity | Status |
+|---------|----------|----------|--------|
+| picomatch | ReDoS via extglob quantifiers (GHSA-c2c7-rcm5-vvqj) | High | Patched in >=4.0.4, transitive dep |
+| brace-expansion | Process hang via zero-step sequence (GHSA-f886-m6hf-6m8v) | Moderate | Patched in >=1.1.13 and >=5.0.5, transitive dep |
+| picomatch | Method injection in POSIX char classes (GHSA-3v7f-55p6-f55p) | Moderate | Patched in >=4.0.4, transitive dep |
+
+**Note:** All frontend vulnerabilities are in devDependencies (eslint/typescript-eslint tooling chain), not production runtime code. No production dependencies affected.
+
+#### Probe (Go)
 | Package | Advisory | Severity | Status |
 |---------|----------|----------|--------|
 | None | - | - | Clean |
