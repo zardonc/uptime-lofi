@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: MVP - Core Monitoring
 status: unknown
-last_updated: "2026-04-03T18:13:28.640Z"
+last_updated: "2026-04-03T18:38:07.254Z"
 progress:
   total_phases: 3
   completed_phases: 0
@@ -21,7 +21,7 @@ progress:
 | 2 - Core Probe | ✅ Complete | 100% |
 | 3 - Frontend Dashboard | 🔄 In Progress | 78% (7/9 tasks) |
 | 04.2 - Backend Refactor & Bug Fix | ✅ Complete | 100% |
-| 4 - Security & Payload Hardening | 🔄 In Progress | 75% (6/8 plans) |
+| 4 - Security & Payload Hardening | 🔄 In Progress | 87.5% (7/8 plans) |
 | 5 - Data Integrity & Error Handling | ⏳ Planned | 0% |
 | 6 - Performance & Scaling Optimization | ⏳ Planned | 0% |
 | 7 - Frontend UX & Accessibility | ⏳ Planned | 0% |
@@ -39,6 +39,7 @@ progress:
 - [Phase 04]: Session-wide logout revokes all tokens for security
 - [Phase 04]: Health endpoints: /health with DB latency, /ready for K8s
 - [Phase 04-07]: Tech debt cleanup — shared crypto utils, consolidated TrendPoint type, hono/cors middleware, Settings logout fix, activity timestamps
+- [Phase 04-08]: Dependency updates — Wrangler compatibility date to 2026-04-01, Zod v4 verified, gopsutil v3 assessed, full security audit completed
 
 ### Design System (Locked)
 
