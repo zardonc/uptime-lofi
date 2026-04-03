@@ -13,6 +13,11 @@ import { settingsApi } from "./settings";
 export type Bindings = {
   DB: D1Database;
   API_SECRET_KEY: string;
+  // JWT configuration
+  JWT_AUDIENCE?: string;
+  JWT_ISSUER?: string;
+  // Emergency unlock key for break-glass access
+  EMERGENCY_UNLOCK_KEY?: string;
   // Comma-separated list of allowed origins for production CORS
   CORS_ORIGINS?: string;
 };

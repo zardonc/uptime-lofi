@@ -72,7 +72,12 @@ app.get('/', (c) => {
 
 // Health check endpoint - verifies database connectivity
 app.get('/health', async (c) => {
-  const checks: Record<string, { status: string; latency_ms?: number; error?: string }> = {
+  interface HealthCheck {
+    status: string;
+    timestamp: string;
+    database?: { status: string; latency_ms?: number; error?: string };
+  }
+  const checks: HealthCheck = {
     status: 'healthy',
     timestamp: new Date().toISOString(),
   };
