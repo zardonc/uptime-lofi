@@ -5,18 +5,12 @@ import { sign } from "hono/jwt";
 import { getCookie } from "hono/cookie";
 import { strictRateLimit } from "../middleware/rateLimiter";
 import { dashboardAuthMiddleware } from "../middleware/dashboardAuth";
+import { calculateHash } from "../utils/crypto";
 
 const authApi = new Hono<{ Bindings: { DB: D1Database; API_SECRET_KEY: string } }>();
 
 // Apply strict rate limiting to login endpoint
 authApi.use("/login", strictRateLimit);
-
-async function calculateHash(input: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(input);
-  const hash = await crypto.subtle.digest("SHA-256", data);
-  return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
-}
 
 authApi.post("/setup", zValidator("json", z.object({ admin_key: z.string(), new_ui_password: z.string() })), async (c) => {
   const { admin_key, new_ui_password } = c.req.valid("json");
