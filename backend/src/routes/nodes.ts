@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { Bindings } from "./api";
+import { dashboardAuthMiddleware } from "../middleware/dashboardAuth";
 
 const nodesApi = new Hono<{ Bindings: Bindings }>();
 
@@ -57,5 +58,34 @@ nodesApi.get(
     return c.json({ data: metrics });
   }
 );
+
+
+// Node management endpoints (stubs for future implementation)
+
+// Create node
+nodesApi.post("/", dashboardAuthMiddleware, async (c) => {
+  return c.json({
+    error: "Not implemented",
+    message: "Node creation will be implemented in a future phase"
+  }, 501);
+});
+
+// Update node
+nodesApi.put("/:id", dashboardAuthMiddleware, async (c) => {
+  const id = c.req.param("id");
+  return c.json({
+    error: "Not implemented",
+    message: "Node " + id + " update will be implemented in a future phase"
+  }, 501);
+});
+
+// Delete node
+nodesApi.delete("/:id", dashboardAuthMiddleware, async (c) => {
+  const id = c.req.param("id");
+  return c.json({
+    error: "Not implemented",
+    message: "Node " + id + " deletion will be implemented in a future phase"
+  }, 501);
+});
 
 export { nodesApi };
