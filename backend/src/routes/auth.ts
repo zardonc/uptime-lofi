@@ -4,6 +4,7 @@ import { zValidator } from "@hono/zod-validator";
 import { sign } from "hono/jwt";
 import { getCookie } from "hono/cookie";
 import { strictRateLimit } from "../middleware/rateLimiter";
+import { dashboardAuthMiddleware } from "../middleware/dashboardAuth";
 
 const authApi = new Hono<{ Bindings: { DB: D1Database; API_SECRET_KEY: string } }>();
 
@@ -155,6 +156,28 @@ authApi.post("/refresh", async (c) => {
   c.header('Set-Cookie', `refresh_token=${newRawRefreshToken}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${7*24*60*60}`);
 
   return c.json({ access_token: jwt });
+});
+
+// Logout endpoint - revoke all tokens for session
+authApi.post("/logout", dashboardAuthMiddleware, async (c) => {
+  const payload = c.get('jwtPayload');
+  if (!payload) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  const db = c.env.DB;
+
+  // Revoke all refresh tokens for this session
+  await db.prepare(
+    `UPDATE refresh_tokens
+    SET status = 'revoked', updated_at = strftime('%s', 'now')
+    WHERE session_id = ?`
+  ).bind(payload.session_id).run();
+
+  // Clear the refresh token cookie
+  c.header('Set-Cookie', 'refresh_token=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0');
+
+  return c.json({ success: true, message: "Logged out successfully" });
 });
 
 export { authApi };
