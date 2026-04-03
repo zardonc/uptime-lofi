@@ -21,7 +21,7 @@ progress:
 | 2 - Core Probe | ✅ Complete | 100% |
 | 3 - Frontend Dashboard | 🔄 In Progress | 78% (7/9 tasks) |
 | 04.2 - Backend Refactor & Bug Fix | ✅ Complete | 100% |
-| 4 - Security & Payload Hardening | 🔄 In Progress | 62% (5/8 plans) |
+| 4 - Security & Payload Hardening | 🔄 In Progress | 75% (6/8 plans) |
 | 5 - Data Integrity & Error Handling | ⏳ Planned | 0% |
 | 6 - Performance & Scaling Optimization | ⏳ Planned | 0% |
 | 7 - Frontend UX & Accessibility | ⏳ Planned | 0% |
@@ -38,6 +38,7 @@ progress:
 - [Phase 04]: JWT authentication hardened with audience/issuer validation, type-safe payload access, and comprehensive input sanitization
 - [Phase 04]: Session-wide logout revokes all tokens for security
 - [Phase 04]: Health endpoints: /health with DB latency, /ready for K8s
+- [Phase 04-07]: Tech debt cleanup — shared crypto utils, consolidated TrendPoint type, hono/cors middleware, Settings logout fix, activity timestamps
 
 ### Design System (Locked)
 
