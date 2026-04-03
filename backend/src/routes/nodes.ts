@@ -40,11 +40,13 @@ nodesApi.get(
     }
     const { hours } = c.req.valid("query");
 
-    const since = Math.floor(Date.now() / 1000) - hours * 3600;
+  const since = Math.floor(Date.now() / 1000) - hours * 3600;
 
-    const { results } = await db.prepare(
-      `SELECT * FROM raw_metrics WHERE node_id = ? AND timestamp > ? ORDER BY timestamp ASC`
-    ).bind(id, since).all();
+  // SECURITY: D1 prepared statements use parameterized queries (.bind())
+  // This prevents SQL injection. Never use string concatenation in queries.
+  const { results } = await db.prepare(
+    `SELECT * FROM raw_metrics WHERE node_id = ? AND timestamp > ? ORDER BY timestamp ASC`
+  ).bind(id, since).all();
 
     // Map containers_json
     const metrics = results.map(m => ({
