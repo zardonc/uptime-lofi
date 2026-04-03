@@ -74,6 +74,12 @@ progress:
 - Phase 04.2 inserted after Phase 4: Backend refactor and bug fix (URGENT)
 - Phase 04.2 COMPLETE: 2/2 plans executed, 18 commits total
 
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260403-kh7 | 修订 architect.md 对齐 Phase 4 安全加固变更，添加 Mermaid 凭证流转图 | 2026-04-03 | TBD | [260403-kh7-adocs-research-architect-md-phase-4-dash](./quick/260403-kh7-adocs-research-architect-md-phase-4-dash/) |
+
 ---
 
-*Last updated: 2026-04-03*
+*Last updated: 2026-04-03 - Completed quick task 260403-kh7: 修订 architect.md 对齐 Phase 4 安全加固变更，添加 Mermaid 凭证流转图*
