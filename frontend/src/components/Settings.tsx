@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api/client';
+import { useAuth } from '../hooks/useAuth';
 import { Shield, ShieldAlert, KeyRound, Loader2 } from 'lucide-react';
 
 export function Settings() {
+  const { logout } = useAuth();
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [uiLockEnabled, setUiLockEnabled] = useState(false);
   const [password, setPassword] = useState('');
@@ -49,9 +51,10 @@ export function Settings() {
         password: uiLockEnabled ? password : '',
       });
       setSuccess(true);
-      // Wait a moment so user sees success message, then hard reload to verify login state
-      setTimeout(() => {
-        window.location.replace('/login');
+      // Logout so user must re-authenticate with new credentials
+      // LoginGate will automatically show the login form when accessToken is null
+      setTimeout(async () => {
+        await logout();
       }, 1500);
     } catch (err: any) {
       setError(err.message || 'Failed to save settings');
