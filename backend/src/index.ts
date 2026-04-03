@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-// Removed external cors middleware to ensure compatibility in this environment
+import { cors } from 'hono/cors'
 import { HTTPException } from 'hono/http-exception'
 import { api, Bindings } from './routes/api'
 import { securityHeadersMiddleware } from './middleware/securityHeaders'
@@ -12,54 +12,34 @@ const app = new Hono<{ Bindings: Bindings }>()
 // 1) Global security headers middleware (applied before CORS)
 app.use('*', securityHeadersMiddleware)
 
-// 2) Minimal CORS middleware (origin function with explicit allowed origins)
-// Build a list of allowed origins from environment-bindings if provided.
-let allowedCorsOrigins: string[] = []
-try {
-  // Try to read a global binding that might be injected at runtime
-  // This expects a global variable like globalThis.CORS_ORIGINS or window.CORS_ORIGINS
-  const globalAny: any = (globalThis as any)
-  const raw = globalAny?.CORS_ORIGINS
-  if (typeof raw === 'string') {
-    allowedCorsOrigins = raw.split(',').map((s: string) => s.trim()).filter(Boolean)
-  } else if (Array.isArray(raw)) {
-    allowedCorsOrigins = raw as string[]
-  }
-} catch {
-  // ignore if not provided
-}
+// 2) CORS using Hono's built-in middleware
+app.use('*', cors({
+  origin: (origin) => {
+    // Development: allow localhost
+    if (origin?.startsWith('http://localhost') || origin?.startsWith('https://localhost')) {
+      return origin
+    }
+    // Production: explicit allowlist from CORS_ORIGINS binding
+    const corsOrigins = (globalThis as any)?.CORS_ORIGINS
+    if (typeof corsOrigins === 'string') {
+      const allowed = corsOrigins.split(',').map((s: string) => s.trim()).filter(Boolean)
+      if (allowed.includes(origin)) return origin
+    } else if (Array.isArray(corsOrigins) && corsOrigins.includes(origin)) {
+      return origin
+    }
+    // No CORS for unauthorized origins
+    return undefined
+  },
+  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowHeaders: ['Content-Type', 'Authorization', 'X-Node-Id', 'X-Timestamp', 'X-Signature'],
+  credentials: true,
+  maxAge: 86400,
+}))
 
-const originFn = (origin: string | undefined): string | boolean | undefined => {
-  if (!origin) return origin
-  // Allow localhost for development
-  if (origin.startsWith('http://localhost') || origin.startsWith('https://localhost')) {
-    return origin
-  }
-  // Allow production origins configured via CORS_ORIGINS binding (comma-separated)
-  if (allowedCorsOrigins.length > 0 && allowedCorsOrigins.includes(origin)) {
-    return origin
-  }
-  // If not allowed, do not set Access-Control-Allow-Origin
-  return undefined
-}
-
-// Lightweight CORS handling to satisfy environments where the 'hono/cors' plugin
-// may not be available or type-check correctly. This preserves the essential
-// behavior of allowing credentials from permitted origins.
+// Add Vary: Origin header for proper CDN caching
 app.use('*', async (c, next) => {
-  const requestOrigin = ((c.req as any).headers?.get?.('Origin') || '');
-  // Determine if origin is allowed (actual origin function logic can validate later)
-  const allowedOrigin = typeof originFn === 'function' ? originFn(requestOrigin) : requestOrigin;
-  if (typeof allowedOrigin === 'string') {
-    c.header('Access-Control-Allow-Origin', allowedOrigin);
-    c.header('Access-Control-Allow-Credentials', 'true');
-  }
-  if ((c.req as any).method?.toUpperCase?.() === 'OPTIONS') {
-    c.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
-    c.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    return c.json({ ok: true }, 200);
-  }
-  return next();
+  await next()
+  c.header('Vary', 'Origin', { append: true })
 })
 
 // Global middleware: enforce max payload size via Content-Length header when possible
