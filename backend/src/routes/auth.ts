@@ -47,49 +47,79 @@ authApi.post("/unlock", zValidator("json", z.object({ admin_key: z.string() })),
 
   await c.env.DB.prepare("INSERT OR REPLACE INTO kv_settings (key, value) VALUES ('ui_lock_enabled', 'false')").bind().run();
   
-  return c.json({ success: true, message: "UI Lock disabled" });
+	return c.json({ success: true, message: "UI Lock disabled" });
 });
 
-// Simple in-memory failed login attempt tracker (optional feature)
-const loginFailTracker: Map<string, { count: number; windowStart: number }> = new Map();
+// D1-based login failure tracking (cross-instance rate limiting)
+// Rate limit: 5 attempts per 15 minutes per IP
 
 authApi.post("/login", zValidator("json", z.object({ password: z.string() })), async (c) => {
-  const { password } = c.req.valid("json");
-  const db = c.env.DB;
+	const { password } = c.req.valid("json");
+	const db = c.env.DB;
 
-  const isEnabledRecord = await db.prepare("SELECT value FROM kv_settings WHERE key = 'ui_lock_enabled'").first<{ value: string }>();
-  const isUiLockEnabled = isEnabledRecord?.value === 'true';
+	// Extract client IP early for rate limiting and audit logging
+	const clientIp = (c.req.header("CF-Connecting-IP") || c.req.header("X-Forwarded-For") || "unknown").split(",")[0].trim();
+	const now = Math.floor(Date.now() / 1000);
+	const windowStart = now - 900; // 15 minutes
 
-  let isValid = false;
+	// Check and track failed login attempts using D1 (cross-instance)
+	const attempt = await db.prepare(
+		`SELECT attempt_count, first_attempt_at FROM login_attempts
+		WHERE ip_address = ? AND last_attempt_at > ?`
+	).bind(clientIp, windowStart).first<{ attempt_count: number; first_attempt_at: number }>();
 
-  if (isUiLockEnabled) {
-    const hashRecord = await db.prepare("SELECT value FROM kv_settings WHERE key = 'ui_lock_hash'").first<{ value: string }>();
-    const inputHash = await calculateHash(password);
-    isValid = (inputHash === hashRecord?.value);
+	if (attempt && attempt.attempt_count >= 5) {
+		const resetIn = attempt.first_attempt_at + 900 - now;
+		return c.json({
+			error: "Too many failed attempts",
+			retry_after: resetIn
+		}, 429);
+	}
 
-    if (!isValid && password === c.env.API_SECRET_KEY) {
-      isValid = true; // Break-glass with master key
-    }
-  } else {
-    isValid = (password === c.env.API_SECRET_KEY);
-  }
+	const isEnabledRecord = await db.prepare("SELECT value FROM kv_settings WHERE key = 'ui_lock_enabled'").first<{ value: string }>();
+	const isUiLockEnabled = isEnabledRecord?.value === 'true';
 
-  // Optional: track failed login attempts by client IP
-  const clientIp = (c.req.header("CF-Connecting-IP") || c.req.header("X-Forwarded-For") || "unknown").split(",")[0].trim();
-  const now = Date.now();
-  const tracker = loginFailTracker.get(clientIp) ?? { count: 0, windowStart: now };
-  // Reset window if started more than 15 minutes ago
-  if (now - tracker.windowStart > 15 * 60 * 1000) {
-    tracker.count = 0;
-    tracker.windowStart = now;
-  }
-  tracker.count += 1;
-  loginFailTracker.set(clientIp, tracker);
-  if (tracker.count > 5) {
-    return c.json({ error: "Too many login attempts" }, 429);
-  }
+	let isValid = false;
 
-  if (!isValid) return c.json({ error: "Invalid credentials" }, 401);
+	if (isUiLockEnabled) {
+		const hashRecord = await db.prepare("SELECT value FROM kv_settings WHERE key = 'ui_lock_hash'").first<{ value: string }>();
+		const inputHash = await calculateHash(password);
+		isValid = (inputHash === hashRecord?.value);
+
+		// REMOVED: Break-glass fallback removed for security
+		// Master API key should never be used as login password
+		// If UI lock password is lost, admin must rotate via database directly
+		// or use a separately configured EMERGENCY_UNLOCK_KEY (if set)
+		const emergencyKey = c.env.EMERGENCY_UNLOCK_KEY as string | undefined;
+		if (!isValid && emergencyKey && password === emergencyKey) {
+			// Log emergency access for audit trail
+			console.warn(`Emergency unlock used at ${new Date().toISOString()} from IP ${clientIp}`);
+			isValid = true;
+		}
+	} else {
+		isValid = (password === c.env.API_SECRET_KEY);
+	}
+
+	// Track failed attempts in D1
+	if (!isValid) {
+		if (attempt) {
+			await db.prepare(
+				`UPDATE login_attempts SET attempt_count = attempt_count + 1, last_attempt_at = ?
+				WHERE ip_address = ?`
+			).bind(now, clientIp).run();
+		} else {
+			await db.prepare(
+				`INSERT INTO login_attempts (ip_address, first_attempt_at, last_attempt_at)
+				VALUES (?, ?, ?)`
+			).bind(clientIp, now, now).run();
+		}
+		return c.json({ error: "Invalid credentials" }, 401);
+	}
+
+	// Clear login attempts on successful login
+	await db.prepare(
+		`DELETE FROM login_attempts WHERE ip_address = ?`
+	).bind(clientIp).run();
 
   const sessionId = crypto.randomUUID();
   const rawRefreshToken = crypto.randomUUID() + crypto.randomUUID();
