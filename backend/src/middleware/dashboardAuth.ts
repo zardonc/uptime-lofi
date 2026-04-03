@@ -68,3 +68,10 @@ export const dashboardAuthMiddleware = async (c: Context, next: Next) => {
 
   return jwtMiddleware(c, wrapped);
 };
+
+// Type augmentation for Hono context
+declare module 'hono' {
+  interface ContextVariableMap {
+    jwtPayload: JwtPayload;
+  }
+}
