@@ -90,6 +90,43 @@ app.get('/', (c) => {
   return c.json({ status: 'ok', service: 'uptime-lofi-gateway', timestamp: Math.floor(Date.now() / 1000) })
 });
 
+// Health check endpoint - verifies database connectivity
+app.get('/health', async (c) => {
+  const checks: Record<string, { status: string; latency_ms?: number; error?: string }> = {
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+  };
+
+  // Check database connectivity
+  try {
+    const start = Date.now();
+    await c.env.DB.prepare('SELECT 1').first();
+    checks.database = {
+      status: 'healthy',
+      latency_ms: Date.now() - start
+    };
+  } catch (error) {
+    checks.database = {
+      status: 'unhealthy',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    };
+    checks.status = 'unhealthy';
+  }
+
+  const statusCode = checks.status === 'healthy' ? 200 : 503;
+  return c.json(checks, statusCode);
+});
+
+// Readiness endpoint (for k8s/deployment)
+app.get('/ready', async (c) => {
+  try {
+    await c.env.DB.prepare('SELECT 1').first();
+    return c.json({ ready: true }, 200);
+  } catch {
+    return c.json({ ready: false }, 503);
+  }
+});
+
 // Mount the protected modular routes
 app.route('/api', api);
 
