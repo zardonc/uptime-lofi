@@ -1,0 +1,19 @@
+
+### 1.1 面板首次登录绑定后端 (Initial Backend Binding)
+
+Dashboard 作为纯静态 SPA 部署于 Cloudflare Pages，首次打开时是一个"无记忆"的空壳——无本地存储、无持久化状态、无后端 URL 预设（依赖同域 Service Bindings）。首次绑定流程如下：
+
+1. **静默探测：** 前端 `AuthProvider` 在 `useEffect` 中向 `POST /api/auth/refresh` 发起带 `credentials: 'include'` 的请求。由于浏览器无任何 Cookie，请求必然失败。
+    
+2. **门控展示：** 刷新失败后 `isLoading` 置为 `false`、`isAuthenticated` 保持 `false`，`LoginGate` 组件渲染密码输入界面。
+    
+3. **凭证输入：** 用户输入 `API_SECRET_KEY`（UI Lock 未启用时）或 `UI_ACCESS_KEY`（UI Lock 已启用时）。
+    
+4. **后端验证：** `POST /api/auth/login` 校验密码，通过后签发 JWT（Access Token, 15min）+ 随机 Refresh Token（HttpOnly Cookie, 7天）。
+    
+5. **内存绑定：** 前端将 `access_token` 存入内存变量（`let accessToken: string | null = null`），`isAuthenticated` 置为 `true`，`LoginGate` 收起，Dashboard 主界面渲染。
+    
+6. **会话持久化：** 后续页面刷新时，`AuthProvider` 再次尝试 `/api/auth/refresh`，浏览器自动携带 HttpOnly Cookie，后端验证通过后重新签发 Access Token，实现无感恢复。
+
+**关键设计：** 前端从不持久化任何凭证。Access Token 仅存内存（刷新页面即丢失），Refresh Token 由浏览器内核管理于 HttpOnly Cookie 中（前端 JS 不可读）。"绑定"的本质是用户通过一次成功的登录交换，建立起前端内存状态与后端会话记录之间的信任链。
+
