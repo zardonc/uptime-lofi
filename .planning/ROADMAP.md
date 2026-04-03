@@ -96,7 +96,7 @@ Cloud-native uptime monitoring system with zero infrastructure requirements. Bui
 - ✅ 04-04: JWT hardening (aud/iss validation, login rate limiting)
 - ✅ 04-05: Security vulnerabilities (break-glass key, password generator, X-Node-Id, login tracker, JWT types)
 - ✅ 04-06: Missing features (logout endpoint, health check, node API stubs)
-- ⬜ 04-07: Tech debt (duplicated functions, TrendPoint type, CORS, Settings navigation)
+- ✅ 04-07: Tech debt (duplicated functions, TrendPoint type, CORS, Settings navigation)
 - ✅ 04-08: Dependency updates (wrangler date, Zod v4, gopsutil)
 
 ---
