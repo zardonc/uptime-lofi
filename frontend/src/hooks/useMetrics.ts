@@ -4,16 +4,11 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { api, ApiClientError } from '../api/client';
-import type { ApiMetric } from '../api/types';
+import type { ApiMetric, TrendPoint } from '../api/types';
 
 const POLL_INTERVAL_MS = 30_000;
 
-export interface TrendPoint {
-  readonly time: string;
-  readonly cpu: number;
-  readonly mem: number;
-  readonly ping: number;
-}
+export type { TrendPoint };
 
 interface UseMetricsResult {
   readonly trendData: ReadonlyArray<TrendPoint>;
