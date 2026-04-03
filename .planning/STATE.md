@@ -78,7 +78,7 @@ progress:
 
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
-| 260403-kh7 | 修订 architect.md 对齐 Phase 4 安全加固变更，添加 Mermaid 凭证流转图 | 2026-04-03 | TBD | [260403-kh7-adocs-research-architect-md-phase-4-dash](./quick/260403-kh7-adocs-research-architect-md-phase-4-dash/) |
+| 260403-kh7 | 修订 architect.md 对齐 Phase 4 安全加固变更，添加 Mermaid 凭证流转图 | 2026-04-03 | c54eda4 | [260403-kh7-adocs-research-architect-md-phase-4-dash](./quick/260403-kh7-adocs-research-architect-md-phase-4-dash/) |
 
 ---
 
