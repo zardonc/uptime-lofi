@@ -56,6 +56,10 @@ progress:
 
 - **Pre-existing Hono + pnpm type resolution issue**: `tsc --noEmit` fails with "Module 'hono' has no exported member 'Hono'" due to pnpm's symlinked node_modules conflicting with Hono's package.json exports field. Code works at runtime via wrangler/esbuild. Tracked: [honojs/hono#3284](https://github.com/honojs/hono/issues/3284).
 
+## Known Issues
+
+- **PowerShell `export` error**: The bash tool injects `export CI=true DEBIAN_FRONTEND=noninteractive...` prefix before git commands. This Unix syntax fails in Windows PowerShell with "export: The term 'export' is not recognized". **Impact:** Low - commands still execute successfully despite the error message. **Workaround:** Use Git Bash terminal, or ignore the cosmetic error. Tracked: `.planning/debug/export-not-recognized.md`
+
 ## Notes
 
 - Phase 04.2 complete: 11 .js files removed, tsconfig modernized, .gitignore created
