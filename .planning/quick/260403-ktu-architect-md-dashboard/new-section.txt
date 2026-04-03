@@ -1,0 +1,147 @@
+## Dashboard 凭证体系
+
+凭证体系基于双层密钥：
+
+1. **`API_SECRET_KEY` (部署主密钥)**：系统的"Root 权限"，用于 JWT 签名验证及 UI Lock 未启用时的默认登录凭证。
+    
+2. **`UI_ACCESS_KEY` (面板访问密钥)**：用户自定义的"日常登录密码"，启用 UI Lock 后替代主密钥用于登录。
+    
+
+以下是针对这两个核心流程的完整架构设计与业务流转细节：
+
+### 1. 双模式登录机制 (Dual-Mode Authentication)
+
+Dashboard 采用**"UI Lock 开关"**控制登录模式，而非独立的首次绑定流程。
+
+**触发条件：**
+
+前端 `AuthProvider` 在 `useEffect` 中向 `POST /api/auth/refresh` 发起静默刷新（携带 `credentials: 'include'`）。若成功则恢复会话；若失败则展示登录门控组件 `LoginGate`。
+
+**模式 A：UI Lock 未启用（默认）**
+
+1. 前端 `LoginGate` 渲染密码输入框。
+    
+2. 用户输入 `API_SECRET_KEY`，前端发起 `POST /api/auth/login`（body: `{ password }`）。
+    
+3. 后端校验 `password === API_SECRET_KEY`，通过后签发双 Token 体系。
+    
+
+**模式 B：UI Lock 已启用**
+
+1. 前端启动时调用 `GET /api/auth/status` 获取 `{ is_ui_lock_enabled: true }`。
+    
+2. `LoginGate` 渲染日常登录界面，用户输入自定义 `UI_ACCESS_KEY`。
+    
+3. 前端发起 `POST /api/auth/login`（body: `{ password }`）。
+    
+4. 后端计算输入密码的 Hash，与 D1 `kv_settings` 中的 `ui_lock_hash` 比对。通过后签发双 Token 体系。
+    
+
+### 2. UI Lock 启用与禁用
+
+**A. 启用 (Enable):**
+
+1. 用户在设置页输入自定义密码，前端发起 `POST /api/auth/setup`（body: `{ admin_key, new_ui_password }`）。
+    
+2. 后端校验 `admin_key === API_SECRET_KEY`，校验失败返回 401。
+    
+3. 后端计算 `new_ui_password` 的 Hash（通过 `calculateHash` 工具函数），写入 D1：
+   - `INSERT OR REPLACE INTO kv_settings (key, value) VALUES ('ui_lock_hash', ?)`
+   - `INSERT OR REPLACE INTO kv_settings (key, value) VALUES ('ui_lock_enabled', 'true')`
+    
+4. 返回 `{ success: true }`。前端更新状态。
+    
+
+**B. 禁用 (Unlock):**
+
+1. 用户输入 `API_SECRET_KEY`，前端发起 `POST /api/auth/unlock`（body: `{ admin_key }`）。
+    
+2. 后端校验通过后，将 `kv_settings` 的 `ui_lock_enabled` 设为 `'false'`。
+    
+
+#### 核心业务流程 (Login Lifecycle)
+
+**登录验证 (`POST /api/auth/login`):**
+
+1. **频率限制：** D1 持久化登录尝试记录（`login_attempts` 表），5 次/15 分钟/IP，超限返回 429 含 `retry_after`。
+    
+2. **模式判定：** 查询 `kv_settings` 中 `ui_lock_enabled` 状态。
+    
+3. **凭证校验：**
+   - UI Lock 启用：输入密码 Hash 与 `ui_lock_hash` 比对。
+   - UI Lock 未启用：输入密码与 `API_SECRET_KEY` 直接比对。
+   - 紧急解锁：若设置 `EMERGENCY_UNLOCK_KEY` 环境变量，匹配则放行并记录审计日志。
+    
+4. **Token 签发：**
+   - 生成 `sessionId` (UUID) 和 `rawRefreshToken` (双 UUID 拼接)。
+   - 计算 `refreshTokenHash`，写入 `refresh_tokens` 表（`token_hash`, `session_id`, `status='active'`, `expires_at`）。
+   - 签发 JWT（HS256，payload: `session_id`, `role='admin'`, `aud`, `iss`, `exp=15min`）。
+   - `Set-Cookie: refresh_token=rawRefreshToken; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=604800`。
+   - 返回 `{ access_token: jwt }`。
+    
+
+**无感刷新 (`POST /api/auth/refresh`):**
+
+1. 从 Cookie 读取 `refresh_token`，计算 Hash 查询 `refresh_tokens` 表。
+    
+2. **状态判定：**
+   - `rotated` → 盗用检测，同 `session_id` 全部标记 `revoked`，返回 401。
+   - 非 `active` → 返回 401。
+   - 已过期 → 返回 401。
+    
+3. **轮换签发：**
+   - 生成新 `rawRefreshToken` 和 Hash，写入新记录（`status='active'`）。
+   - 旧记录标记 `status='rotated'`（通过 `id` 级联，无 `replaced_by` 字段）。
+   - 签发新 JWT，`Set-Cookie` 覆盖旧 Cookie。
+   - 返回 `{ access_token: newJwt }`。
+    
+
+**登出 (`POST /api/auth/logout`):**
+
+1. 经 `dashboardAuthMiddleware` 验证 JWT 和会话状态。
+    
+2. 将该 `session_id` 的所有 `refresh_tokens` 标记为 `revoked`。
+    
+3. 清除 Cookie：`Set-Cookie: refresh_token=; Max-Age=0`。
+    
+4. 返回 `{ success: true }`。
+    
+
+#### 前端实现细节
+
+- **HTTP 客户端：** 自定义 `apiFetch` 封装（fetch-based，非 Axios）。
+    
+- **Token 存储：** Access Token 仅存内存变量（`let accessToken: string | null = null`），刷新页面即丢失。
+    
+- **401 自动刷新：** `apiFetch` 捕获 401 后调用 `tryRefresh()`，成功后用新 Token 重试原请求。并发刷新通过 `refreshPromise` 合并（coalesced）。
+    
+- **静默恢复：** `AuthProvider` 在 mount 时尝试 `/api/auth/refresh`，成功则自动恢复会话。
+    
+- **Cookie 处理：** 无前端 Cookie 操作库。Refresh Token 通过浏览器原生 Cookie 机制，由 `credentials: 'include'` 自动携带。
+    
+
+#### 存储方式设计
+
+- **后端存储：**
+  - `kv_settings` 表：`ui_lock_hash` (Hashed)、`ui_lock_enabled` (布尔字符串)。
+  - `refresh_tokens` 表：`token_hash` (Hashed)、`session_id`、`status` (active/rotated/revoked)、`expires_at`。
+  - `login_attempts` 表：`ip_address`、`attempt_count`、`first_attempt_at`、`last_attempt_at`。
+  - **绝不存储明文密码或 Refresh Token。**
+    
+- **前端存储：** Access Token 仅存内存，Refresh Token 由浏览器 HttpOnly Cookie 管理，前端 JS 不可见。
+    
+
+#### 是否需要 Dashboard 实例 ID (Instance ID) 
+
+**结论：强烈建议"不需要"分配实例 ID。**
+
+**架构原因推演：**
+
+1. **单点真实性 (Single Source of Truth)：** 你的架构是"纯前端静态分发 + 集中式 Worker API"。前端没有任何属于自己的持久化状态，它只是后端数据的一个"展示投影"。
+    
+2. **全局管控体验：** 如果你引入实例 ID（比如给你的笔记本分配 ID_A，给手机分配 ID_B），意味着你需要为每个设备维护不同的密码或授权状态（类似于设备管理机制）。对于一个轻量级的 Uptime 监控系统来说，这属于极其严重的**过度设计 (Over-engineering)**，会引入海量的边角逻辑（如设备吊销、多设备状态同步）。
+    
+3. **最佳实践：** 采用**"全局级 UI 访问锁"**。只要你的 D1 数据库开启了密码保护，无论用户从 Vercel 的域名访问，还是从 Cloudflare Pages 的域名访问，或是用手机/电脑访问，验证的都是 D1 里的那唯一一个密码哈希。这保证了跨设备的无缝漫游体验。
+
+---
+
