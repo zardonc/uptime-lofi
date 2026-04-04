@@ -15,3 +15,16 @@ ENVIRONMENT = "development"
 binding = "DB"
 database_name = "uptime-lofi-db"
 database_id = "local-dev-id"
+
+# KV namespace for instant session blacklist (logout revocation across all edge instances)
+# Run: wrangler kv:namespace create SESSION_BLACKLIST
+# Replace the placeholder IDs below with the actual namespace IDs from the CLI output
+[[kv_namespaces]]
+binding = "SESSION_BLACKLIST"
+id = "REPLACE_WITH_NAMESPACE_ID"
+preview_id = "REPLACE_WITH_PREVIEW_ID"
+
+# Cron Trigger for periodic cleanup of expired tokens, login attempts, and audit log entries
+# Runs every 6 hours — lightweight, stays within Cloudflare Free Tier limits
+[triggers]
+crons = ["0 */6 * * *"]
