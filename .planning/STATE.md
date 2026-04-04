@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: MVP - Core Monitoring
 status: Executing Phase 05
-last_updated: "2026-04-04T05:40:53.243Z"
+last_updated: "2026-04-03T22:45:00Z"
 progress:
   total_phases: 3
   completed_phases: 0
@@ -22,7 +22,7 @@ progress:
 | 3 - Frontend Dashboard | 🔄 In Progress | 78% (7/9 tasks) |
 | 04.2 - Backend Refactor & Bug Fix | ✅ Complete | 100% |
 | 4 - Security & Payload Hardening | 🔄 In Progress | 87.5% (7/8 plans) |
-| 5 - System Hardening & Quota Optimization | 🔄 In Progress | 17% (1/6 plans) |
+| 5 - System Hardening & Quota Optimization | 🔄 In Progress | 50% (3/6 plans) |
 | 6 - Performance & Scaling Optimization | ⏳ Planned | 0% |
 | 7 - Frontend UX & Accessibility | ⏳ Planned | 0% |
 | 8 - Quality Assurance & Testing | ⏳ Planned | 0% |
@@ -42,6 +42,7 @@ progress:
 - [Phase 04-08]: Dependency updates — Wrangler compatibility date to 2026-04-01, Zod v4 verified, gopsutil v3 assessed, full security audit completed
 - [Phase 05-02]: Token TTL extension — Access tokens 60min (was 15min), refresh tokens 30 days (was 7 days), named constants replace magic numbers, opportunistic expired token cleanup during login
 - [Phase 05]: Used Web Crypto API PBKDF2 instead of bcrypt (native to Cloudflare Workers)
+- [Phase 05-03]: Rate limiting on /setup and /unlock — strictRateLimit (5 req/60s per IP) applied before /auth/* wildcard; retry_after header added to 401 responses
 
 ### Design System (Locked)
 
