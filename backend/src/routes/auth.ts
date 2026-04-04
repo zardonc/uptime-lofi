@@ -122,21 +122,21 @@ authApi.post("/login", zValidator("json", z.object({ password: z.string() })), a
 		if (attempt) {
 			await db.prepare(
 				`UPDATE login_attempts SET attempt_count = attempt_count + 1, last_attempt_at = ?
-				WHERE ip_address = ?`
-			).bind(now, clientIp).run();
+				WHERE ip_hash = ?`
+			).bind(now, ipHash).run();
 		} else {
 			await db.prepare(
-				`INSERT INTO login_attempts (ip_address, first_attempt_at, last_attempt_at)
+				`INSERT INTO login_attempts (ip_hash, first_attempt_at, last_attempt_at)
 				VALUES (?, ?, ?)`
-			).bind(clientIp, now, now).run();
+			).bind(ipHash, now, now).run();
 		}
 		return c.json({ error: "Invalid credentials" }, 401);
 	}
 
 	// Clear login attempts on successful login
 	await db.prepare(
-		`DELETE FROM login_attempts WHERE ip_address = ?`
-	).bind(clientIp).run();
+		`DELETE FROM login_attempts WHERE ip_hash = ?`
+	).bind(ipHash).run();
 
   const sessionId = crypto.randomUUID();
   const rawRefreshToken = crypto.randomUUID() + crypto.randomUUID();
