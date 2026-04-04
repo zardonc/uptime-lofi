@@ -7,6 +7,10 @@ import { strictRateLimit } from "../middleware/rateLimiter";
 import { dashboardAuthMiddleware } from "../middleware/dashboardAuth";
 import { calculateHash } from "../utils/crypto";
 
+// Token TTL constants
+const ACCESS_TOKEN_TTL_SECONDS = 60 * 60; // 60 minutes
+const REFRESH_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60; // 30 days
+
 const authApi = new Hono<{ Bindings: { DB: D1Database; API_SECRET_KEY: string } }>();
 
 // Apply strict rate limiting to login endpoint
@@ -119,7 +123,7 @@ authApi.post("/login", zValidator("json", z.object({ password: z.string() })), a
   const rawRefreshToken = crypto.randomUUID() + crypto.randomUUID();
   const refreshTokenHash = await calculateHash(rawRefreshToken);
 
-  const expiresAt = Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60);
+  const expiresAt = Math.floor(Date.now() / 1000) + REFRESH_TOKEN_TTL_SECONDS;
 
   await db.prepare("INSERT INTO refresh_tokens (token_hash, session_id, status, expires_at) VALUES (?, ?, 'active', ?)")
     .bind(refreshTokenHash, sessionId, expiresAt)
@@ -130,10 +134,10 @@ authApi.post("/login", zValidator("json", z.object({ password: z.string() })), a
       role: 'admin',
       aud: c.env.JWT_AUDIENCE as string | undefined,
       iss: c.env.JWT_ISSUER as string | undefined,
-      exp: Math.floor(Date.now() / 1000) + (15 * 60)
+      exp: Math.floor(Date.now() / 1000) + ACCESS_TOKEN_TTL_SECONDS
   }, c.env.API_SECRET_KEY);
 
-  c.header('Set-Cookie', `refresh_token=${rawRefreshToken}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${7*24*60*60}`);
+  c.header('Set-Cookie', `refresh_token=${rawRefreshToken}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${REFRESH_TOKEN_TTL_SECONDS}`);
 
   return c.json({ access_token: jwt });
 });
@@ -161,7 +165,7 @@ authApi.post("/refresh", async (c) => {
 
   const newRawRefreshToken = crypto.randomUUID() + crypto.randomUUID();
   const newHash = await calculateHash(newRawRefreshToken);
-  const newExpiresAt = Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60);
+  const newExpiresAt = Math.floor(Date.now() / 1000) + REFRESH_TOKEN_TTL_SECONDS;
 
   // We explicitly log rotation hierarchy
   await db.batch([
@@ -174,10 +178,10 @@ authApi.post("/refresh", async (c) => {
       role: 'admin',
       aud: c.env.JWT_AUDIENCE as string | undefined,
       iss: c.env.JWT_ISSUER as string | undefined,
-      exp: Math.floor(Date.now() / 1000) + (15 * 60)
+      exp: Math.floor(Date.now() / 1000) + ACCESS_TOKEN_TTL_SECONDS
   }, c.env.API_SECRET_KEY);
 
-  c.header('Set-Cookie', `refresh_token=${newRawRefreshToken}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${7*24*60*60}`);
+  c.header('Set-Cookie', `refresh_token=${newRawRefreshToken}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${REFRESH_TOKEN_TTL_SECONDS}`);
 
   return c.json({ access_token: jwt });
 });

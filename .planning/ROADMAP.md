@@ -26,34 +26,34 @@ Cloud-native uptime monitoring system with zero infrastructure requirements. Bui
 ### v1.0 MVP - Core Monitoring
 **Status:** In Progress
 
-**Description:** Working probe ‚Ü?API ‚Ü?database ‚Ü?dashboard pipeline with basic monitoring capabilities.
+**Description:** Working probe ÔøΩ?API ÔøΩ?database ÔøΩ?dashboard pipeline with basic monitoring capabilities.
 
 ---
 
 ## Phase Overview
 
-### Phase 1: Infrastructure ‚ú?**Goal:** Backend skeleton, database schema, deployment workflow
+### Phase 1: Infrastructure ÔøΩ?**Goal:** Backend skeleton, database schema, deployment workflow
 
 **Requirements:** [REQ-001, REQ-005]
 
 **Plans:** 4 plans
-- ‚ú?01-01: Initialize Cloudflare Pages + Hono Worker
-- ‚ú?01-02: D1 Schema (nodes, raw_metrics, daily_stats)
-- ‚ú?01-03: Wrangler deployment scripts
-- ‚ú?01-04: HMAC-SHA256 auth middleware + PSK validation
+- ÔøΩ?01-01: Initialize Cloudflare Pages + Hono Worker
+- ÔøΩ?01-02: D1 Schema (nodes, raw_metrics, daily_stats)
+- ÔøΩ?01-03: Wrangler deployment scripts
+- ÔøΩ?01-04: HMAC-SHA256 auth middleware + PSK validation
 
 ---
 
-### Phase 2: Core Probe ‚ú?**Goal:** Cross-platform Go probe with metrics collection and push
+### Phase 2: Core Probe ÔøΩ?**Goal:** Cross-platform Go probe with metrics collection and push
 
 **Requirements:** [REQ-002, REQ-003]
 
 **Plans:** 5 plans
-- ‚ú?02-01: Go CLI framework (Cobra + Viper)
-- ‚ú?02-02: System metrics collector (gopsutil)
-- ‚ú?02-03: HMAC signing + batching + exponential backoff
-- ‚ú?02-04: Worker POST /api/push endpoint (Zod + batch insert)
-- ‚ú?02-05: Local E2E validation
+- ÔøΩ?02-01: Go CLI framework (Cobra + Viper)
+- ÔøΩ?02-02: System metrics collector (gopsutil)
+- ÔøΩ?02-03: HMAC signing + batching + exponential backoff
+- ÔøΩ?02-04: Worker POST /api/push endpoint (Zod + batch insert)
+- ÔøΩ?02-05: Local E2E validation
 
 ---
 
@@ -63,13 +63,13 @@ Cloud-native uptime monitoring system with zero infrastructure requirements. Bui
 **Requirements:** [REQ-004, REQ-005]
 
 **Plans:** 7 plans (completed)
-- ‚ú?03-01: React + Vite initialization (vanilla CSS)
-- ‚ú?03-02: Morandi Green design system + sidebar
-- ‚ú?03-03: Core components (MetricCard, TrendChart, UptimeRing, NodeList)
-- ‚ú?03-04: V2 Auth schema (refresh_tokens, salt)
-- ‚ú?03-05: JWT/PSK middleware split
-- ‚ú?03-06: Backend read APIs (GET /api/nodes, /metrics, /stats)
-- ‚ú?03-07: Frontend API integration + login security
+- ÔøΩ?03-01: React + Vite initialization (vanilla CSS)
+- ÔøΩ?03-02: Morandi Green design system + sidebar
+- ÔøΩ?03-03: Core components (MetricCard, TrendChart, UptimeRing, NodeList)
+- ÔøΩ?03-04: V2 Auth schema (refresh_tokens, salt)
+- ÔøΩ?03-05: JWT/PSK middleware split
+- ÔøΩ?03-06: Backend read APIs (GET /api/nodes, /metrics, /stats)
+- ÔøΩ?03-07: Frontend API integration + login security
 
 ---
 
@@ -80,25 +80,25 @@ Cloud-native uptime monitoring system with zero infrastructure requirements. Bui
 
 ---
 
-### Phase 4: Security & Payload Hardening ‚è?**Goal:** Protect the API from abuse and harden sensitive operations. Address all security concerns from CONCERNS.md audit.
+### Phase 4: Security & Payload Hardening ÔøΩ?**Goal:** Protect the API from abuse and harden sensitive operations. Address all security concerns from CONCERNS.md audit.
 
 **Acceptance Criteria:** Security scan passes with zero high/critical vulnerabilities; rate limiting verified via load testing; all CONCERNS.md security items resolved.
 
 **Requirements:** Security (REQ-001 - REQ-005)
 
 **Plans:** 8/8 plans complete
-- ‚ú?04-01: Rate limiting middleware (permissive/standard/strict presets)
-- ‚ú?04-02: Payload hardening (size limits, strict Zod validation)
-- ‚ú?04-03: CORS and security headers configuration
-- ‚ú?04-04: JWT hardening (aud/iss validation, login rate limiting)
-- ‚ú?04-05: Security vulnerabilities (break-glass key, password generator, X-Node-Id, login tracker, JWT types)
-- ‚ú?04-06: Missing features (logout endpoint, health check, node API stubs)
-- ‚ú?04-07: Tech debt (duplicated functions, TrendPoint type, CORS, Settings navigation)
-- ‚ú?04-08: Dependency updates (wrangler date, Zod v4, gopsutil)
+- ÔøΩ?04-01: Rate limiting middleware (permissive/standard/strict presets)
+- ÔøΩ?04-02: Payload hardening (size limits, strict Zod validation)
+- ÔøΩ?04-03: CORS and security headers configuration
+- ÔøΩ?04-04: JWT hardening (aud/iss validation, login rate limiting)
+- ÔøΩ?04-05: Security vulnerabilities (break-glass key, password generator, X-Node-Id, login tracker, JWT types)
+- ÔøΩ?04-06: Missing features (logout endpoint, health check, node API stubs)
+- ÔøΩ?04-07: Tech debt (duplicated functions, TrendPoint type, CORS, Settings navigation)
+- ÔøΩ?04-08: Dependency updates (wrangler date, Zod v4, gopsutil)
 
 ---
 
-### Phase 04.2: Backend refactor and bug fix ‚ú?(INSERTED)
+### Phase 04.2: Backend refactor and bug fix ÔøΩ?(INSERTED)
 
 **Goal:** Clean up duplicate .js files, fix TypeScript compilation errors, and verify API connectivity.
 **Requirements**: TBD
@@ -106,8 +106,8 @@ Cloud-native uptime monitoring system with zero infrastructure requirements. Bui
 **Plans:** 6/8 plans executed
 
 Plans:
-- ‚ú?04.2-01: Remove duplicate .js files, configure TypeScript output directory, add .gitignore rules
-- ‚ú?04.2-02: Fix TypeScript import resolution, add explicit type annotations, verify API endpoints
+- ÔøΩ?04.2-01: Remove duplicate .js files, configure TypeScript output directory, add .gitignore rules
+- ÔøΩ?04.2-02: Fix TypeScript import resolution, add explicit type annotations, verify API endpoints
 
 **Notes:**
 - 11 duplicate .js files removed from backend/src/
@@ -116,17 +116,24 @@ Plans:
 - wrangler deploy --dry-run succeeds (639.42 KiB)
 - Pre-existing Hono + pnpm type resolution issue documented (honojs/hono#3284)
 
-### Phase 5: Data Integrity & Error Handling ‚è?**Goal:** Prevent information disclosure and ensure robust data processing.
+### Phase 5: System Hardening & Quota Optimization ‚è≥
+**Goal:** Address all unhandled P0 and P1 items from Cloudflare Free Tier technical audit. Ensure production-ready security under Free Tier constraints.
 
-**Acceptance Criteria:** All query params validated with Zod; no SQL errors exposed to clients.
+**Acceptance Criteria:** PBKDF2 hashing at 10k iterations; Access Token 60min TTL; rate limiting on all auth endpoints; emergency unlock revokes sessions; login query chain optimized; cron cleanup active; IP addresses hashed; KV instant revocation.
 
-**Requirements:** Data Integrity (REQ-001 - REQ-005)
+**Requirements:** Security Hardening (SEC-001 - SEC-006)
 
-**Plans:** TBD
+**Plans:** 6 plans in 3 waves
+- ‚¨ú 05-01: PBKDF2 password hashing migration (10k iterations, P0-1)
+- ‚¨ú 05-02: Token TTL extension (60min access, 30d refresh, P0-2)
+- ‚¨ú 05-03: Rate limiting for /setup and /unlock (P0-4)
+- ‚¨ú 05-04: Emergency Unlock session revocation + audit_log + IP hashing (P0-5, P1-4)
+- ‚¨ú 05-05: Login query chain optimization (P1-1)
+- ‚¨ú 05-06: Cron Trigger cleanup + KV session blacklist (P1-2, P1-5)
 
 ---
 
-### Phase 6: Performance & Scaling Optimization ‚è?**Goal:** Ensure the system remains responsive as data volume grows.
+### Phase 6: Performance & Scaling Optimization ÔøΩ?**Goal:** Ensure the system remains responsive as data volume grows.
 
 **Acceptance Criteria:** Load test with 1000+ nodes shows <200ms p95 response time.
 
@@ -136,7 +143,7 @@ Plans:
 
 ---
 
-### Phase 7: Frontend UX & Accessibility ‚è?**Goal:** Improve the reliability and usability of the dashboard.
+### Phase 7: Frontend UX & Accessibility ÔøΩ?**Goal:** Improve the reliability and usability of the dashboard.
 
 **Acceptance Criteria:** No console errors; consistent loading states; WCAG 2.1 AA compliant forms.
 
@@ -165,8 +172,8 @@ Plans:
 - Unit tests for JWT authentication and refresh rotation
 - Integration tests for metric push flow
 - Integration test for batch failure rollback scenario
-- ‚¨?**03-08 (MOVED):** E2E basic probe validation
-- ‚¨?**03-09 (MOVED):** E2E Docker probe validation
+- ÔøΩ?**03-08 (MOVED):** E2E basic probe validation
+- ÔøΩ?**03-09 (MOVED):** E2E Docker probe validation
 
 ---
 
@@ -182,8 +189,8 @@ Plans:
 
 ## State Tracking
 
-- **Current Phase:** Phase 04.2 ‚ú?Complete
-- **Next Phase:** Phase 4 (Security & Payload Hardening) ‚Ä?4 plans ready
+- **Current Phase:** Phase 04.2 ÔøΩ?Complete
+- **Next Phase:** Phase 4 (Security & Payload Hardening) ÔøΩ?4 plans ready
 - **Milestone v1.1:** Codebase Health & Security Hardening (PLN-002)
 - **Active Blockers:** Pre-existing Hono + pnpm type resolution issue (non-blocking for runtime)
 
