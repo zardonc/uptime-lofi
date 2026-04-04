@@ -5,7 +5,7 @@ import { sign } from "hono/jwt";
 import { getCookie } from "hono/cookie";
 import { strictRateLimit } from "../middleware/rateLimiter";
 import { dashboardAuthMiddleware } from "../middleware/dashboardAuth";
-import { hashPassword, verifyPassword, generateSalt, hashToken } from "../utils/crypto";
+import { hashPassword, verifyPassword, generateSalt, hashToken, hashIpAddress } from "../utils/crypto";
 
 // Token TTL constants
 const ACCESS_TOKEN_TTL_SECONDS = 60 * 60; // 60 minutes
@@ -24,7 +24,7 @@ authApi.use("/login", strictRateLimit);
 authApi.post("/setup", zValidator("json", z.object({ admin_key: z.string(), new_ui_password: z.string() })), async (c) => {
   const { admin_key, new_ui_password } = c.req.valid("json");
   if (admin_key !== c.env.API_SECRET_KEY) {
-    return c.json({ error: "Unauthorized" }, 401);
+    return c.json({ error: "Unauthorized", retry_after: 60 }, 401);
   }
 
   const salt = generateSalt(16);
@@ -47,7 +47,7 @@ authApi.get("/status", async (c) => {
 authApi.post("/unlock", zValidator("json", z.object({ admin_key: z.string() })), async (c) => {
   const { admin_key } = c.req.valid("json");
   if (admin_key !== c.env.API_SECRET_KEY) {
-    return c.json({ error: "Unauthorized" }, 401);
+    return c.json({ error: "Unauthorized", retry_after: 60 }, 401);
   }
 
   await c.env.DB.prepare("INSERT OR REPLACE INTO kv_settings (key, value) VALUES ('ui_lock_enabled', 'false')").bind().run();
