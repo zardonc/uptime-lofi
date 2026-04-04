@@ -3,15 +3,14 @@ import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { sign } from "hono/jwt";
 import { getCookie } from "hono/cookie";
+import { strictRateLimit } from "../middleware/rateLimiter";
+import { dashboardAuthMiddleware } from "../middleware/dashboardAuth";
+import { calculateHash } from "../utils/crypto";
 
 const authApi = new Hono<{ Bindings: { DB: D1Database; API_SECRET_KEY: string } }>();
 
-async function calculateHash(input: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(input);
-  const hash = await crypto.subtle.digest("SHA-256", data);
-  return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
-}
+// Apply strict rate limiting to login endpoint
+authApi.use("/login", strictRateLimit);
 
 authApi.post("/setup", zValidator("json", z.object({ admin_key: z.string(), new_ui_password: z.string() })), async (c) => {
   const { admin_key, new_ui_password } = c.req.valid("json");
@@ -42,31 +41,79 @@ authApi.post("/unlock", zValidator("json", z.object({ admin_key: z.string() })),
 
   await c.env.DB.prepare("INSERT OR REPLACE INTO kv_settings (key, value) VALUES ('ui_lock_enabled', 'false')").bind().run();
   
-  return c.json({ success: true, message: "UI Lock disabled" });
+	return c.json({ success: true, message: "UI Lock disabled" });
 });
 
+// D1-based login failure tracking (cross-instance rate limiting)
+// Rate limit: 5 attempts per 15 minutes per IP
+
 authApi.post("/login", zValidator("json", z.object({ password: z.string() })), async (c) => {
-  const { password } = c.req.valid("json");
-  const db = c.env.DB;
+	const { password } = c.req.valid("json");
+	const db = c.env.DB;
 
-  const isEnabledRecord = await db.prepare("SELECT value FROM kv_settings WHERE key = 'ui_lock_enabled'").first<{ value: string }>();
-  const isUiLockEnabled = isEnabledRecord?.value === 'true';
+	// Extract client IP early for rate limiting and audit logging
+	const clientIp = (c.req.header("CF-Connecting-IP") || c.req.header("X-Forwarded-For") || "unknown").split(",")[0].trim();
+	const now = Math.floor(Date.now() / 1000);
+	const windowStart = now - 900; // 15 minutes
 
-  let isValid = false;
+	// Check and track failed login attempts using D1 (cross-instance)
+	const attempt = await db.prepare(
+		`SELECT attempt_count, first_attempt_at FROM login_attempts
+		WHERE ip_address = ? AND last_attempt_at > ?`
+	).bind(clientIp, windowStart).first<{ attempt_count: number; first_attempt_at: number }>();
 
-  if (isUiLockEnabled) {
-    const hashRecord = await db.prepare("SELECT value FROM kv_settings WHERE key = 'ui_lock_hash'").first<{ value: string }>();
-    const inputHash = await calculateHash(password);
-    isValid = (inputHash === hashRecord?.value);
+	if (attempt && attempt.attempt_count >= 5) {
+		const resetIn = attempt.first_attempt_at + 900 - now;
+		return c.json({
+			error: "Too many failed attempts",
+			retry_after: resetIn
+		}, 429);
+	}
 
-    if (!isValid && password === c.env.API_SECRET_KEY) {
-      isValid = true; // Break-glass with master key
-    }
-  } else {
-    isValid = (password === c.env.API_SECRET_KEY);
-  }
+	const isEnabledRecord = await db.prepare("SELECT value FROM kv_settings WHERE key = 'ui_lock_enabled'").first<{ value: string }>();
+	const isUiLockEnabled = isEnabledRecord?.value === 'true';
 
-  if (!isValid) return c.json({ error: "Unauthorized" }, 401);
+	let isValid = false;
+
+	if (isUiLockEnabled) {
+		const hashRecord = await db.prepare("SELECT value FROM kv_settings WHERE key = 'ui_lock_hash'").first<{ value: string }>();
+		const inputHash = await calculateHash(password);
+		isValid = (inputHash === hashRecord?.value);
+
+		// REMOVED: Break-glass fallback removed for security
+		// Master API key should never be used as login password
+		// If UI lock password is lost, admin must rotate via database directly
+		// or use a separately configured EMERGENCY_UNLOCK_KEY (if set)
+		const emergencyKey = c.env.EMERGENCY_UNLOCK_KEY as string | undefined;
+		if (!isValid && emergencyKey && password === emergencyKey) {
+			// Log emergency access for audit trail
+			console.warn(`Emergency unlock used at ${new Date().toISOString()} from IP ${clientIp}`);
+			isValid = true;
+		}
+	} else {
+		isValid = (password === c.env.API_SECRET_KEY);
+	}
+
+	// Track failed attempts in D1
+	if (!isValid) {
+		if (attempt) {
+			await db.prepare(
+				`UPDATE login_attempts SET attempt_count = attempt_count + 1, last_attempt_at = ?
+				WHERE ip_address = ?`
+			).bind(now, clientIp).run();
+		} else {
+			await db.prepare(
+				`INSERT INTO login_attempts (ip_address, first_attempt_at, last_attempt_at)
+				VALUES (?, ?, ?)`
+			).bind(clientIp, now, now).run();
+		}
+		return c.json({ error: "Invalid credentials" }, 401);
+	}
+
+	// Clear login attempts on successful login
+	await db.prepare(
+		`DELETE FROM login_attempts WHERE ip_address = ?`
+	).bind(clientIp).run();
 
   const sessionId = crypto.randomUUID();
   const rawRefreshToken = crypto.randomUUID() + crypto.randomUUID();
@@ -81,6 +128,8 @@ authApi.post("/login", zValidator("json", z.object({ password: z.string() })), a
   const jwt = await sign({
       session_id: sessionId,
       role: 'admin',
+      aud: c.env.JWT_AUDIENCE as string | undefined,
+      iss: c.env.JWT_ISSUER as string | undefined,
       exp: Math.floor(Date.now() / 1000) + (15 * 60)
   }, c.env.API_SECRET_KEY);
 
@@ -123,12 +172,36 @@ authApi.post("/refresh", async (c) => {
   const jwt = await sign({
       session_id: tokenRecord.session_id,
       role: 'admin',
+      aud: c.env.JWT_AUDIENCE as string | undefined,
+      iss: c.env.JWT_ISSUER as string | undefined,
       exp: Math.floor(Date.now() / 1000) + (15 * 60)
   }, c.env.API_SECRET_KEY);
 
   c.header('Set-Cookie', `refresh_token=${newRawRefreshToken}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${7*24*60*60}`);
 
   return c.json({ access_token: jwt });
+});
+
+// Logout endpoint - revoke all tokens for session
+authApi.post("/logout", dashboardAuthMiddleware, async (c) => {
+  const payload = c.get('jwtPayload');
+  if (!payload) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  const db = c.env.DB;
+
+  // Revoke all refresh tokens for this session
+  await db.prepare(
+    `UPDATE refresh_tokens
+    SET status = 'revoked', updated_at = strftime('%s', 'now')
+    WHERE session_id = ?`
+  ).bind(payload.session_id).run();
+
+  // Clear the refresh token cookie
+  c.header('Set-Cookie', 'refresh_token=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0');
+
+  return c.json({ success: true, message: "Logged out successfully" });
 });
 
 export { authApi };

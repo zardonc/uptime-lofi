@@ -1,0 +1,11 @@
+# Compiled output
+dist/
+
+# Dependencies
+node_modules/
+
+# Wrangler
+.wrangler/
+
+# Environment variables with secrets
+.dev.vars

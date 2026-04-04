@@ -2,6 +2,8 @@
 // Mock Data Layer — Uptime LoFi Dashboard
 // ═══════════════════════════════════════════
 
+import type { TrendPoint } from '../api/types';
+
 export type NodeStatus = 'online' | 'degraded' | 'offline' | 'paused';
 
 export interface MonitorNode {
@@ -15,12 +17,7 @@ export interface MonitorNode {
   uptimeRatio: number;
 }
 
-export interface TrendPoint {
-  time: string;
-  cpu: number;
-  mem: number;
-  ping: number;
-}
+export type { TrendPoint };
 
 export interface ActivityEvent {
   id: string;

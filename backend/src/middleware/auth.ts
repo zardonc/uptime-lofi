@@ -46,13 +46,19 @@ export const probeAuthMiddleware = async (c: Context, next: Next) => {
     throw new HTTPException(500, { message: "API_SECRET_KEY is not configured on the edge" });
   }
 
-  const authHeader = c.req.header("Authorization");
-  const timestampStr = c.req.header("X-Timestamp");
-  const nodeId = c.req.header("X-Node-Id");
+	const authHeader = c.req.header("Authorization");
+	const timestampStr = c.req.header("X-Timestamp");
+	const nodeId = c.req.header("X-Node-Id");
 
-  if (!authHeader || !authHeader.startsWith("Bearer ") || !timestampStr || !nodeId) {
-    throw new HTTPException(401, { message: "Missing Authentication Headers (Authorization, X-Timestamp, or X-Node-Id)" });
-  }
+	if (!authHeader || !authHeader.startsWith("Bearer ") || !timestampStr || !nodeId) {
+		throw new HTTPException(401, { message: "Missing Authentication Headers (Authorization, X-Timestamp, or X-Node-Id)" });
+	}
+
+	// SECURITY: Validate X-Node-Id format to prevent injection and ensure consistency
+	// The node ID is used in database queries and must be alphanumeric with optional underscores/hyphens
+	if (!/^[a-zA-Z0-9_-]+$/.test(nodeId)) {
+		throw new HTTPException(400, { message: "Invalid node ID format" });
+	}
 
   const timestamp = parseInt(timestampStr, 10);
   const now = Math.floor(Date.now() / 1000);
@@ -80,10 +86,13 @@ export const probeAuthMiddleware = async (c: Context, next: Next) => {
     rawBody = await c.req.raw.clone().text();
   }
 
-  const isValid = await verifySignature(expectedPsk, timestamp, rawBody, signature);
-  if (!isValid) {
-    throw new HTTPException(401, { message: "Invalid HMAC Signature" });
-  }
+	const isValid = await verifySignature(expectedPsk, timestamp, rawBody, signature);
+	if (!isValid) {
+		// SECURITY: Log failed authentication attempts for audit trail
+		const clientIp = c.req.header("CF-Connecting-IP") || "unknown";
+		console.warn(`Auth failed for node ${nodeId} from IP ${clientIp}`);
+		throw new HTTPException(401, { message: "Invalid HMAC Signature" });
+	}
 
   await next();
 };

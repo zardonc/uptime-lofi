@@ -29,10 +29,18 @@ function generateMockTrend(): ReadonlyArray<TrendPoint> {
 }
 
 // ── Derive activity events from node state ──
-function deriveActivity(nodes: ReadonlyArray<{ readonly name: string; readonly status: string }>): ReadonlyArray<ActivityEvent> {
+function formatRelativeTime(timestamp: number): string {
+  const seconds = Math.floor(Date.now() / 1000 - timestamp);
+  if (seconds < 60) return 'just now';
+  if (seconds < 3600) return `${Math.floor(seconds / 60)} minutes ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours ago`;
+  return `${Math.floor(seconds / 86400)} days ago`;
+}
+
+function deriveActivity(nodes: ReadonlyArray<{ readonly name: string; readonly status: string; readonly last_heartbeat?: number }>): ReadonlyArray<ActivityEvent> {
   return nodes.slice(0, 5).map((n, i) => ({
     id: `derived-${i}`,
-    timestamp: 'now',
+    timestamp: n.last_heartbeat ? formatRelativeTime(n.last_heartbeat) : 'just now',
     type: n.status === 'online' ? 'online' : n.status === 'offline' ? 'offline' : 'warning',
     node: n.name,
     message: n.status === 'online' ? 'Node reporting normally' : n.status === 'offline' ? 'Node not responding' : 'Node performance degraded',

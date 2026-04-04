@@ -5,7 +5,7 @@
 
 import { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import type { ReactNode } from 'react';
-import { api, setAccessToken, ApiClientError } from '../api/client';
+import { api, setAccessToken, getAccessToken, ApiClientError } from '../api/client';
 
 interface AuthState {
   readonly isAuthenticated: boolean;
@@ -65,9 +65,23 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
     }
   }, []);
 
-  const logout = useCallback(() => {
-    setAccessToken(null);
-    setIsAuthenticated(false);
+  const logout = useCallback(async () => {
+    const token = getAccessToken();
+    try {
+      // Call backend to revoke refresh token
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+    } catch (error) {
+      // Log but don't fail - token will expire anyway
+      console.warn('Logout API call failed:', error);
+    } finally {
+      // Clear local state regardless of API success
+      setAccessToken(null);
+      setIsAuthenticated(false);
+    }
   }, []);
 
   return (

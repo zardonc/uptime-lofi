@@ -44,3 +44,10 @@ export interface ApiError {
 export interface LoginResponse {
   readonly access_token: string;
 }
+
+export interface TrendPoint {
+  readonly time: string;
+  readonly cpu: number;
+  readonly mem: number;
+  readonly ping: number;
+}

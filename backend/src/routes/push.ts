@@ -4,17 +4,27 @@ import { zValidator } from "@hono/zod-validator";
 
 const pushApi = new Hono<{ Bindings: { DB: D1Database } }>();
 
-const metricSchema = z.object({
-  node_id: z.string(),
-  timestamp: z.number(),
-  ping: z.number().optional(),
-  cpu: z.number(),
-  mem: z.number(),
-  is_up: z.boolean(),
-  containers_json: z.string().optional(),
-});
+// Query limits
+const MAX_BATCH_SIZE = 100
 
-const batchPayloadSchema = z.array(metricSchema);
+// Validation for a single metrics entry
+const metricSchema = z.object({
+  node_id: z.string().regex(/^[a-zA-Z0-9_-]+$/, { message: 'node_id must match ^[a-zA-Z0-9_-]+$' }),
+  timestamp: z.number().int(),
+  ping: z.number().max(60000, { message: 'ping must be <= 60000' }).optional(),
+  cpu: z.number().min(0, { message: 'cpu must be >= 0' }).max(100, { message: 'cpu must be <= 100' }),
+  mem: z.number().min(0, { message: 'mem must be >= 0' }).max(100, { message: 'mem must be <= 100' }),
+  is_up: z.boolean(),
+  containers_json: z.string().max(10000, { message: 'containers_json length must be <= 10000' }).optional(),
+}).superRefine((data, ctx) => {
+  // Timestamp must be within last 24 hours and not in the future
+  const now = Math.floor(Date.now() / 1000)
+  if (typeof data.timestamp !== 'number' || data.timestamp > now || data.timestamp < now - 24 * 60 * 60) {
+    ctx.addIssue({ path: ['timestamp'], code: z.ZodIssueCode.custom, message: 'timestamp must be within last 24 hours and not in the future' })
+  }
+})
+
+const batchPayloadSchema = z.array(metricSchema).max(MAX_BATCH_SIZE, { message: 'Batch size must be <= 100' })
 
 pushApi.post(
   "/",

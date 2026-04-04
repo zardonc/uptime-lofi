@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api/client';
+import { useAuth } from '../hooks/useAuth';
 import { Shield, ShieldAlert, KeyRound, Loader2 } from 'lucide-react';
 
 export function Settings() {
+  const { logout } = useAuth();
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [uiLockEnabled, setUiLockEnabled] = useState(false);
   const [password, setPassword] = useState('');
@@ -22,10 +24,15 @@ export function Settings() {
       });
   }, []);
 
-  const generateRandom = () => {
-    const randomPass = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8);
-    setPassword(randomPass);
-  };
+	const generateRandom = () => {
+		// Secure password generation using Web Crypto API
+		const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+		const length = 12;
+		const values = new Uint32Array(length);
+		crypto.getRandomValues(values);
+		const randomPass = Array.from(values, v => charset[v % charset.length]).join('');
+		setPassword(randomPass);
+	};
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,9 +51,10 @@ export function Settings() {
         password: uiLockEnabled ? password : '',
       });
       setSuccess(true);
-      // Wait a moment so user sees success message, then hard reload to verify login state
-      setTimeout(() => {
-        window.location.replace('/login');
+      // Logout so user must re-authenticate with new credentials
+      // LoginGate will automatically show the login form when accessToken is null
+      setTimeout(async () => {
+        await logout();
       }, 1500);
     } catch (err: any) {
       setError(err.message || 'Failed to save settings');
