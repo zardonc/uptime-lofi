@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: MVP - Core Monitoring
-  status: Executing Phase 05
-  last_updated: "2026-04-03T18:43:00.000Z"
+status: Executing Phase 05
+last_updated: "2026-04-04T05:40:53.243Z"
 progress:
   total_phases: 3
   completed_phases: 0
@@ -41,6 +41,7 @@ progress:
 - [Phase 04-07]: Tech debt cleanup — shared crypto utils, consolidated TrendPoint type, hono/cors middleware, Settings logout fix, activity timestamps
 - [Phase 04-08]: Dependency updates — Wrangler compatibility date to 2026-04-01, Zod v4 verified, gopsutil v3 assessed, full security audit completed
 - [Phase 05-02]: Token TTL extension — Access tokens 60min (was 15min), refresh tokens 30 days (was 7 days), named constants replace magic numbers, opportunistic expired token cleanup during login
+- [Phase 05]: Used Web Crypto API PBKDF2 instead of bcrypt (native to Cloudflare Workers)
 
 ### Design System (Locked)
 
