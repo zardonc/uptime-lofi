@@ -44,6 +44,20 @@ export const dashboardAuthMiddleware = async (c: Context, next: Next) => {
 			}
 		}
 
+		// Check KV blacklist first (instant revocation across all edge instances)
+		if (payload?.session_id) {
+			try {
+				const blacklisted = await c.env.SESSION_BLACKLIST.get(`session:${payload.session_id}`);
+				if (blacklisted === 'revoked') {
+					throw new HTTPException(401, { message: "Session revoked" });
+				}
+			} catch (e) {
+				if (e instanceof HTTPException) throw e;
+				// KV read failure is non-fatal — fall through to D1 check
+				console.warn("KV blacklist check failed, falling back to D1:", e);
+			}
+		}
+
 		// If we have a session_id, ensure the session is still active in the DB
 		if (payload?.session_id) {
 			try {

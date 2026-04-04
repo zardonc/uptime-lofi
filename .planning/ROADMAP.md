@@ -123,12 +123,12 @@ Plans:
 
 **Requirements:** Security Hardening (SEC-001 - SEC-006)
 
-**Plans:** 6 plans in 3 waves
+**Plans:** 5/7 plans executed
 - ✅ 05-01: PBKDF2 password hashing migration (10k iterations, P0-1)
 - ✅ 05-02: Token TTL extension (60min access, 30d refresh, P0-2)
 - ✅ 05-03: Rate limiting for /setup and /unlock (P0-4)
 - ⬜ 05-04: Emergency Unlock session revocation + audit_log + IP hashing (P0-5, P1-4)
-- ⬜ 05-05: Login query chain optimization (P1-1)
+- ✅ 05-05: Login query chain optimization (P1-1)
 - ⬜ 05-06: Cron Trigger cleanup + KV session blacklist (P1-2, P1-5)
 
 ---

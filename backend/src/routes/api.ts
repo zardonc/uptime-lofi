@@ -20,6 +20,8 @@ export type Bindings = {
   EMERGENCY_UNLOCK_KEY?: string;
   // Comma-separated list of allowed origins for production CORS
   CORS_ORIGINS?: string;
+  // KV namespace for instant session blacklist (logout revocation)
+  SESSION_BLACKLIST: KVNamespace;
 };
 
 const api = new Hono<{ Bindings: Bindings }>();

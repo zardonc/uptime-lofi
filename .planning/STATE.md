@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: MVP - Core Monitoring
 status: Executing Phase 05
-last_updated: "2026-04-03T22:45:00Z"
+last_updated: "2026-04-04T06:00:14.068Z"
 progress:
   total_phases: 3
   completed_phases: 0
@@ -22,7 +22,7 @@ progress:
 | 3 - Frontend Dashboard | 🔄 In Progress | 78% (7/9 tasks) |
 | 04.2 - Backend Refactor & Bug Fix | ✅ Complete | 100% |
 | 4 - Security & Payload Hardening | 🔄 In Progress | 87.5% (7/8 plans) |
-| 5 - System Hardening & Quota Optimization | 🔄 In Progress | 50% (3/6 plans) |
+| 5 - System Hardening & Quota Optimization | 🔄 In Progress | 67% (4/6 plans) |
 | 6 - Performance & Scaling Optimization | ⏳ Planned | 0% |
 | 7 - Frontend UX & Accessibility | ⏳ Planned | 0% |
 | 8 - Quality Assurance & Testing | ⏳ Planned | 0% |
@@ -43,6 +43,7 @@ progress:
 - [Phase 05-02]: Token TTL extension — Access tokens 60min (was 15min), refresh tokens 30 days (was 7 days), named constants replace magic numbers, opportunistic expired token cleanup during login
 - [Phase 05]: Used Web Crypto API PBKDF2 instead of bcrypt (native to Cloudflare Workers)
 - [Phase 05-03]: Rate limiting on /setup and /unlock — strictRateLimit (5 req/60s per IP) applied before /auth/* wildcard; retry_after header added to 401 responses
+- [Phase 05-05]: Login query chain optimization — merged 3 kv_settings queries into single IN clause; batched 3 write operations (DELETE + INSERT audit_log + INSERT refresh_tokens) into db.batch(); total query count reduced from 6+ to 3-4
 
 ### Design System (Locked)
 
@@ -90,4 +91,4 @@ progress:
 
 ---
 
-*Last updated: 2026-04-03 - Completed quick task 260403-lbf: 更新 architect.md Mermaid 流程图对齐凭证体系文字描述*
+*Last updated: 2026-04-03 - Completed Phase 05-05: Login query chain optimization*

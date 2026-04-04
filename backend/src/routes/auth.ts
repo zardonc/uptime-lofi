@@ -16,7 +16,7 @@ async function cleanupExpiredTokens(db: D1Database) {
   await db.prepare("DELETE FROM refresh_tokens WHERE expires_at < strftime('%s', 'now')").run();
 }
 
-const authApi = new Hono<{ Bindings: { DB: D1Database; API_SECRET_KEY: string; EMERGENCY_UNLOCK_KEY?: string; JWT_AUDIENCE?: string; JWT_ISSUER?: string } }>();
+const authApi = new Hono<{ Bindings: { DB: D1Database; API_SECRET_KEY: string; EMERGENCY_UNLOCK_KEY?: string; JWT_AUDIENCE?: string; JWT_ISSUER?: string; SESSION_BLACKLIST: KVNamespace } }>();
 
 // Apply strict rate limiting to login endpoint
 authApi.use("/login", strictRateLimit);
@@ -234,6 +234,13 @@ authApi.post("/logout", dashboardAuthMiddleware, async (c) => {
     SET status = 'revoked', updated_at = strftime('%s', 'now')
     WHERE session_id = ?`
   ).bind(payload.session_id).run();
+
+  // KV blacklist for instant revocation across all edge instances
+  await c.env.SESSION_BLACKLIST.put(
+    `session:${payload.session_id}`,
+    'revoked',
+    { expirationTtl: 3600 } // 1 hour TTL — matches JWT max remaining lifetime
+  );
 
   // Clear the refresh token cookie
   c.header('Set-Cookie', 'refresh_token=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0');
