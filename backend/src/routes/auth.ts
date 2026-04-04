@@ -150,25 +150,17 @@ authApi.post("/login", zValidator("json", z.object({ password: z.string() })), a
 		return c.json({ error: "Invalid credentials" }, 401);
 	}
 
-	// Clear login attempts on successful login
-	await db.prepare(
-		`DELETE FROM login_attempts WHERE ip_hash = ?`
-	).bind(ipHash).run();
+	// Batch all write operations on successful login: cleanup + delete attempts + audit log + refresh token
+	const sessionId = crypto.randomUUID();
+	const rawRefreshToken = crypto.randomUUID() + crypto.randomUUID();
+	const refreshTokenHash = await hashToken(rawRefreshToken);
+	const expiresAt = Math.floor(Date.now() / 1000) + REFRESH_TOKEN_TTL_SECONDS;
 
-  // Write audit log entry for successful login
-  const sessionId = crypto.randomUUID();
-  await db.prepare(
-    "INSERT INTO audit_log (action, ip_hash, details) VALUES ('login_success', ?, ?)"
-  ).bind(ipHash, JSON.stringify({ session_id: sessionId })).run();
-
-  const rawRefreshToken = crypto.randomUUID() + crypto.randomUUID();
-  const refreshTokenHash = await hashToken(rawRefreshToken);
-
-  const expiresAt = Math.floor(Date.now() / 1000) + REFRESH_TOKEN_TTL_SECONDS;
-
-  await db.prepare("INSERT INTO refresh_tokens (token_hash, session_id, status, expires_at) VALUES (?, ?, 'active', ?)")
-    .bind(refreshTokenHash, sessionId, expiresAt)
-    .run();
+	await db.batch([
+		db.prepare("DELETE FROM login_attempts WHERE ip_hash = ?").bind(ipHash),
+		db.prepare("INSERT INTO audit_log (action, ip_hash, details) VALUES ('login_success', ?, ?)").bind(ipHash, JSON.stringify({ session_id: sessionId })),
+		db.prepare("INSERT INTO refresh_tokens (token_hash, session_id, status, expires_at) VALUES (?, ?, 'active', ?)").bind(refreshTokenHash, sessionId, expiresAt),
+	]);
   
   const jwt = await sign({
       session_id: sessionId,
