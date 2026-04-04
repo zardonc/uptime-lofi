@@ -25,6 +25,9 @@ export type Bindings = {
 const api = new Hono<{ Bindings: Bindings }>();
 
 // Rate-limiting: apply before authentication on selected routes
+// Specific routes must come BEFORE wildcard routes (Hono ordering)
+api.use("/auth/setup", strictRateLimit);
+api.use("/auth/unlock", strictRateLimit);
 api.use("/auth/login", strictRateLimit);
 api.use("/auth/*", standardRateLimit);
 api.use("/nodes", standardRateLimit);
