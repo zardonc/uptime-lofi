@@ -85,23 +85,31 @@ authApi.post("/login", zValidator("json", z.object({ password: z.string() })), a
 		}, 429);
 	}
 
-	const isEnabledRecord = await db.prepare("SELECT value FROM kv_settings WHERE key = 'ui_lock_enabled'").first<{ value: string }>();
-	const isUiLockEnabled = isEnabledRecord?.value === 'true';
+	// Merged kv_settings query: fetch all UI lock settings in a single round-trip
+	const settingsResult = await db.prepare(
+		"SELECT key, value FROM kv_settings WHERE key IN ('ui_lock_enabled', 'ui_lock_hash', 'ui_lock_salt')"
+	).all<{ key: string; value: string }>();
+
+	const settings: Record<string, string> = {};
+	for (const row of settingsResult.results || []) {
+		settings[row.key] = row.value;
+	}
+
+	const isUiLockEnabled = settings['ui_lock_enabled'] === 'true';
+	const uiLockHash = settings['ui_lock_hash'];
+	const uiLockSalt = settings['ui_lock_salt'];
 
 	let isValid = false;
 
 	if (isUiLockEnabled) {
-		const hashRecord = await db.prepare("SELECT value FROM kv_settings WHERE key = 'ui_lock_hash'").first<{ value: string }>();
-		const saltRecord = await db.prepare("SELECT value FROM kv_settings WHERE key = 'ui_lock_salt'").first<{ value: string }>();
-
 		// Migration guard: existing SHA-256 hashes have no salt stored
-		if (!saltRecord?.value) {
+		if (!uiLockSalt) {
 			return c.json({
 				error: "Password hash needs to be re-setup. Please call /setup to reconfigure."
 			}, 400);
 		}
 
-		isValid = await verifyPassword(password, hashRecord?.value || '', saltRecord.value);
+		isValid = await verifyPassword(password, uiLockHash || '', uiLockSalt);
 
 		// REMOVED: Break-glass fallback removed for security
 		// Master API key should never be used as login password
