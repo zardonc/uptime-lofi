@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { calculateHash } from "../utils/crypto";
+import { hashPassword, generateSalt } from "../utils/crypto";
 
 const settingsApi = new Hono<{ Bindings: { DB: D1Database; API_SECRET_KEY: string } }>();
 
@@ -16,9 +16,11 @@ settingsApi.post("/security", zValidator("json", z.object({
     if (!password || password.length === 0) {
       return c.json({ error: "Password is required to enable UI Lock" }, 400);
     }
-    const hash = await calculateHash(password);
+    const salt = generateSalt(16);
+    const hash = await hashPassword(password, salt);
     await db.batch([
       db.prepare("INSERT OR REPLACE INTO kv_settings (key, value) VALUES ('ui_lock_hash', ?)").bind(hash),
+      db.prepare("INSERT OR REPLACE INTO kv_settings (key, value) VALUES ('ui_lock_salt', ?)").bind(salt),
       db.prepare("INSERT OR REPLACE INTO kv_settings (key, value) VALUES ('ui_lock_enabled', 'true')").bind()
     ]);
   } else {

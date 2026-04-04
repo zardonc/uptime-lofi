@@ -5,7 +5,7 @@ import { sign } from "hono/jwt";
 import { getCookie } from "hono/cookie";
 import { strictRateLimit } from "../middleware/rateLimiter";
 import { dashboardAuthMiddleware } from "../middleware/dashboardAuth";
-import { calculateHash } from "../utils/crypto";
+import { hashPassword, verifyPassword, generateSalt, hashToken } from "../utils/crypto";
 
 // Token TTL constants
 const ACCESS_TOKEN_TTL_SECONDS = 60 * 60; // 60 minutes
@@ -27,9 +27,11 @@ authApi.post("/setup", zValidator("json", z.object({ admin_key: z.string(), new_
     return c.json({ error: "Unauthorized" }, 401);
   }
 
-  const hash = await calculateHash(new_ui_password);
+  const salt = generateSalt(16);
+  const hash = await hashPassword(new_ui_password, salt);
   await c.env.DB.batch([
     c.env.DB.prepare("INSERT OR REPLACE INTO kv_settings (key, value) VALUES ('ui_lock_hash', ?)").bind(hash),
+    c.env.DB.prepare("INSERT OR REPLACE INTO kv_settings (key, value) VALUES ('ui_lock_salt', ?)").bind(salt),
     c.env.DB.prepare("INSERT OR REPLACE INTO kv_settings (key, value) VALUES ('ui_lock_enabled', 'true')").bind()
   ]);
 
@@ -89,8 +91,16 @@ authApi.post("/login", zValidator("json", z.object({ password: z.string() })), a
 
 	if (isUiLockEnabled) {
 		const hashRecord = await db.prepare("SELECT value FROM kv_settings WHERE key = 'ui_lock_hash'").first<{ value: string }>();
-		const inputHash = await calculateHash(password);
-		isValid = (inputHash === hashRecord?.value);
+		const saltRecord = await db.prepare("SELECT value FROM kv_settings WHERE key = 'ui_lock_salt'").first<{ value: string }>();
+
+		// Migration guard: existing SHA-256 hashes have no salt stored
+		if (!saltRecord?.value) {
+			return c.json({
+				error: "Password hash needs to be re-setup. Please call /setup to reconfigure."
+			}, 400);
+		}
+
+		isValid = await verifyPassword(password, hashRecord?.value || '', saltRecord.value);
 
 		// REMOVED: Break-glass fallback removed for security
 		// Master API key should never be used as login password
@@ -129,7 +139,7 @@ authApi.post("/login", zValidator("json", z.object({ password: z.string() })), a
 
   const sessionId = crypto.randomUUID();
   const rawRefreshToken = crypto.randomUUID() + crypto.randomUUID();
-  const refreshTokenHash = await calculateHash(rawRefreshToken);
+  const refreshTokenHash = await hashToken(rawRefreshToken);
 
   const expiresAt = Math.floor(Date.now() / 1000) + REFRESH_TOKEN_TTL_SECONDS;
 
@@ -154,7 +164,7 @@ authApi.post("/refresh", async (c) => {
   const rawRefreshToken = getCookie(c, "refresh_token");
   if (!rawRefreshToken) return c.json({ error: "Missing refresh token" }, 401);
 
-  const hash = await calculateHash(rawRefreshToken);
+  const hash = await hashToken(rawRefreshToken);
   const db = c.env.DB;
   
   const tokenRecord = await db.prepare("SELECT id, session_id, status, expires_at FROM refresh_tokens WHERE token_hash = ?").bind(hash).first<{
@@ -172,7 +182,7 @@ authApi.post("/refresh", async (c) => {
   if (Math.floor(Date.now() / 1000) > tokenRecord.expires_at) return c.json({ error: "Token expired" }, 401);
 
   const newRawRefreshToken = crypto.randomUUID() + crypto.randomUUID();
-  const newHash = await calculateHash(newRawRefreshToken);
+  const newHash = await hashToken(newRawRefreshToken);
   const newExpiresAt = Math.floor(Date.now() / 1000) + REFRESH_TOKEN_TTL_SECONDS;
 
   // We explicitly log rotation hierarchy
