@@ -109,8 +109,17 @@ authApi.post("/login", zValidator("json", z.object({ password: z.string() })), a
 		// or use a separately configured EMERGENCY_UNLOCK_KEY (if set)
 		const emergencyKey = c.env.EMERGENCY_UNLOCK_KEY as string | undefined;
 		if (!isValid && emergencyKey && password === emergencyKey) {
-			// Log emergency access for audit trail
-			console.warn(`Emergency unlock used at ${new Date().toISOString()} from IP ${clientIp}`);
+			// Revoke all active sessions (security measure — force re-auth after emergency access)
+			await db.prepare(
+				"UPDATE refresh_tokens SET status = 'revoked', updated_at = strftime('%s', 'now') WHERE status = 'active'"
+			).run();
+
+			// Write audit log entry
+			await db.prepare(
+				"INSERT INTO audit_log (action, ip_hash, details) VALUES ('emergency_unlock', ?, ?)"
+			).bind(ipHash, JSON.stringify({ ip: clientIp, timestamp: new Date().toISOString() })).run();
+
+			console.warn(`Emergency unlock used at ${new Date().toISOString()} from IP ${clientIp}. All sessions revoked.`);
 			isValid = true;
 		}
 	} else {
@@ -138,7 +147,12 @@ authApi.post("/login", zValidator("json", z.object({ password: z.string() })), a
 		`DELETE FROM login_attempts WHERE ip_hash = ?`
 	).bind(ipHash).run();
 
+  // Write audit log entry for successful login
   const sessionId = crypto.randomUUID();
+  await db.prepare(
+    "INSERT INTO audit_log (action, ip_hash, details) VALUES ('login_success', ?, ?)"
+  ).bind(ipHash, JSON.stringify({ session_id: sessionId })).run();
+
   const rawRefreshToken = crypto.randomUUID() + crypto.randomUUID();
   const refreshTokenHash = await hashToken(rawRefreshToken);
 
