@@ -9,7 +9,7 @@ import { hashPassword, verifyPassword, generateSalt, hashToken, hashIpAddress } 
 
 // Token TTL constants
 const ACCESS_TOKEN_TTL_SECONDS = 60 * 60; // 60 minutes
-const REFRESH_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60; // 30 days
+const REFRESH_TOKEN_TTL_SECONDS = 15 * 24 * 60 * 60; // 15 days
 
 // Opportunistic cleanup of expired refresh tokens to prevent table bloat
 async function cleanupExpiredTokens(db: D1Database) {
@@ -64,6 +64,7 @@ authApi.post("/login", zValidator("json", z.object({ password: z.string() })), a
 
 	// Extract client IP early for rate limiting and audit logging
 	const clientIp = (c.req.header("CF-Connecting-IP") || c.req.header("X-Forwarded-For") || "unknown").split(",")[0].trim();
+	const ipHash = await hashIpAddress(clientIp, c.env.API_SECRET_KEY);
 	const now = Math.floor(Date.now() / 1000);
 	const windowStart = now - 900; // 15 minutes
 
@@ -73,8 +74,8 @@ authApi.post("/login", zValidator("json", z.object({ password: z.string() })), a
 	// Check and track failed login attempts using D1 (cross-instance)
 	const attempt = await db.prepare(
 		`SELECT attempt_count, first_attempt_at FROM login_attempts
-		WHERE ip_address = ? AND last_attempt_at > ?`
-	).bind(clientIp, windowStart).first<{ attempt_count: number; first_attempt_at: number }>();
+		WHERE ip_hash = ? AND last_attempt_at > ?`
+	).bind(ipHash, windowStart).first<{ attempt_count: number; first_attempt_at: number }>();
 
 	if (attempt && attempt.attempt_count >= 5) {
 		const resetIn = attempt.first_attempt_at + 900 - now;
