@@ -16,7 +16,7 @@ async function cleanupExpiredTokens(db: D1Database) {
   await db.prepare("DELETE FROM refresh_tokens WHERE expires_at < strftime('%s', 'now')").run();
 }
 
-const authApi = new Hono<{ Bindings: { DB: D1Database; API_SECRET_KEY: string } }>();
+const authApi = new Hono<{ Bindings: { DB: D1Database; API_SECRET_KEY: string; EMERGENCY_UNLOCK_KEY?: string; JWT_AUDIENCE?: string; JWT_ISSUER?: string } }>();
 
 // Apply strict rate limiting to login endpoint
 authApi.use("/login", strictRateLimit);
