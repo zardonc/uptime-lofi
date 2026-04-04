@@ -11,6 +11,11 @@ import { calculateHash } from "../utils/crypto";
 const ACCESS_TOKEN_TTL_SECONDS = 60 * 60; // 60 minutes
 const REFRESH_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60; // 30 days
 
+// Opportunistic cleanup of expired refresh tokens to prevent table bloat
+async function cleanupExpiredTokens(db: D1Database) {
+  await db.prepare("DELETE FROM refresh_tokens WHERE expires_at < strftime('%s', 'now')").run();
+}
+
 const authApi = new Hono<{ Bindings: { DB: D1Database; API_SECRET_KEY: string } }>();
 
 // Apply strict rate limiting to login endpoint
@@ -59,6 +64,9 @@ authApi.post("/login", zValidator("json", z.object({ password: z.string() })), a
 	const clientIp = (c.req.header("CF-Connecting-IP") || c.req.header("X-Forwarded-For") || "unknown").split(",")[0].trim();
 	const now = Math.floor(Date.now() / 1000);
 	const windowStart = now - 900; // 15 minutes
+
+	// Opportunistic cleanup of expired refresh tokens
+	await cleanupExpiredTokens(db);
 
 	// Check and track failed login attempts using D1 (cross-instance)
 	const attempt = await db.prepare(
