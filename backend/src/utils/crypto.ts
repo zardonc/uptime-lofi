@@ -116,3 +116,22 @@ function timingSafeEqual(a: string, b: string): boolean {
   }
   return result === 0;
 }
+
+/**
+ * Hash an IP address using HMAC-SHA256 for privacy-preserving storage.
+ *
+ * @param ip - The plaintext IP address
+ * @param secretKey - The HMAC key (use API_SECRET_KEY)
+ * @returns Hex-encoded HMAC-SHA256 hash (64 chars = 32 bytes)
+ */
+export async function hashIpAddress(ip: string, secretKey: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const keyData = encoder.encode(secretKey);
+  const ipData = encoder.encode(ip);
+  const key = await crypto.subtle.importKey(
+    'raw', keyData, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+  );
+  const signature = await crypto.subtle.sign('HMAC', key, ipData);
+  return Array.from(new Uint8Array(signature))
+    .map(b => b.toString(16).padStart(2, '0')).join('');
+}

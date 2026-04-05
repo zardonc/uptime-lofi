@@ -21,8 +21,8 @@ database_id = "local-dev-id"
 # Replace the placeholder IDs below with the actual namespace IDs from the CLI output
 [[kv_namespaces]]
 binding = "SESSION_BLACKLIST"
-id = "REPLACE_WITH_NAMESPACE_ID"
-preview_id = "REPLACE_WITH_PREVIEW_ID"
+id = "93780de4b5d24d53864d9559d85f955d"
+preview_id = "014ad3348e84497491cd5eb2ff615bef"
 
 # Cron Trigger for periodic cleanup of expired tokens, login attempts, and audit log entries
 # Runs every 6 hours — lightweight, stays within Cloudflare Free Tier limits
