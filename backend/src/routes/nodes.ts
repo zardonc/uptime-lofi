@@ -3,6 +3,7 @@ import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { Bindings } from "./api";
 import { dashboardAuthMiddleware } from "../middleware/dashboardAuth";
+import { decompress } from "../utils/compression";
 
 const nodesApi = new Hono<{ Bindings: Bindings }>();
 
@@ -49,11 +50,11 @@ nodesApi.get(
     `SELECT * FROM raw_metrics WHERE node_id = ? AND timestamp > ? ORDER BY timestamp ASC`
   ).bind(id, since).all();
 
-    // Map containers_json
-    const metrics = results.map(m => ({
+    // Map containers_json — decompress if compressed (gz: prefix), then parse JSON
+    const metrics = await Promise.all(results.map(async (m) => ({
       ...m,
-      containers: m.containers_json ? JSON.parse(m.containers_json as string) : null
-    }));
+      containers: m.containers_json ? JSON.parse(await decompress(m.containers_json as string)) : null
+    })));
 
     return c.json({ data: metrics });
   }
