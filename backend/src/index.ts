@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { HTTPException } from 'hono/http-exception'
+import type { ExportedHandlerScheduledHandler } from '@cloudflare/workers-types'
 import { api, Bindings } from './routes/api'
 import { securityHeadersMiddleware } from './middleware/securityHeaders'
 
@@ -116,3 +117,25 @@ app.get('/ready', async (c) => {
 app.route('/api', api);
 
 export default app
+
+// Scheduled handler for Cron Trigger — periodic cleanup of expired entries
+export const scheduled: ExportedHandlerScheduledHandler<Bindings> = async (controller, env) => {
+  const db = env.DB;
+
+  // 1. Clean up expired refresh tokens
+  const tokenResult = await db.prepare(
+    "DELETE FROM refresh_tokens WHERE expires_at < strftime('%s', 'now')"
+  ).run();
+
+  // 2. Clean up expired login attempts (older than 15 minutes)
+  const attemptResult = await db.prepare(
+    "DELETE FROM login_attempts WHERE last_attempt_at < (strftime('%s', 'now') - 900)"
+  ).run();
+
+  // 3. Clean up old audit log entries (older than 90 days)
+  const auditResult = await db.prepare(
+    "DELETE FROM audit_log WHERE created_at < (strftime('%s', 'now') - 7776000)"
+  ).run();
+
+  console.log(`Cron cleanup: ${tokenResult.meta.changes} tokens, ${attemptResult.meta.changes} attempts, ${auditResult.meta.changes} audit entries removed`);
+};

@@ -20,11 +20,16 @@ export type Bindings = {
   EMERGENCY_UNLOCK_KEY?: string;
   // Comma-separated list of allowed origins for production CORS
   CORS_ORIGINS?: string;
+  // KV namespace for instant session blacklist (logout revocation)
+  SESSION_BLACKLIST: KVNamespace;
 };
 
 const api = new Hono<{ Bindings: Bindings }>();
 
 // Rate-limiting: apply before authentication on selected routes
+// Specific routes must come BEFORE wildcard routes (Hono ordering)
+api.use("/auth/setup", strictRateLimit);
+api.use("/auth/unlock", strictRateLimit);
 api.use("/auth/login", strictRateLimit);
 api.use("/auth/*", standardRateLimit);
 api.use("/nodes", standardRateLimit);
