@@ -1,0 +1,18 @@
+name = "uptime-lofi-probe"
+main = "src/probe-index.ts"
+compatibility_date = "2026-04-01"
+limits = { body_size = "1mb" }
+
+# Probe Worker environment variables
+[vars]
+ENVIRONMENT = "production"
+
+# Local testing environment overrides
+[env.development.vars]
+ENVIRONMENT = "development"
+
+# D1 database — required for probe salt lookup during HMAC auth
+[[d1_databases]]
+binding = "DB"
+database_name = "uptime-lofi-db"
+database_id = "local-dev-id"

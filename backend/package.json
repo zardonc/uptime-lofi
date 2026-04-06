@@ -4,7 +4,12 @@
   "private": true,
   "scripts": {
     "dev": "wrangler dev src/index.ts",
+    "dev:dashboard": "wrangler dev src/index.ts",
+    "dev:probe": "wrangler dev -c probe-wrangler.toml",
     "deploy": "wrangler deploy --minify src/index.ts",
+    "deploy:dashboard": "wrangler deploy --minify src/index.ts",
+    "deploy:probe": "wrangler deploy -c probe-wrangler.toml",
+    "deploy:all": "npm run deploy:probe && npm run deploy:dashboard",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
