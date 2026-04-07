@@ -1,4 +1,4 @@
-import type { NodeStatus } from '../data/mockData';
+import type { NodeStatus } from '../api/types';
 
 const statusConfig: Record<NodeStatus, { label: string; className: string }> = {
   online:   { label: 'Online',   className: 'badge-online'   },
