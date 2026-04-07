@@ -8,8 +8,9 @@ import { UptimeRing } from './components/UptimeRing';
 import { NodeList } from './components/NodeList';
 import { ActivityFeed } from './components/ActivityFeed';
 import type { ActivityEvent } from './components/ActivityFeed';
-import { MetricCardSkeleton } from './components/Skeleton';
+import { MetricCardSkeleton, NodeListSkeleton, ActivityFeedSkeleton, TrendChartSkeleton } from './components/Skeleton';
 import { ErrorBanner } from './components/ErrorBanner';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { LoginGate } from './components/LoginGate';
 import { Settings } from './components/Settings';
 import { useNodes } from './hooks/useNodes';
@@ -130,7 +131,7 @@ function DashboardContent() {
       <section className="charts-row">
         <div className="animate-in delay-5">
           {metricsLoading ? (
-            <div className="card trend-chart"><div className="skeleton" style={{ width: '100%', height: 260 }} /></div>
+            <TrendChartSkeleton />
           ) : (
             <TrendChart data={chartData as TrendPoint[]} />
           )}
@@ -144,16 +145,17 @@ function DashboardContent() {
       <section className="bottom-row">
         <div className="animate-in delay-6">
           {nodesLoading ? (
-            <div className="card node-list">
-              <h3 className="section-title">Monitored Nodes</h3>
-              <div className="skeleton" style={{ width: '100%', height: 180 }} />
-            </div>
+            <NodeListSkeleton />
           ) : (
             <NodeList nodes={nodes} />
           )}
         </div>
         <div className="animate-in delay-7">
-          <ActivityFeed events={activityEvents as ActivityEvent[]} />
+          {nodesLoading ? (
+            <ActivityFeedSkeleton />
+          ) : (
+            <ActivityFeed events={activityEvents as ActivityEvent[]} />
+          )}
         </div>
       </section>
     </div>
@@ -173,7 +175,9 @@ export default function App() {
         }} />
 
         <main className="main-content">
-          {activeNav === 'settings' ? <Settings /> : <DashboardContent />}
+          {activeNav === 'settings'
+            ? <ErrorBoundary><Settings /></ErrorBoundary>
+            : <ErrorBoundary><DashboardContent /></ErrorBoundary>}
         </main>
       </div>
     </LoginGate>
