@@ -37,7 +37,7 @@ export function Sidebar({ activeId, onNavigate }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
 
   return (
-    <aside className={`sidebar ${collapsed ? 'sidebar--collapsed' : ''}`}>
+    <aside className={`sidebar ${collapsed ? 'sidebar--collapsed' : ''}`} role="navigation" aria-label="Main navigation">
       {/* Brand */}
       <div className="sidebar__brand">
         <span className="sidebar__logo">⬡</span>
@@ -45,7 +45,7 @@ export function Sidebar({ activeId, onNavigate }: SidebarProps) {
       </div>
 
       {/* Main Nav */}
-      <nav className="sidebar__nav">
+      <nav className="sidebar__nav" aria-label="Primary menu">
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
           const isActive = activeId === item.id;
@@ -55,6 +55,7 @@ export function Sidebar({ activeId, onNavigate }: SidebarProps) {
               className={`sidebar__item ${isActive ? 'sidebar__item--active' : ''}`}
               onClick={() => onNavigate(item.id)}
               title={collapsed ? item.label : undefined}
+              aria-current={isActive ? 'page' : undefined}
             >
               <Icon size={20} strokeWidth={isActive ? 2.2 : 1.6} />
               {!collapsed && <span>{item.label}</span>}
@@ -67,7 +68,7 @@ export function Sidebar({ activeId, onNavigate }: SidebarProps) {
       <div style={{ flex: 1 }} />
 
       {/* Bottom Nav */}
-      <nav className="sidebar__nav sidebar__nav--bottom">
+      <nav className="sidebar__nav sidebar__nav--bottom" aria-label="Settings menu">
         {BOTTOM_ITEMS.map((item) => {
           const Icon = item.icon;
           return (
@@ -76,6 +77,7 @@ export function Sidebar({ activeId, onNavigate }: SidebarProps) {
               className={`sidebar__item ${activeId === item.id ? 'sidebar__item--active' : ''}`}
               onClick={() => onNavigate(item.id)}
               title={collapsed ? item.label : undefined}
+              aria-current={activeId === item.id ? 'page' : undefined}
             >
               <Icon size={20} strokeWidth={1.6} />
               {!collapsed && <span>{item.label}</span>}

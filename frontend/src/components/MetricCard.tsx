@@ -10,7 +10,7 @@ interface MetricCardProps {
 
 export function MetricCard({ icon, label, value, suffix, trend }: MetricCardProps) {
   return (
-    <div className="metric-card card">
+    <div className="metric-card card" role="region" aria-label={`${label}: ${value}${suffix || ''}`}>
       <div className="metric-card__header">
         <span className="metric-card__icon">{icon}</span>
         <span className="metric-card__label">{label}</span>

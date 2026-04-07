@@ -50,14 +50,14 @@ export function LoginGate({ children }: { readonly children: React.ReactNode }) 
 
   return (
     <div className="login-gate">
-      <form className="login-card card animate-in" onSubmit={handleSubmit}>
+      <form className="login-card card animate-in" onSubmit={handleSubmit} aria-label="Login form">
         <div className="login-card__icon">
           <Shield size={28} />
         </div>
         <h2 className="login-card__title">Uptime LoFi</h2>
         <p className="login-card__subtitle">
-          {isUiLock === false 
-            ? 'First-time Setup: Enter Admin API Key' 
+          {isUiLock === false
+            ? 'First-time Setup: Enter Admin API Key'
             : 'Enter your access key to continue'}
         </p>
 
@@ -70,9 +70,12 @@ export function LoginGate({ children }: { readonly children: React.ReactNode }) 
           onChange={(e) => setPassword(e.target.value)}
           autoFocus
           autoComplete="current-password"
+          aria-label={isUiLock === false ? 'Admin API Key' : 'Access Key'}
+          aria-describedby={error ? 'login-error' : undefined}
+          aria-invalid={error ? 'true' : 'false'}
         />
 
-        {error && <p className="login-card__error">{error}</p>}
+        {error && <p id="login-error" className="login-card__error" role="alert" aria-live="polite">{error}</p>}
 
         <button
           id="login-submit"

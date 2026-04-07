@@ -16,7 +16,7 @@ interface TrendChartProps {
 
 export function TrendChart({ data }: TrendChartProps) {
   return (
-    <div className="card trend-chart">
+    <div className="card trend-chart" role="img" aria-label="System load trend chart showing CPU and memory usage over the last 24 hours">
       <h3 className="section-title">System Load — 24 Hours</h3>
       <div style={{ width: '100%', height: 260 }}>
         <ResponsiveContainer>

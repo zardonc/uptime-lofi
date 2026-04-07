@@ -21,7 +21,7 @@ export function UptimeRing({ percentage, label = 'Avg Uptime' }: UptimeRingProps
   }, [percentage]);
 
   return (
-    <div className="card uptime-ring">
+    <div className="card uptime-ring" role="img" aria-label={`${label}: ${percentage} percent uptime`}>
       <h3 className="section-title">{label}</h3>
       <div className="uptime-ring__container">
         <svg width={RING_SIZE} height={RING_SIZE} viewBox={`0 0 ${RING_SIZE} ${RING_SIZE}`}>

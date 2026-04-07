@@ -69,7 +69,7 @@ function DashboardContent() {
   return (
     <div className="dashboard">
       {/* ── Header ── */}
-      <header className="dashboard-header animate-in">
+      <header className="dashboard-header animate-in" role="banner">
         <div>
           <h1>Dashboard</h1>
           <p className="subtitle">System overview and real-time monitoring</p>
@@ -174,7 +174,7 @@ export default function App() {
           setActiveNav(id);
         }} />
 
-        <main className="main-content">
+        <main className="main-content" role="main">
           {activeNav === 'settings'
             ? <ErrorBoundary><Settings /></ErrorBoundary>
             : <ErrorBoundary><DashboardContent /></ErrorBoundary>}
