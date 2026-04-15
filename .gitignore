@@ -11,6 +11,15 @@
 /.opencode/
 .claude/
 .planning/
+.github/
+.kilo/
+.trae/
+.windsurf/
+.codex/
+.cursor/
+.qwen/
+.codebuddy/
+.clinerules/
 GEMINI.md
 AGENT.md
 
