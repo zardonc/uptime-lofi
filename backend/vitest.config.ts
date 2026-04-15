@@ -1,9 +1,22 @@
-import { defineConfig } from 'vitest/config';
+import path from "node:path";
+import { cloudflareTest, readD1Migrations } from "@cloudflare/vitest-pool-workers";
+import { defineConfig } from "vitest/config";
 
 export default defineConfig({
+  plugins: [
+    cloudflareTest(async () => {
+      const migrationsPath = path.join(__dirname, "migrations");
+      const migrations = await readD1Migrations(migrationsPath);
+      return {
+        wrangler: { configPath: "./wrangler.toml" },
+        miniflare: {
+          bindings: { TEST_MIGRATIONS: migrations },
+        },
+      };
+    }),
+  ],
   test: {
-    globals: true,
-    environment: 'node',
-    include: ['src/**/*.test.ts'],
+    setupFiles: ["./tests/apply-migrations.ts"],
+    include: ["tests/**/*.test.ts"],
   },
 });
