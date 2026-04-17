@@ -22,30 +22,23 @@ export const dashboardAuthMiddleware = async (c: Context, next: Next) => {
 
 	// Wrap next to perform post-validation checks and payload attachment
 	const wrapped = async () => {
-		// Attach JWT payload to context for downstream handlers
-		let payload: JwtPayload | undefined;
-		const authHeader = c.req.header("Authorization");
-		if (authHeader && authHeader.startsWith("Bearer ")) {
-			const token = authHeader.substring(7);
-			try {
-				const parts = token.split(".");
-				if (parts.length >= 2) {
-					const payloadB64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
-					const json = decodeURIComponent(
-						atob(payloadB64)
-							.split("")
-							.map((ch) => "%" + ("00" + ch.charCodeAt(0).toString(16)).slice(-2))
-							.join("")
-					);
-					payload = JSON.parse(json) as JwtPayload;
-				}
-			} catch {
-				payload = undefined;
-			}
+		// hono/jwt automatically sets jwtPayload on the context if verification passes
+		const payload = c.get("jwtPayload") as JwtPayload | undefined;
+		
+		if (!payload) {
+			throw new HTTPException(401, { message: "Invalid token payload" });
+		}
+
+		if (aud && payload.aud !== aud) {
+			throw new HTTPException(401, { message: "Invalid audience" });
+		}
+
+		if (iss && payload.iss !== iss) {
+			throw new HTTPException(401, { message: "Invalid issuer" });
 		}
 
 		// Check KV blacklist first (instant revocation across all edge instances)
-		if (payload?.session_id) {
+		if (payload.session_id) {
 			try {
 				const blacklisted = await c.env.SESSION_BLACKLIST.get(`session:${payload.session_id}`);
 				if (blacklisted === 'revoked') {
