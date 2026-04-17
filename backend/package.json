@@ -12,6 +12,7 @@
     "deploy:probe": "wrangler deploy -c probe-wrangler.toml",
     "deploy:all": "npm run deploy:probe && npm run deploy:dashboard",
     "test": "vitest run",
+    "test:e2e": "bash tests/e2e/run-e2e.sh",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
   },
