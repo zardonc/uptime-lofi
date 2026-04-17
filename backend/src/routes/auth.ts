@@ -119,7 +119,7 @@ authApi.post("/login", zValidator("json", z.object({ password: z.string() })), a
 		if (!isValid && emergencyKey && password === emergencyKey) {
 			// Revoke all active sessions (security measure — force re-auth after emergency access)
 			await db.prepare(
-				"UPDATE refresh_tokens SET status = 'revoked', updated_at = strftime('%s', 'now') WHERE status = 'active'"
+				"UPDATE refresh_tokens SET status = 'revoked' WHERE status = 'active'"
 			).run();
 
 			// Write audit log entry
@@ -143,9 +143,9 @@ authApi.post("/login", zValidator("json", z.object({ password: z.string() })), a
 			).bind(now, ipHash).run();
 		} else {
 			await db.prepare(
-				`INSERT INTO login_attempts (ip_hash, first_attempt_at, last_attempt_at)
-				VALUES (?, ?, ?)`
-			).bind(ipHash, now, now).run();
+				`INSERT INTO login_attempts (ip_address, ip_hash, first_attempt_at, last_attempt_at)
+				VALUES (?, ?, ?, ?)`
+			).bind(clientIp, ipHash, now, now).run();
 		}
 		return c.json({ error: "Invalid credentials" }, 401);
 	}
@@ -231,7 +231,7 @@ authApi.post("/logout", dashboardAuthMiddleware, async (c) => {
   // Revoke all refresh tokens for this session
   await db.prepare(
     `UPDATE refresh_tokens
-    SET status = 'revoked', updated_at = strftime('%s', 'now')
+    SET status = 'revoked'
     WHERE session_id = ?`
   ).bind(payload.session_id).run();
 
