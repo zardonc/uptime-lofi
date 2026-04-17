@@ -7,6 +7,27 @@ import (
 	"github.com/spf13/viper"
 )
 
+const (
+	defaultAPIURL       = "http://localhost:8787/api/push"
+	defaultNodeID       = "probe-local"
+	defaultEnableDocker = false
+)
+
+func newViper() *viper.Viper {
+	v := viper.New()
+	v.SetDefault("api_url", defaultAPIURL)
+	v.SetDefault("node_id", defaultNodeID)
+	v.SetDefault("enable_docker", defaultEnableDocker)
+	v.SetEnvPrefix("UPTIME")
+	v.AutomaticEnv()
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	v.BindEnv("api_url")
+	v.BindEnv("node_id")
+	v.BindEnv("psk")
+	v.BindEnv("enable_docker")
+	return v
+}
+
 type Config struct {
 	ApiUrl       string `mapstructure:"api_url"`
 	NodeID       string `mapstructure:"node_id"`
@@ -15,25 +36,18 @@ type Config struct {
 }
 
 func LoadConfig(cfgFile string) (*Config, error) {
+	v := newViper()
+
 	if cfgFile != "" {
-		viper.SetConfigFile(cfgFile)
+		v.SetConfigFile(cfgFile)
 	} else {
 		// defaults to looking for config.yaml in current dir
-		viper.AddConfigPath(".")
-		viper.SetConfigName("config")
-		viper.SetConfigType("yaml")
+		v.AddConfigPath(".")
+		v.SetConfigName("config")
+		v.SetConfigType("yaml")
 	}
 
-	viper.SetEnvPrefix("UPTIME")
-	viper.AutomaticEnv()
-	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-
-	viper.BindEnv("api_url")
-	viper.BindEnv("node_id")
-	viper.BindEnv("psk")
-	viper.BindEnv("enable_docker")
-
-	if err := viper.ReadInConfig(); err != nil {
+	if err := v.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
 			return nil, fmt.Errorf("failed to read config file: %w", err)
 		}
@@ -41,7 +55,7 @@ func LoadConfig(cfgFile string) (*Config, error) {
 	}
 
 	var cfg Config
-	if err := viper.Unmarshal(&cfg); err != nil {
+	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
