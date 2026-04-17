@@ -105,11 +105,13 @@ export function Settings() {
         {/* Toggle Switch Row */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
-            <span style={{ fontWeight: 600, display: 'block', marginBottom: '0.25rem' }}>UI Access Lock</span>
+            <label htmlFor="settings-ui-lock" style={{ fontWeight: 600, display: 'block', marginBottom: '0.25rem', cursor: 'pointer' }}>UI Access Lock</label>
             <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Require a custom password to view the dashboard</span>
           </div>
           <label className="toggle-switch" style={{ position: 'relative', display: 'inline-block', width: '40px', height: '24px' }}>
             <input
+              id="settings-ui-lock"
+              aria-label="UI Access Lock"
               type="checkbox"
               {...register('uiLockEnabled')}
               style={{ opacity: 0, width: 0, height: 0 }}
@@ -131,14 +133,15 @@ export function Settings() {
         {/* Custom Password Input */}
         {uiLockEnabled && (
           <div className="animate-in delay-1" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
-            <label style={{ fontSize: '0.9rem', fontWeight: 500 }}>Custom Password</label>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <div style={{ position: 'relative', flex: 1 }}>
-                <KeyRound size={16} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                <input
-                  type="text"
-                  {...register('password')}
-                  placeholder="Enter a secure password..."
+              <label htmlFor="settings-password" style={{ fontSize: '0.9rem', fontWeight: 500 }}>Custom Password</label>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <div style={{ position: 'relative', flex: 1 }}>
+                  <KeyRound size={16} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                  <input
+                    id="settings-password"
+                    type="text"
+                    {...register('password')}
+                    placeholder="Enter a secure password..."
                   aria-invalid={!!errors.password}
                   aria-describedby={errors.password ? 'password-error' : 'password-hint'}
                   style={{
