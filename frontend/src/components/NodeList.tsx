@@ -14,9 +14,9 @@ interface NodeListProps {
 
 export function NodeList({ nodes }: NodeListProps) {
   return (
-    <div className="card node-list">
+    <div className="card node-list" role="region" aria-label="Monitored nodes list">
       <h3 className="section-title">Monitored Nodes</h3>
-      <div className="node-list__table">
+      <div className="node-list__table" role="table" aria-label="List of monitored nodes with status and metrics">
         <div className="node-list__header">
           <span>Node</span>
           <span>Status</span>

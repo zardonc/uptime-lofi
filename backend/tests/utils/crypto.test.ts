@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { hashPassword, verifyPassword, generateSalt } from './crypto';
+import { hashPassword, verifyPassword, generateSalt } from '../../src/utils/crypto';
 
 describe('PBKDF2 Password Hashing', () => {
   describe('hashPassword', () => {
@@ -19,6 +19,13 @@ describe('PBKDF2 Password Hashing', () => {
       const hash1 = await hashPassword(password, salt1);
       const hash2 = await hashPassword(password, salt2);
       expect(hash1).not.toBe(hash2);
+    });
+
+    it('handles empty passwords correctly', async () => {
+      const salt = generateSalt(16);
+      const hash = await hashPassword('', salt);
+      const isValid = await verifyPassword('', hash, salt);
+      expect(isValid).toBe(true);
     });
 
     it('completes hashing in under 50ms (10,000 iterations budget)', async () => {

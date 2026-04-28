@@ -761,6 +761,22 @@ h1, h2, h3, h4, h5, h6 {
   background: rgba(194, 80, 80, 0.1);
 }
 
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   Focus Visible Styles (WCAG 2.1 AA)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+/* Remove default outline and use focus-visible for keyboard nav */
+*:focus {
+  outline: none;
+}
+
+/* Visible focus ring for keyboard users */
+*:focus-visible {
+  outline: 2px solid var(--morandi-400);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
 /* ── Node List Empty State ── */
 .node-list__empty {
   padding: var(--space-2xl) 0;

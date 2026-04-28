@@ -2,9 +2,18 @@
   "name": "backend",
   "version": "0.0.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "wrangler dev src/index.ts",
+    "dev:dashboard": "wrangler dev src/index.ts",
+    "dev:probe": "wrangler dev -c probe-wrangler.toml",
     "deploy": "wrangler deploy --minify src/index.ts",
+    "deploy:dashboard": "wrangler deploy --minify src/index.ts",
+    "deploy:probe": "wrangler deploy -c probe-wrangler.toml",
+    "deploy:all": "npm run deploy:probe && npm run deploy:dashboard",
+    "test": "vitest run",
+    "test:e2e": "bash tests/e2e/run-e2e.sh",
+    "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -13,6 +22,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.14.7",
     "@cloudflare/workers-types": "^4.20240320.0",
     "typescript": "^5.0.4",
     "vitest": "^4.1.2",

@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
+import { compress } from "../utils/compression";
 
 const pushApi = new Hono<{ Bindings: { DB: D1Database } }>();
 
@@ -41,13 +42,21 @@ pushApi.post(
 
     const db = c.env.DB;
 
-    // 1. Prepare raw_metrics table insertions
+    // 1. Compress containers_json for each metric entry (reduces D1 storage + body processing)
+    const compressedPayload = await Promise.all(
+      payload.map(async (m) => ({
+        ...m,
+        containers_json: m.containers_json ? await compress(m.containers_json) : null,
+      }))
+    );
+
+    // 2. Prepare raw_metrics table insertions
     const insertStmt = db.prepare(
       `INSERT INTO raw_metrics (node_id, timestamp, ping_ms, cpu_usage, mem_usage, is_up, containers_json) 
        VALUES (?, ?, ?, ?, ?, ?, ?)`
     );
 
-    const batchStmts = payload.map((m) =>
+    const batchStmts = compressedPayload.map((m) =>
       insertStmt.bind(
         m.node_id,
         m.timestamp,
@@ -59,9 +68,9 @@ pushApi.post(
       )
     );
 
-    // 2. Identify the most chronological update per node to adjust the parent nodes table
-    const latestMetrics = new Map<string, z.infer<typeof metricSchema>>();
-    for (const m of payload) {
+    // 3. Identify the most chronological update per node to adjust the parent nodes table
+    const latestMetrics = new Map<string, typeof compressedPayload[number]>();
+    for (const m of compressedPayload) {
       const existing = latestMetrics.get(m.node_id);
       if (!existing || m.timestamp > existing.timestamp) {
         latestMetrics.set(m.node_id, m);

@@ -30,9 +30,9 @@ interface ActivityFeedProps {
 
 export function ActivityFeed({ events }: ActivityFeedProps) {
   return (
-    <div className="card activity-feed">
+    <div className="card activity-feed" role="region" aria-label="Recent activity feed">
       <h3 className="section-title">Recent Activity</h3>
-      <div className="activity-feed__list">
+      <div className="activity-feed__list" role="list" aria-label="Activity events">
         {events.map((evt) => {
           const Icon = eventIcons[evt.type];
           return (

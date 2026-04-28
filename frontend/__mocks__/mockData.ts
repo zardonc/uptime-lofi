@@ -2,7 +2,7 @@
 // Mock Data Layer — Uptime LoFi Dashboard
 // ═══════════════════════════════════════════
 
-import type { TrendPoint } from '../api/types';
+import type { TrendPoint } from '../src/api/types';
 
 export type NodeStatus = 'online' | 'degraded' | 'offline' | 'paused';
 

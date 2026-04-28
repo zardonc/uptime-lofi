@@ -16,24 +16,55 @@ import (
 
 // BatchPusher aggregates telemetry readings and dispatches them via secure REST endpoints.
 type BatchPusher struct {
-	cfg    *config.Config
-	buffer []collector.MetricPayload
-	mutex  sync.Mutex
+	cfg        *config.Config
+	buffer     []collector.MetricPayload
+	mutex      sync.Mutex
+	client     *http.Client
+	newBackOff func() backoff.BackOff
 }
+
+const maxBatchSize = 60
 
 // NewBatchPusher initiates the rolling transport module.
 func NewBatchPusher(cfg *config.Config) *BatchPusher {
+	return NewBatchPusherWithDeps(cfg, &http.Client{Timeout: 10 * time.Second}, func() backoff.BackOff {
+		b := backoff.NewExponentialBackOff()
+		b.MaxElapsedTime = 2 * time.Minute // Prevent infinite loop drops
+		return b
+	})
+}
+
+// NewBatchPusherWithDeps allows tests to inject a custom HTTP client and backoff policy.
+func NewBatchPusherWithDeps(cfg *config.Config, client *http.Client, newBackOff func() backoff.BackOff) *BatchPusher {
+	if client == nil {
+		client = &http.Client{Timeout: 10 * time.Second}
+	}
+	if newBackOff == nil {
+		newBackOff = func() backoff.BackOff {
+			b := backoff.NewExponentialBackOff()
+			b.MaxElapsedTime = 2 * time.Minute
+			return b
+		}
+	}
+
 	return &BatchPusher{
-		cfg:    cfg,
-		buffer: make([]collector.MetricPayload, 0, 60), // Room for up to 60 telemetry points
+		cfg:        cfg,
+		buffer:     make([]collector.MetricPayload, 0, maxBatchSize), // Room for up to 60 telemetry points
+		client:     client,
+		newBackOff: newBackOff,
 	}
 }
 
 // AddMetric appends a reading. It's safe for concurrent background execution.
 func (p *BatchPusher) AddMetric(m collector.MetricPayload) {
 	p.mutex.Lock()
-	defer p.mutex.Unlock()
 	p.buffer = append(p.buffer, m)
+	shouldFlush := len(p.buffer) >= maxBatchSize
+	p.mutex.Unlock()
+
+	if shouldFlush {
+		p.FlushToEdge()
+	}
 }
 
 // FlushToEdge converts unpushed metrics into a JSON batch and forces an HMAC signature push via Jitter Backoff.
@@ -43,7 +74,7 @@ func (p *BatchPusher) FlushToEdge() {
 		p.mutex.Unlock()
 		return
 	}
-	
+
 	// Create isolated transmission slice to unblock collector routine rapidly
 	snapshots := make([]collector.MetricPayload, len(p.buffer))
 	copy(snapshots, p.buffer)
@@ -55,8 +86,7 @@ func (p *BatchPusher) FlushToEdge() {
 		return
 	}
 
-	b := backoff.NewExponentialBackOff()
-	b.MaxElapsedTime = 2 * time.Minute // Prevent infinite loop drops
+	b := p.newBackOff()
 
 	operation := func() error {
 		timestamp := time.Now().Unix()
@@ -69,14 +99,15 @@ func (p *BatchPusher) FlushToEdge() {
 
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("X-Timestamp", fmt.Sprintf("%d", timestamp))
+		req.Header.Set("X-Node-Id", p.cfg.NodeID)
+		req.Header.Set("X-Signature", signature)
 		req.Header.Set("Authorization", "Bearer "+signature)
 
-		client := &http.Client{Timeout: 10 * time.Second}
-		resp, err := client.Do(req)
-		
+		resp, err := p.client.Do(req)
+
 		if err != nil {
 			log.Printf("[Pusher - Network Err] Retrying... %v", err)
-			return err 
+			return err
 		}
 		defer resp.Body.Close()
 
@@ -87,7 +118,7 @@ func (p *BatchPusher) FlushToEdge() {
 			return backoff.Permanent(fmt.Errorf("410 remote suspension"))
 		case resp.StatusCode >= 200 && resp.StatusCode < 300:
 			log.Printf("[Pusher] Success! Flushed %d metrics to Edge (Status: %d)", len(snapshots), resp.StatusCode)
-			return nil 
+			return nil
 		case resp.StatusCode >= 500 || resp.StatusCode == 429:
 			log.Printf("[Pusher] Server saturated (Status %d), initiating exponential backoff...", resp.StatusCode)
 			return fmt.Errorf("server busy: %d", resp.StatusCode)
@@ -102,7 +133,7 @@ func (p *BatchPusher) FlushToEdge() {
 	} else {
 		p.mutex.Lock()
 		// Only chop off the data we just submitted (in case collector was fast enough to push while flushing)
-		p.buffer = p.buffer[len(snapshots):] 
+		p.buffer = p.buffer[len(snapshots):]
 		p.mutex.Unlock()
 	}
 }
