@@ -14,7 +14,10 @@
     "test": "vitest run",
     "test:e2e": "bash tests/e2e/run-e2e.sh",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "pnpm run typecheck:all",
+    "typecheck:app": "tsc -p tsconfig.app.json --noEmit",
+    "typecheck:test": "tsc -p tsconfig.test.json --noEmit",
+    "typecheck:all": "pnpm run typecheck:app && pnpm run typecheck:test"
   },
   "dependencies": {
     "@hono/zod-validator": "^0.7.6",

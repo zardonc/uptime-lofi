@@ -1,19 +1,7 @@
 {
-  "compilerOptions": {
-    "target": "ESNext",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "lib": ["ESNext"],
-    "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
-    "noImplicitAny": true,
-    "moduleDetection": "force",
-    "outDir": "./dist",
-    "rootDir": "./src",
-    "skipLibCheck": true,
-    "strict": true,
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "preserveSymlinks": false
-  }
+  "files": [],
+  "references": [
+    { "path": "./tsconfig.app.json" },
+    { "path": "./tsconfig.test.json" }
+  ]
 }
