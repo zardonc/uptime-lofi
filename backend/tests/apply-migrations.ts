@@ -1,18 +1,24 @@
 import { env, applyD1Migrations } from "cloudflare:test";
 import { beforeAll } from "vitest";
 
+type TestEnv = typeof env & {
+  DB: D1Database;
+  TEST_MIGRATIONS?: Array<{ name?: string; content?: string } | string>;
+};
+
 beforeAll(async () => {
+  const testEnv = env as TestEnv;
   // Try to use the standard built-in approach
   try {
-    await applyD1Migrations(env.DB, (env as any).TEST_MIGRATIONS);
+    await applyD1Migrations(testEnv.DB, (testEnv.TEST_MIGRATIONS ?? []) as any);
   } catch (e) {
     console.error("applyD1Migrations failed:", e);
     // Fallback: manually execute the statements
-    const migrations = (env as any).TEST_MIGRATIONS;
+    const migrations = testEnv.TEST_MIGRATIONS;
     if (migrations) {
        for (const migration of migrations) {
           try {
-             await env.DB.exec(migration.name ? migration.content : migration);
+             await testEnv.DB.exec(typeof migration === "string" ? migration : (migration.content ?? ""));
           } catch(err) {
              console.log("Migration manual fallback error:", err);
           }

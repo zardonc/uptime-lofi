@@ -9,3 +9,6 @@ node_modules/
 
 # Environment variables with secrets
 .dev.vars
+
+# TypeScript incremental metadata
+*.tsbuildinfo
