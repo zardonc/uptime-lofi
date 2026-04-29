@@ -10,7 +10,10 @@ export default defineConfig({
       return {
         wrangler: { configPath: "./wrangler.toml" },
         miniflare: {
-          bindings: { TEST_MIGRATIONS: migrations },
+          bindings: {
+            TEST_MIGRATIONS: migrations,
+            API_SECRET_KEY: "default_test_secret",
+          },
         },
       };
     }),
