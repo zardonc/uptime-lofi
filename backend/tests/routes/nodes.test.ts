@@ -12,6 +12,7 @@ describe("Nodes Routes (/api/nodes)", () => {
     testEnv = { 
       ...env, 
       API_SECRET_KEY: "test_admin_key",
+      PROBE_PUSH_URL: "https://uptime-lofi-probe.example.workers.dev",
       JWT_AUDIENCE: "test_aud",
       JWT_ISSUER: "test_iss",
       SESSION_BLACKLIST: {
@@ -87,5 +88,56 @@ describe("Nodes Routes (/api/nodes)", () => {
   it("3. Unauthenticated GET /api/nodes returns 401", async () => {
     const res = await app.fetch(new Request("http://localhost/api/nodes"), testEnv);
     expect(res.status).toBe(401);
+  });
+
+  it("4. Generates probe config without exposing the master secret", async () => {
+    const res = await app.fetch(
+      new Request("http://localhost/api/nodes/probe-config", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${adminToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ name: "prod-vps-1", platform: "linux/amd64" }),
+      }),
+      testEnv,
+    );
+
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    expect(text).not.toContain("test_admin_key");
+
+    const body = JSON.parse(text) as any;
+    expect(body.data.node_id).toEqual(expect.any(String));
+    expect(body.data.node_name).toBe("prod-vps-1");
+    expect(body.data.node_secret).toEqual(expect.any(String));
+    expect(body.data.probe_push_url).toBe("https://uptime-lofi-probe.example.workers.dev");
+    expect(body.data.config_yaml).toContain("node_id:");
+    expect(body.data.config_yaml).toContain("psk:");
+    expect(body.data.downloads.linux_amd64).toContain("probe-linux-amd64.tar.gz");
+
+    const row = await (env as any).DB.prepare("SELECT * FROM nodes WHERE id = ?")
+      .bind(body.data.node_id)
+      .first();
+    expect(row.name).toBe("prod-vps-1");
+    expect(row.type).toBe("agent_push");
+    expect(row.status).toBe("offline");
+    expect(row.salt).toEqual(expect.any(String));
+  });
+
+  it("5. Rejects empty probe names", async () => {
+    const res = await app.fetch(
+      new Request("http://localhost/api/nodes/probe-config", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${adminToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ name: "   " }),
+      }),
+      testEnv,
+    );
+
+    expect(res.status).toBe(400);
   });
 });

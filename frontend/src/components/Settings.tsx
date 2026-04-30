@@ -1,20 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 import { api } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
+import { ProbeSetup } from './ProbeSetup';
 import { Shield, ShieldAlert, KeyRound, Loader2 } from 'lucide-react';
 
-const settingsSchema = z.object({
-  uiLockEnabled: z.boolean(),
-  password: z.string().min(8, 'Password must be at least 8 characters'),
-}).refine(
-  (data) => !data.uiLockEnabled || data.password.trim().length >= 8,
-  { message: 'Password is required when UI Lock is enabled', path: ['password'] }
-);
-
-type SettingsFormData = z.infer<typeof settingsSchema>;
+type SettingsFormData = {
+  uiLockEnabled: boolean;
+  password: string;
+};
 
 export function Settings() {
   const { logout } = useAuth();
@@ -30,7 +24,6 @@ export function Settings() {
     setValue,
     formState: { errors },
   } = useForm<SettingsFormData>({
-    resolver: zodResolver(settingsSchema),
     defaultValues: {
       uiLockEnabled: false,
       password: '',
@@ -91,17 +84,18 @@ export function Settings() {
   }
 
   return (
-    <div className="card animate-in" style={{ maxWidth: '600px', margin: '0 auto' }}>
-      <h2 className="section-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.5rem' }}>
+    <div className="settings-page">
+      <div className="card animate-in">
+        <h2 className="section-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.5rem' }}>
         <Shield size={20} />
         Dashboard Security
-      </h2>
+        </h2>
 
       <p style={{ color: 'var(--text-muted)', marginBottom: '2rem', fontSize: '0.9rem', lineHeight: 1.5 }}>
         By default, the dashboard is protected by the Master API Secret Key. You can enable a custom UI Access Key below to use a simpler password for daily logins while keeping the Master Key secret.
       </p>
 
-      <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+        <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
         {/* Toggle Switch Row */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
@@ -140,7 +134,12 @@ export function Settings() {
                   <input
                     id="settings-password"
                     type="text"
-                    {...register('password')}
+                    {...register('password', {
+                      validate: (value) => {
+                        if (!uiLockEnabled) return true;
+                        return value.trim().length >= 8 || 'Password must be at least 8 characters';
+                      },
+                    })}
                     placeholder="Enter a secure password..."
                   aria-invalid={!!errors.password}
                   aria-describedby={errors.password ? 'password-error' : 'password-hint'}
@@ -194,7 +193,13 @@ export function Settings() {
             {saving ? <Loader2 className="spin-icon" size={16} /> : 'Save Changes'}
           </button>
         </div>
-      </form>
+        </form>
+      </div>
+
+      <div className="card animate-in delay-1">
+        <h2 className="section-title">Probe Installation</h2>
+        <ProbeSetup />
+      </div>
     </div>
   );
 }

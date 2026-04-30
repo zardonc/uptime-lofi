@@ -7,6 +7,46 @@ import { decompress } from "../utils/compression";
 
 const nodesApi = new Hono<{ Bindings: Bindings }>();
 
+const probeConfigSchema = z.object({
+  name: z.string().trim().min(1).max(80),
+  platform: z.enum(['linux/amd64', 'linux/arm64', 'darwin/amd64', 'darwin/arm64']).optional().default('linux/amd64'),
+});
+
+async function deriveNodeSecret(masterSecret: string, nodeId: string, salt: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const keyData = encoder.encode(masterSecret);
+  const messageData = encoder.encode(`${nodeId}:${salt}`);
+  const cryptoKey = await crypto.subtle.importKey(
+    'raw',
+    keyData,
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  );
+  const signature = await crypto.subtle.sign('HMAC', cryptoKey, messageData);
+  return Array.from(new Uint8Array(signature)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function releaseDownloads() {
+  const base = 'https://github.com/zardonc/uptime-lofi/releases/latest/download';
+  return {
+    linux_amd64: `${base}/probe-linux-amd64.tar.gz`,
+    linux_arm64: `${base}/probe-linux-arm64.tar.gz`,
+    darwin_amd64: `${base}/probe-darwin-amd64.tar.gz`,
+    darwin_arm64: `${base}/probe-darwin-arm64.tar.gz`,
+  };
+}
+
+function createConfigYaml(apiUrl: string, nodeId: string, nodeSecret: string) {
+  return [
+    `api_url: ${apiUrl}`,
+    `node_id: ${nodeId}`,
+    `psk: ${nodeSecret}`,
+    'enable_docker: true',
+    '',
+  ].join('\n');
+}
+
  nodesApi.get("/", async (c) => {
   const db = c.env.DB;
   const { results } = await db.prepare(
@@ -21,6 +61,47 @@ const nodesApi = new Hono<{ Bindings: Bindings }>();
 
   return c.json({ data: nodes });
 });
+
+nodesApi.post(
+  "/probe-config",
+  zValidator("json", probeConfigSchema, (result, c) => {
+    if (!result.success) {
+      return c.json({ error: "Invalid probe config request" }, 400);
+    }
+  }),
+  async (c) => {
+    const { name, platform } = c.req.valid("json");
+    const nodeId = crypto.randomUUID();
+    const salt = crypto.randomUUID();
+    const nodeSecret = await deriveNodeSecret(c.env.API_SECRET_KEY, nodeId, salt);
+    const probePushUrl = c.env.PROBE_PUSH_URL ?? new URL(c.req.url).origin;
+
+    await c.env.DB.prepare(
+      `INSERT INTO nodes (id, name, type, status, salt, config_json)
+       VALUES (?, ?, 'agent_push', 'offline', ?, ?)`
+    ).bind(
+      nodeId,
+      name,
+      salt,
+      JSON.stringify({
+        platform,
+        generated_by: 'dashboard_probe_config',
+        credential_version: 1,
+      })
+    ).run();
+
+    return c.json({
+      data: {
+        node_id: nodeId,
+        node_name: name,
+        node_secret: nodeSecret,
+        probe_push_url: probePushUrl,
+        config_yaml: createConfigYaml(probePushUrl, nodeId, nodeSecret),
+        downloads: releaseDownloads(),
+      },
+    });
+  }
+);
 
  // Input sanitization: validate id and hours
 nodesApi.get(

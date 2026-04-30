@@ -200,6 +200,30 @@ export const handlers = [
   http.get("/api/nodes", () => {
     return HttpResponse.json({ data: mockApiState.nodes });
   }),
+  http.post("/api/nodes/probe-config", async ({ request }) => {
+    const body = (await request.json()) as { name?: string; platform?: string };
+    const nodeName = body.name?.trim();
+
+    if (!nodeName) {
+      return HttpResponse.json({ error: "Name is required" }, { status: 400 });
+    }
+
+    return HttpResponse.json({
+      data: {
+        node_id: "node-generated-1",
+        node_name: nodeName,
+        node_secret: "node-secret-generated",
+        probe_push_url: "https://uptime-lofi-probe.example.workers.dev",
+        config_yaml: "api_url: https://uptime-lofi-probe.example.workers.dev\nnode_id: node-generated-1\npsk: node-secret-generated\nenable_docker: true\n",
+        downloads: {
+          linux_amd64: "https://github.com/example/uptime-lofi/releases/latest/download/probe-linux-amd64.tar.gz",
+          linux_arm64: "https://github.com/example/uptime-lofi/releases/latest/download/probe-linux-arm64.tar.gz",
+          darwin_amd64: "https://github.com/example/uptime-lofi/releases/latest/download/probe-darwin-amd64.tar.gz",
+          darwin_arm64: "https://github.com/example/uptime-lofi/releases/latest/download/probe-darwin-arm64.tar.gz",
+        },
+      },
+    });
+  }),
   http.get("/api/nodes/:nodeId/metrics", ({ params }) => {
     const nodeId = typeof params.nodeId === "string" ? params.nodeId : "";
     return HttpResponse.json({ data: mockApiState.metricsByNode[nodeId] ?? [] });

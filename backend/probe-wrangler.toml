@@ -15,4 +15,16 @@ ENVIRONMENT = "development"
 [[d1_databases]]
 binding = "DB"
 database_name = "uptime-lofi-db"
-database_id = "local-dev-id"
+database_id = "PRODUCTION_DB_ID_PLACEHOLDER"
+
+# ─── Staging Environment ───
+[env.staging]
+name = "uptime-lofi-probe-staging"
+
+[env.staging.vars]
+ENVIRONMENT = "staging"
+
+[[env.staging.d1_databases]]
+binding = "DB"
+database_name = "uptime-lofi-db-staging"
+database_id = "STAGING_DB_ID_PLACEHOLDER"

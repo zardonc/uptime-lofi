@@ -1,0 +1,12 @@
+name = "__PROBE_WORKER_NAME__"
+main = "src/probe-index.ts"
+compatibility_date = "2026-04-01"
+limits = { body_size = "1mb" }
+
+[vars]
+ENVIRONMENT = "production"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "__D1_DATABASE_NAME__"
+database_id = "__D1_DATABASE_ID__"

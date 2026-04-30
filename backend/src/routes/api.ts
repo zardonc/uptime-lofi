@@ -18,6 +18,8 @@ export type Bindings = {
   EMERGENCY_UNLOCK_KEY?: string;
   // Comma-separated list of allowed origins for production CORS
   CORS_ORIGINS?: string;
+  // Deployed Probe Worker base URL for generated probe configs
+  PROBE_PUSH_URL?: string;
   // KV namespace for instant session blacklist (logout revocation)
   SESSION_BLACKLIST: KVNamespace;
 };

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -76,5 +76,26 @@ describe("Settings", () => {
     await user.click(screen.getByRole("button", { name: /save changes/i }));
 
     expect(await screen.findByText(/failed to save settings/i)).toBeInTheDocument();
+  });
+
+  it("generates probe installation config", async () => {
+    const user = userEvent.setup();
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: vi.fn().mockResolvedValue(undefined) },
+    });
+    setMockAuthState({ isUiLockEnabled: false, authenticated: true });
+
+    renderWithAuth(<Settings />);
+
+    const nameInput = await screen.findByLabelText(/node name/i);
+    await user.clear(nameInput);
+    await user.type(nameInput, "prod-vps-1");
+    await user.click(screen.getByRole("button", { name: /generate probe config/i }));
+
+    expect(await screen.findByText("node-generated-1")).toBeInTheDocument();
+    expect(screen.getByText("node-secret-generated")).toBeInTheDocument();
+    expect(screen.getByText("https://uptime-lofi-probe.example.workers.dev")).toBeInTheDocument();
+    expect(screen.getByText("config.yaml")).toBeInTheDocument();
   });
 });

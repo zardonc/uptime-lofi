@@ -51,3 +51,23 @@ export interface TrendPoint {
   readonly mem: number;
   readonly ping: number;
 }
+
+export type ProbePlatform = 'linux/amd64' | 'linux/arm64' | 'darwin/amd64' | 'darwin/arm64';
+
+export type ProbeDownloadKey = 'linux_amd64' | 'linux_arm64' | 'darwin_amd64' | 'darwin_arm64';
+
+export interface ProbeConfigRequest {
+  readonly name: string;
+  readonly platform?: ProbePlatform;
+}
+
+export interface ProbeConfigData {
+  readonly node_id: string;
+  readonly node_name: string;
+  readonly node_secret: string;
+  readonly probe_push_url: string;
+  readonly config_yaml: string;
+  readonly downloads: Readonly<Record<ProbeDownloadKey, string>>;
+}
+
+export type ProbeConfigResponse = ApiResponse<ProbeConfigData>;

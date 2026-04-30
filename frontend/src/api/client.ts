@@ -3,8 +3,16 @@
 // JWT-aware fetch wrapper with auto-refresh
 // ═══════════════════════════════════════════
 
-import type { LoginResponse, ApiNode, ApiMetric, OverviewStats } from './types';
+import type {
+  LoginResponse,
+  ApiNode,
+  ApiMetric,
+  OverviewStats,
+  ProbeConfigRequest,
+  ProbeConfigResponse,
+} from './types';
 
+const API_BASE_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
 const BASE = '/api';
 
 // ── Token store (memory-only, never persisted) ──
@@ -33,13 +41,13 @@ async function apiFetch<T>(
     headers.set('Content-Type', 'application/json');
   }
 
-  const res = await fetch(`${BASE}${path}`, { ...init, headers, credentials: 'include' });
+  const res = await fetch(`${API_BASE_URL}${BASE}${path}`, { ...init, headers, credentials: 'include' });
 
   if (res.status === 401 && auth) {
     const refreshed = await tryRefresh();
     if (refreshed) {
       headers.set('Authorization', `Bearer ${refreshed}`);
-      const retry = await fetch(`${BASE}${path}`, { ...init, headers, credentials: 'include' });
+      const retry = await fetch(`${API_BASE_URL}${BASE}${path}`, { ...init, headers, credentials: 'include' });
       if (!retry.ok) throw new ApiClientError(retry.status, await safeText(retry));
       return retry.json() as Promise<T>;
     }
@@ -56,7 +64,7 @@ async function tryRefresh(): Promise<string | null> {
 
   refreshPromise = (async () => {
     try {
-      const res = await fetch(`${BASE}/auth/refresh`, {
+      const res = await fetch(`${API_BASE_URL}${BASE}/auth/refresh`, {
         method: 'POST',
         credentials: 'include',
       });
@@ -110,6 +118,17 @@ export const api = {
       auth: false,
     }),
 
+  refreshSession: () =>
+    apiFetch<LoginResponse>('/auth/refresh', {
+      method: 'POST',
+      auth: false,
+    }),
+
+  logout: () =>
+    apiFetch<{ success: boolean }>('/auth/logout', {
+      method: 'POST',
+    }),
+
   getNodes: () => apiFetch<{ data: ApiNode[] }>('/nodes'),
   getOverview: () => apiFetch<{ data: OverviewStats }>('/stats/overview'),
   getMetrics: (nodeId: string, hours = 24) =>
@@ -117,6 +136,12 @@ export const api = {
 
   updateSecuritySettings: (payload: { enabled: boolean; password?: string }) =>
     apiFetch<{ success: boolean }>('/settings/security', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  createProbeConfig: (payload: ProbeConfigRequest) =>
+    apiFetch<ProbeConfigResponse>('/nodes/probe-config', {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
