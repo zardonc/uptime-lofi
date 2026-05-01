@@ -4,6 +4,11 @@
   "scripts": {
     "dev": "pnpm --parallel dev",
     "build": "pnpm --parallel build",
-    "typecheck": "pnpm --parallel typecheck"
+    "typecheck": "pnpm --parallel typecheck",
+    "deploy:self-host": "pnpm --filter backend deploy:self-host",
+    "deploy:maintainer-staging": "pnpm --filter backend deploy:all:maintainer-staging",
+    "deploy:production": "pnpm --filter backend deploy:all",
+    "test:backend": "pnpm --filter backend test",
+    "test:frontend": "pnpm --filter frontend test"
   }
 }

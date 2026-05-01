@@ -1,0 +1,85 @@
+name: Release Go Probe
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: server-probe/go.mod
+          cache-dependency-path: server-probe/go.sum
+
+      - name: Build
+        working-directory: server-probe
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+        run: |
+          BINARY_NAME="probe-${{ matrix.goos }}-${{ matrix.goarch }}"
+          go build -ldflags="-s -w -X main.version=${{ github.ref_name }}" \
+            -o "${BINARY_NAME}" ./cmd/probe/
+          tar -czf "${BINARY_NAME}.tar.gz" "${BINARY_NAME}"
+          sha256sum "${BINARY_NAME}.tar.gz" > "${BINARY_NAME}.tar.gz.sha256"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: probe-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: |
+            server-probe/probe-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz
+            server-probe/probe-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz.sha256
+
+  create-release:
+    needs: build-and-release
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Generate checksums
+        run: |
+          cd release-assets
+          cat *.sha256 > checksums.txt
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release-assets/*.tar.gz
+            release-assets/checksums.txt
+          generate_release_notes: true
+          draft: false
+          prerelease: false

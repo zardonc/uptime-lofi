@@ -1,0 +1,46 @@
+name: CI - Lint & Test
+
+on:
+  pull_request:
+    branches: ['**']
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Frontend - Lint
+        run: pnpm --filter frontend lint
+
+      - name: Frontend - Type Check
+        run: pnpm --filter frontend typecheck
+
+      - name: Frontend - Tests
+        run: pnpm --filter frontend test
+
+      - name: Backend - Tests
+        run: pnpm --filter backend test
+        # Backend typecheck is intentionally skipped because of the known
+        # Hono + pnpm type-resolution issue captured in Phase 9 context.

@@ -1,0 +1,104 @@
+name: Deploy Self-Hosted
+
+on:
+  workflow_dispatch:
+    inputs:
+      pages_url:
+        description: Cloudflare Pages URL used for CORS and smoke validation
+        required: false
+        default: https://uptime-lofi.pages.dev
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-self-hosted
+  cancel-in-progress: false
+
+env:
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+  API_SECRET_KEY: ${{ secrets.API_SECRET_KEY }}
+  INITIAL_UI_PASSWORD: ${{ secrets.INITIAL_UI_PASSWORD }}
+  SELF_HOST_PAGES_URL: ${{ inputs.pages_url || 'https://uptime-lofi.pages.dev' }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate required secrets
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          test -n "$API_SECRET_KEY"
+
+      - name: Provision Cloudflare resources
+        id: cf
+        run: |
+          source scripts/ci/self-host-cloudflare.sh
+          ensure_self_host_resources
+
+      - name: Run D1 migrations
+        run: pnpm exec wrangler --config backend/wrangler.self-host.generated.toml d1 migrations apply uptime-lofi-db --remote
+
+      - name: Deploy Dashboard Worker
+        working-directory: backend
+        run: |
+          pnpm exec wrangler deploy -c wrangler.self-host.generated.toml --minify
+          printf '%s' "$API_SECRET_KEY" | pnpm exec wrangler secret put API_SECRET_KEY -c wrangler.self-host.generated.toml
+
+      - name: Deploy Probe Worker
+        working-directory: backend
+        run: |
+          pnpm exec wrangler deploy -c probe-wrangler.self-host.generated.toml --minify
+          printf '%s' "$API_SECRET_KEY" | pnpm exec wrangler secret put API_SECRET_KEY -c probe-wrangler.self-host.generated.toml
+
+      - name: Build frontend
+        run: pnpm --filter frontend build
+        env:
+          VITE_API_URL: ${{ steps.cf.outputs.dashboard_worker_url }}
+
+      - name: Deploy Cloudflare Pages
+        run: pnpm exec wrangler pages deploy frontend/dist --project-name=${{ steps.cf.outputs.pages_project_name }} --branch=main
+
+      - name: Configure initial UI password
+        if: ${{ env.INITIAL_UI_PASSWORD != '' }}
+        run: |
+          python -c "import json,os; print(json.dumps({'admin_key': os.environ['API_SECRET_KEY'], 'new_ui_password': os.environ['INITIAL_UI_PASSWORD']}))" > setup-payload.json
+          curl --fail --silent --show-error -X POST "${API_BASE_URL}/api/auth/setup" \
+            -H "Content-Type: application/json" \
+            --data @setup-payload.json
+        env:
+          API_BASE_URL: ${{ steps.cf.outputs.dashboard_worker_url }}
+
+      - name: Run self-host smoke validation
+        run: bash scripts/smoke-test.sh --env self-host
+        env:
+          API_BASE_URL: ${{ steps.cf.outputs.dashboard_worker_url }}
+          PROBE_BASE_URL: ${{ steps.cf.outputs.probe_worker_url }}
+          PAGES_URL: ${{ steps.cf.outputs.pages_url }}
+          TEST_PASSWORD: ${{ secrets.INITIAL_UI_PASSWORD }}
+
+      - name: Deployment summary
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" <<'SUMMARY'
+
+          ## Deployment Complete
+
+          Open the Dashboard URL, log in, then go to Settings -> Probe Installation and click Generate Probe Config.
+          SUMMARY

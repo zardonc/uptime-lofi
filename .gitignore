@@ -11,7 +11,11 @@
 /.opencode/
 .claude/
 .planning/
-.github/
+.github/agents/
+.github/get-shit-done/
+.github/skills/
+.github/copilot-instructions.md
+.github/gsd-file-manifest.json
 .kilo/
 .trae/
 .windsurf/
@@ -35,6 +39,8 @@ pnpm-debug.log*
 # Cloudflare & Wrangler
 .wrangler/
 .dev.vars
+backend/wrangler.self-host.generated.toml
+backend/probe-wrangler.self-host.generated.toml
 
 # Environment Variables
 .env
@@ -46,6 +52,14 @@ pnpm-debug.log*
 /server-probe/uptime-lofi-probe.exe
 /server-probe/probe
 /server-probe/probe.exe
+/server-probe/probe-*
+/server-probe/*.tar.gz
+/server-probe/*.tar.gz.sha256
+/server-probe/checksums.txt
+
+# Local deployment/test artifacts
+/cookies.txt
+/setup-payload.json
 
 # 强制保障探针核心代码不被任何 IDE 或隐式规则排除
 !/server-probe/internal/config/config.go

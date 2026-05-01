@@ -28,16 +28,10 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
 
     (async () => {
       try {
-        const res = await fetch('/api/auth/refresh', {
-          method: 'POST',
-          credentials: 'include',
-        });
-        if (res.ok) {
-          const body = await res.json();
-          if (!cancelled) {
-            setAccessToken(body.access_token);
-            setIsAuthenticated(true);
-          }
+        const body = await api.refreshSession();
+        if (!cancelled) {
+          setAccessToken(body.access_token);
+          setIsAuthenticated(true);
         }
       } catch {
         // No session — that's fine, user will see login
@@ -69,11 +63,7 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
     const token = getAccessToken();
     try {
       // Call backend to revoke refresh token
-      await fetch('/api/auth/logout', {
-        method: 'POST',
-        credentials: 'include',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
+      if (token) await api.logout();
     } catch (error) {
       // Log but don't fail - token will expire anyway
       console.warn('Logout API call failed:', error);

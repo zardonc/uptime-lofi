@@ -1,0 +1,22 @@
+name = "__DASHBOARD_WORKER_NAME__"
+main = "src/index.ts"
+compatibility_date = "2026-04-01"
+limits = { body_size = "1mb" }
+
+[vars]
+ENVIRONMENT = "production"
+CORS_ORIGINS = "__PAGES_URL__"
+PROBE_PUSH_URL = "__PROBE_WORKER_URL__"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "__D1_DATABASE_NAME__"
+database_id = "__D1_DATABASE_ID__"
+
+[[kv_namespaces]]
+binding = "SESSION_BLACKLIST"
+id = "__KV_NAMESPACE_ID__"
+preview_id = "__KV_PREVIEW_ID__"
+
+[triggers]
+crons = ["0 */6 * * *"]
