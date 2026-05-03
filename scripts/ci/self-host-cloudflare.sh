@@ -52,10 +52,7 @@ json_result_match() {
   local match_key="$1"
   local match_value="$2"
   local fields="$3"
-  python - "$match_key" "$match_value" "$fields" <<'PY'
-import json
-import sys
-
+  python -c "import json,sys
 match_key, match_value, fields = sys.argv[1], sys.argv[2], sys.argv[3].split(',')
 raw = sys.stdin.read().strip()
 if not raw:
@@ -66,7 +63,6 @@ try:
 except json.JSONDecodeError:
     print('')
     raise SystemExit(0)
-
 items = []
 if isinstance(data, list):
     items = data
@@ -79,23 +75,18 @@ elif isinstance(data, dict):
             if isinstance(value, list):
                 items = value
                 break
-
 for item in items:
     if isinstance(item, dict) and item.get(match_key) == match_value:
         for field in fields:
             if item.get(field):
                 print(item[field])
                 raise SystemExit(0)
-print('')
-PY
+print('')" "$match_key" "$match_value" "$fields"
 }
 
 json_result_deep_any() {
   local fields="$1"
-  python - "$fields" <<'PY'
-import json
-import sys
-
+  python -c "import json,sys
 fields = sys.argv[1].split(',')
 raw = sys.stdin.read().strip()
 if not raw:
@@ -106,7 +97,6 @@ try:
 except json.JSONDecodeError:
     print('')
     raise SystemExit(0)
-
 def walk(value):
     if isinstance(value, dict):
         for field in fields:
@@ -122,9 +112,7 @@ def walk(value):
             if found:
                 return found
     return ''
-
-print(walk(data))
-PY
+print(walk(data))" "$fields"
 }
 
 cf_api() {
