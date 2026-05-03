@@ -133,7 +133,7 @@ find_or_create_d1() {
   fi
 
   log "Creating D1 database ${name}"
-  create_output=$(wrangler_capture d1 create "$name" --json)
+  create_output=$(wrangler_capture d1 create "$name")
   created=$(printf '%s' "$create_output" | json_deep_any uuid,database_id,id)
   if [ -z "$created" ]; then
     created=$(extract_id_from_text "$create_output")
@@ -157,7 +157,7 @@ find_or_create_kv() {
   fi
 
   log "Creating KV namespace ${name}"
-  create_output=$(wrangler_capture kv namespace create "$name" --json)
+  create_output=$(wrangler_capture kv namespace create "$name")
   created=$(printf '%s' "$create_output" | json_deep_any id)
   if [ -z "$created" ]; then
     created=$(extract_id_from_text "$create_output")
