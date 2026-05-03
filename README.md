@@ -58,7 +58,7 @@ In your forked repo:
 1. Open `Actions`.
 2. Select `Deploy Self-Hosted`.
 3. Click `Run workflow`.
-4. Leave `pages_url` empty/default unless you already know your deployed Pages URL should be different. The default is `https://uptime-lofi.pages.dev`.
+4. Leave `pages_url` empty/default unless you already know your deployed Pages URL should be different. If omitted, the workflow uses `https://{resource_prefix}.pages.dev`.
 5. Leave `resource_prefix` as `uptime-lofi` for a single deployment, or set a custom lowercase prefix such as `uptime-lofi-lmyyah` if your Cloudflare account hosts multiple copies. The prefix controls D1, Workers, and Pages resources. `SESSION_BLACKLIST` is always reused as the fixed KV namespace.
 6. Wait for the workflow to finish.
 
