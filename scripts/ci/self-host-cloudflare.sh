@@ -25,7 +25,7 @@ require_env() {
 }
 
 wrangler_json() {
-  pnpm exec wrangler "$@" --json
+  pnpm --dir backend exec wrangler "$@" --json
 }
 
 append_summary() {
@@ -73,7 +73,7 @@ print(walk(data))"
 
 wrangler_capture() {
   local output
-  if ! output=$(pnpm exec wrangler "$@" 2>&1); then
+  if ! output=$(pnpm --dir backend exec wrangler "$@" 2>&1); then
     printf '%s\n' "$output" >&2
     return 1
   fi
@@ -171,13 +171,13 @@ find_or_create_kv() {
 
 ensure_pages_project() {
   local name="${1:-$PAGES_PROJECT_NAME}"
-  if pnpm exec wrangler pages project list 2>/dev/null | grep -q "$name"; then
+  if pnpm --dir backend exec wrangler pages project list 2>/dev/null | grep -q "$name"; then
     log "Reusing Pages project ${name}"
     return 0
   fi
 
   log "Creating Pages project ${name}"
-  pnpm exec wrangler pages project create "$name" --production-branch=main >/dev/null
+  pnpm --dir backend exec wrangler pages project create "$name" --production-branch=main >/dev/null
 }
 
 render_template() {
