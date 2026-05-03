@@ -80,7 +80,17 @@ jobs:
           VITE_API_URL: ${{ steps.cf.outputs.dashboard_worker_url }}
 
       - name: Deploy Cloudflare Pages
-        run: pnpm --dir backend exec wrangler pages deploy ../frontend/dist --project-name=${{ steps.cf.outputs.pages_project_name }} --branch=main
+        id: pages
+        run: |
+          set -euo pipefail
+          output=$(pnpm --dir backend exec wrangler pages deploy ../frontend/dist --project-name=${{ steps.cf.outputs.pages_project_name }} --branch=main 2>&1)
+          printf '%s\n' "$output"
+          deployed_url=$(printf '%s\n' "$output" | grep -Eo 'https://[^[:space:]]+\.pages\.dev' | tail -1 || true)
+          if [ -n "$deployed_url" ]; then
+            echo "pages_url=${deployed_url}" >> "$GITHUB_OUTPUT"
+          else
+            echo "pages_url=${{ steps.cf.outputs.pages_url }}" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Configure initial UI password
         if: ${{ env.INITIAL_UI_PASSWORD != '' }}
@@ -97,7 +107,7 @@ jobs:
         env:
           API_BASE_URL: ${{ steps.cf.outputs.dashboard_worker_url }}
           PROBE_BASE_URL: ${{ steps.cf.outputs.probe_worker_url }}
-          PAGES_URL: ${{ steps.cf.outputs.pages_url }}
+          PAGES_URL: ${{ steps.pages.outputs.pages_url }}
           TEST_PASSWORD: ${{ secrets.INITIAL_UI_PASSWORD }}
 
       - name: Deployment summary
@@ -105,6 +115,8 @@ jobs:
           cat >> "$GITHUB_STEP_SUMMARY" <<'SUMMARY'
 
           ## Deployment Complete
+
+          Dashboard URL: ${{ steps.pages.outputs.pages_url }}
 
           Open the Dashboard URL, log in, then go to Settings -> Probe Installation and click Generate Probe Config.
           SUMMARY

@@ -106,7 +106,10 @@ test_cors_headers() {
   section "CORS Headers"
 
   local resp
-  resp=$(curl -s -D - -o /dev/null -H "Origin: ${PAGES_URL}" "${API_BASE_URL}/health")
+  resp=$(curl -sS -D - -o /dev/null -H "Origin: ${PAGES_URL}" "${API_BASE_URL}/health" 2>&1) || {
+    fail "CORS request failed for ${API_BASE_URL}/health" "$resp"
+    return 0
+  }
 
   if echo "$resp" | grep -qi "access-control-allow-origin"; then
     pass "CORS Access-Control-Allow-Origin present"

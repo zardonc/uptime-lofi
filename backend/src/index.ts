@@ -14,28 +14,29 @@ const app = new Hono<{ Bindings: Bindings }>()
 app.use('*', securityHeadersMiddleware)
 
 // 2) CORS using Hono's built-in middleware
-app.use('*', cors({
-  origin: (origin) => {
-    // Development: allow localhost
-    if (origin?.startsWith('http://localhost') || origin?.startsWith('https://localhost')) {
-      return origin
-    }
-    // Production: explicit allowlist from CORS_ORIGINS binding
-    const corsOrigins = (globalThis as any)?.CORS_ORIGINS
-    if (typeof corsOrigins === 'string') {
-      const allowed = corsOrigins.split(',').map((s: string) => s.trim()).filter(Boolean)
+app.use('*', async (c, next) => {
+  const corsOrigins = c.env.CORS_ORIGINS
+  const allowed = typeof corsOrigins === 'string'
+    ? corsOrigins.split(',').map((s: string) => s.trim()).filter(Boolean)
+    : []
+
+  return cors({
+    origin: (origin) => {
+      // Development: allow localhost
+      if (origin?.startsWith('http://localhost') || origin?.startsWith('https://localhost')) {
+        return origin
+      }
+      // Production: explicit allowlist from CORS_ORIGINS binding
       if (allowed.includes(origin)) return origin
-    } else if (Array.isArray(corsOrigins) && corsOrigins.includes(origin)) {
-      return origin
-    }
-    // No CORS for unauthorized origins
-    return undefined
-  },
-  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'Authorization', 'X-Node-Id', 'X-Timestamp', 'X-Signature'],
-  credentials: true,
-  maxAge: 86400,
-}))
+      // No CORS for unauthorized origins
+      return undefined
+    },
+    allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowHeaders: ['Content-Type', 'Authorization', 'X-Node-Id', 'X-Timestamp', 'X-Signature'],
+    credentials: true,
+    maxAge: 86400,
+  })(c, next)
+})
 
 // Add Vary: Origin header for proper CDN caching
 app.use('*', async (c, next) => {
