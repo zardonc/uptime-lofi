@@ -106,5 +106,7 @@ jobs:
 
           ## Deployment Complete
 
+          Dashboard URL: ${{ steps.cf.outputs.pages_url }}
+
           Open the Dashboard URL, log in, then go to Settings -> Probe Installation and click Generate Probe Config.
           SUMMARY
