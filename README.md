@@ -59,9 +59,12 @@ In your forked repo:
 2. Select `Deploy Self-Hosted`.
 3. Click `Run workflow`.
 4. Leave `pages_url` empty/default unless you already know your deployed Pages URL should be different. The default is `https://uptime-lofi.pages.dev`.
-5. Wait for the workflow to finish.
+5. Leave `resource_prefix` as `uptime-lofi` for a single deployment, or set a custom lowercase prefix such as `uptime-lofi-lmyyah` if your Cloudflare account hosts multiple copies. The prefix controls D1, Workers, and Pages resources. `SESSION_BLACKLIST` is always reused as the fixed KV namespace.
+6. Wait for the workflow to finish.
 
 The workflow creates or reuses Cloudflare resources, runs D1 migrations, deploys the dashboard Worker, deploys the probe Worker, builds the frontend with the deployed API URL, deploys Cloudflare Pages, then runs smoke validation.
+
+Default resource names are `uptime-lofi-db`, `uptime-lofi-backend`, `uptime-lofi-probe`, and `uptime-lofi`. With `resource_prefix=uptime-lofi-lmyyah`, they become `uptime-lofi-lmyyah-db`, `uptime-lofi-lmyyah-backend`, `uptime-lofi-lmyyah-probe`, and `uptime-lofi-lmyyah`. The KV namespace remains `SESSION_BLACKLIST` and is reused if it already exists.
 
 When it completes, open the workflow run summary. It shows:
 
@@ -103,7 +106,7 @@ Confirm the secret is added to the forked repository, not the upstream repositor
 
 ### Resource already exists
 
-The deployment workflow is idempotent and reuses existing resources where possible. If a resource-name conflict belongs to another project in the same Cloudflare account, rename or remove that resource before re-running the workflow.
+The deployment workflow is idempotent and reuses existing resources where possible. `SESSION_BLACKLIST` is always reused as the fixed KV namespace. If D1, Worker, or Pages names conflict with another project, rerun `Deploy Self-Hosted` with a different `resource_prefix`.
 
 ### Dashboard cannot reach the API
 

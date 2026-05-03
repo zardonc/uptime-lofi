@@ -1,11 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-D1_DATABASE_NAME="uptime-lofi-db"
+RESOURCE_PREFIX="${RESOURCE_PREFIX:-uptime-lofi}"
 KV_NAMESPACE_NAME="SESSION_BLACKLIST"
-DASHBOARD_WORKER_NAME="uptime-lofi-backend"
-PROBE_WORKER_NAME="uptime-lofi-probe"
-PAGES_PROJECT_NAME="uptime-lofi"
 GITHUB_REPO_SLUG="${GITHUB_REPOSITORY:-example/uptime-lofi}"
 
 log() {
@@ -24,10 +21,6 @@ require_env() {
   fi
 }
 
-wrangler_json() {
-  pnpm --dir backend exec wrangler "$@" --json
-}
-
 append_summary() {
   if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
     printf '%s\n' "$1" >> "$GITHUB_STEP_SUMMARY"
@@ -42,90 +35,143 @@ write_output() {
   fi
 }
 
-json_deep_any() {
-  local fields="$1"
-  python -c "import json,sys; targets='$fields'.split(','); raw=sys.stdin.read().strip()
+json_payload() {
+  python - "$@" <<'PY'
+import json
+import sys
+
+values = {}
+for pair in sys.argv[1:]:
+    key, value = pair.split('=', 1)
+    values[key] = value
+print(json.dumps(values))
+PY
+}
+
+json_result_match() {
+  local match_key="$1"
+  local match_value="$2"
+  local fields="$3"
+  python - "$match_key" "$match_value" "$fields" <<'PY'
+import json
+import sys
+
+match_key, match_value, fields = sys.argv[1], sys.argv[2], sys.argv[3].split(',')
+raw = sys.stdin.read().strip()
 if not raw:
     print('')
     raise SystemExit(0)
 try:
-    data=json.loads(raw)
+    data = json.loads(raw)
 except json.JSONDecodeError:
     print('')
     raise SystemExit(0)
+
+items = []
+if isinstance(data, list):
+    items = data
+elif isinstance(data, dict):
+    result = data.get('result')
+    if isinstance(result, list):
+        items = result
+    elif isinstance(result, dict):
+        for value in result.values():
+            if isinstance(value, list):
+                items = value
+                break
+
+for item in items:
+    if isinstance(item, dict) and item.get(match_key) == match_value:
+        for field in fields:
+            if item.get(field):
+                print(item[field])
+                raise SystemExit(0)
+print('')
+PY
+}
+
+json_result_deep_any() {
+  local fields="$1"
+  python - "$fields" <<'PY'
+import json
+import sys
+
+fields = sys.argv[1].split(',')
+raw = sys.stdin.read().strip()
+if not raw:
+    print('')
+    raise SystemExit(0)
+try:
+    data = json.loads(raw)
+except json.JSONDecodeError:
+    print('')
+    raise SystemExit(0)
+
 def walk(value):
     if isinstance(value, dict):
-        for target in targets:
-            if target in value and value[target]:
-                return value[target]
-        for item in value.values():
-            found = walk(item)
+        for field in fields:
+            if value.get(field):
+                return value[field]
+        for child in value.values():
+            found = walk(child)
             if found:
                 return found
-    if isinstance(value, list):
-        for item in value:
-            found = walk(item)
+    elif isinstance(value, list):
+        for child in value:
+            found = walk(child)
             if found:
                 return found
     return ''
-print(walk(data))"
+
+print(walk(data))
+PY
 }
 
-wrangler_capture() {
-  local output
-  if ! output=$(pnpm --dir backend exec wrangler "$@" 2>&1); then
-    printf '%s\n' "$output" >&2
-    return 1
+cf_api() {
+  local method="$1"
+  local path="$2"
+  local body="${3:-}"
+  local url="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}${path}"
+
+  if [ -n "$body" ]; then
+    curl --silent --show-error -X "$method" \
+      -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+      -H "Content-Type: application/json" \
+      --data "$body" \
+      "$url"
+  else
+    curl --silent --show-error -X "$method" \
+      -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+      -H "Content-Type: application/json" \
+      "$url"
   fi
-  printf '%s' "$output"
 }
 
-extract_d1_id_from_list() {
-  local name="$1"
-  json_deep_any uuid,database_id,id <<EOF
-$(printf '%s' "$2" | python -c "import json,sys; raw=sys.stdin.read().strip()
-try:
-    data=json.loads(raw)
-except json.JSONDecodeError:
-    print('[]')
-    raise SystemExit(0)
-items=data if isinstance(data, list) else data.get('result', data.get('databases', [])) if isinstance(data, dict) else []
-print(json.dumps([item for item in items if isinstance(item, dict) and item.get('name') == '$name']))")
-EOF
-}
+validate_resource_prefix() {
+  if ! [[ "$RESOURCE_PREFIX" =~ ^[a-z0-9][a-z0-9-]{0,62}$ ]]; then
+    fail "resource_prefix must use lowercase letters, numbers, and hyphens, and start with a letter or number. Current value: ${RESOURCE_PREFIX}"
+  fi
 
-extract_kv_id_from_list() {
-  local name="$1"
-  json_deep_any id <<EOF
-$(printf '%s' "$2" | python -c "import json,sys; raw=sys.stdin.read().strip()
-try:
-    data=json.loads(raw)
-except json.JSONDecodeError:
-    print('[]')
-    raise SystemExit(0)
-items=data if isinstance(data, list) else data.get('result', []) if isinstance(data, dict) else []
-print(json.dumps([item for item in items if isinstance(item, dict) and (item.get('title') == '$name' or item.get('name') == '$name')]))")
-EOF
-}
+  D1_DATABASE_NAME="${RESOURCE_PREFIX}-db"
+  DASHBOARD_WORKER_NAME="${RESOURCE_PREFIX}-backend"
+  PROBE_WORKER_NAME="${RESOURCE_PREFIX}-probe"
+  PAGES_PROJECT_NAME="${RESOURCE_PREFIX}"
 
-extract_id_from_text() {
-  printf '%s' "$1" | sed -nE 's/.*\b(id|uuid|database_id)[[:space:]]*=[[:space:]]*"?([a-fA-F0-9-]{32,36})"?.*/\2/p' | head -1
+  export RESOURCE_PREFIX D1_DATABASE_NAME KV_NAMESPACE_NAME DASHBOARD_WORKER_NAME PROBE_WORKER_NAME PAGES_PROJECT_NAME GITHUB_REPO_SLUG
 }
 
 get_workers_subdomain() {
   local response
-  response=$(curl --fail --silent --show-error \
-    -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
-    -H "Content-Type: application/json" \
-    "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/subdomain")
+  response=$(cf_api GET "/workers/subdomain")
   printf '%s' "$response" | python -c "import json,sys; data=json.load(sys.stdin); print((data.get('result') or {}).get('subdomain') or '')"
 }
 
 find_or_create_d1() {
   local name="${1:-$D1_DATABASE_NAME}"
-  local list_output existing create_output created
-  list_output=$(wrangler_capture d1 list --json || true)
-  existing=$(extract_d1_id_from_list "$name" "$list_output")
+  local list_response existing create_response created
+
+  list_response=$(cf_api GET "/d1/database")
+  existing=$(printf '%s' "$list_response" | json_result_match name "$name" uuid,database_id,id)
   if [ -n "$existing" ]; then
     log "Reusing D1 database ${name}"
     printf '%s' "$existing"
@@ -133,51 +179,84 @@ find_or_create_d1() {
   fi
 
   log "Creating D1 database ${name}"
-  create_output=$(wrangler_capture d1 create "$name")
-  created=$(printf '%s' "$create_output" | json_deep_any uuid,database_id,id)
-  if [ -z "$created" ]; then
-    created=$(extract_id_from_text "$create_output")
+  create_response=$(cf_api POST "/d1/database" "$(json_payload name="$name")")
+  created=$(printf '%s' "$create_response" | json_result_deep_any uuid,database_id,id)
+  if [ -n "$created" ]; then
+    printf '%s' "$created"
+    return 0
   fi
-  if [ -z "$created" ]; then
-    printf '%s\n' "$create_output" >&2
-    fail "Could not parse D1 database id for ${name} from Wrangler output"
-  fi
-  printf '%s' "$created"
-}
 
-find_or_create_kv() {
-  local name="${1:-$KV_NAMESPACE_NAME}"
-  local list_output existing create_output created
-  list_output=$(wrangler_capture kv namespace list --json || true)
-  existing=$(extract_kv_id_from_list "$name" "$list_output")
+  list_response=$(cf_api GET "/d1/database")
+  existing=$(printf '%s' "$list_response" | json_result_match name "$name" uuid,database_id,id)
   if [ -n "$existing" ]; then
-    log "Reusing KV namespace ${name}"
+    log "Reusing D1 database ${name} after create conflict"
     printf '%s' "$existing"
     return 0
   fi
 
-  log "Creating KV namespace ${name}"
-  create_output=$(wrangler_capture kv namespace create "$name")
-  created=$(printf '%s' "$create_output" | json_deep_any id)
-  if [ -z "$created" ]; then
-    created=$(extract_id_from_text "$create_output")
+  printf '%s\n' "$create_response" >&2
+  fail "Could not create or find D1 database ${name}"
+}
+
+find_or_create_kv() {
+  local name="$KV_NAMESPACE_NAME"
+  local list_response existing create_response created
+
+  list_response=$(cf_api GET "/storage/kv/namespaces")
+  existing=$(printf '%s' "$list_response" | json_result_match title "$name" id)
+  if [ -n "$existing" ]; then
+    log "Reusing fixed KV namespace ${name}"
+    printf '%s' "$existing"
+    return 0
   fi
-  if [ -z "$created" ]; then
-    printf '%s\n' "$create_output" >&2
-    fail "Could not parse KV namespace id for ${name} from Wrangler output"
+
+  log "Creating fixed KV namespace ${name}"
+  create_response=$(cf_api POST "/storage/kv/namespaces" "$(json_payload title="$name")")
+  created=$(printf '%s' "$create_response" | json_result_deep_any id)
+  if [ -n "$created" ]; then
+    printf '%s' "$created"
+    return 0
   fi
-  printf '%s' "$created"
+
+  list_response=$(cf_api GET "/storage/kv/namespaces")
+  existing=$(printf '%s' "$list_response" | json_result_match title "$name" id)
+  if [ -n "$existing" ]; then
+    log "Reusing fixed KV namespace ${name} after create conflict"
+    printf '%s' "$existing"
+    return 0
+  fi
+
+  printf '%s\n' "$create_response" >&2
+  fail "Could not create or find fixed KV namespace ${name}"
 }
 
 ensure_pages_project() {
   local name="${1:-$PAGES_PROJECT_NAME}"
-  if pnpm --dir backend exec wrangler pages project list 2>/dev/null | grep -q "$name"; then
+  local list_response existing create_response
+
+  list_response=$(cf_api GET "/pages/projects")
+  existing=$(printf '%s' "$list_response" | json_result_match name "$name" name)
+  if [ -n "$existing" ]; then
     log "Reusing Pages project ${name}"
     return 0
   fi
 
   log "Creating Pages project ${name}"
-  pnpm --dir backend exec wrangler pages project create "$name" --production-branch=main >/dev/null
+  create_response=$(cf_api POST "/pages/projects" "$(json_payload name="$name" production_branch="main")")
+  existing=$(printf '%s' "$create_response" | json_result_deep_any name)
+  if [ "$existing" = "$name" ]; then
+    return 0
+  fi
+
+  list_response=$(cf_api GET "/pages/projects")
+  existing=$(printf '%s' "$list_response" | json_result_match name "$name" name)
+  if [ -n "$existing" ]; then
+    log "Reusing Pages project ${name} after create conflict"
+    return 0
+  fi
+
+  printf '%s\n' "$create_response" >&2
+  fail "Could not create or find Pages project ${name}"
 }
 
 render_template() {
@@ -211,11 +290,10 @@ ensure_self_host_resources() {
   require_env CLOUDFLARE_API_TOKEN
   require_env CLOUDFLARE_ACCOUNT_ID
   require_env API_SECRET_KEY
-
-  export D1_DATABASE_NAME KV_NAMESPACE_NAME DASHBOARD_WORKER_NAME PROBE_WORKER_NAME PAGES_PROJECT_NAME GITHUB_REPO_SLUG
+  validate_resource_prefix
 
   D1_DATABASE_ID="$(find_or_create_d1 "$D1_DATABASE_NAME")"
-  KV_NAMESPACE_ID="$(find_or_create_kv "$KV_NAMESPACE_NAME")"
+  KV_NAMESPACE_ID="$(find_or_create_kv)"
   KV_PREVIEW_ID="$KV_NAMESPACE_ID"
   ACCOUNT_SUBDOMAIN="${CLOUDFLARE_ACCOUNT_SUBDOMAIN:-$(get_workers_subdomain)}"
   if [ -z "$ACCOUNT_SUBDOMAIN" ]; then
@@ -231,6 +309,7 @@ ensure_self_host_resources() {
   render_template backend/wrangler.self-host.template.toml backend/wrangler.self-host.generated.toml
   render_template backend/probe-wrangler.self-host.template.toml backend/probe-wrangler.self-host.generated.toml
 
+  write_output d1_database_name "$D1_DATABASE_NAME"
   write_output d1_database_id "$D1_DATABASE_ID"
   write_output kv_namespace_id "$KV_NAMESPACE_ID"
   write_output dashboard_worker_url "$DASHBOARD_WORKER_URL"
@@ -242,9 +321,11 @@ ensure_self_host_resources() {
   append_summary ""
   append_summary "| Output | Value |"
   append_summary "|--------|-------|"
+  append_summary "| Resource prefix | ${RESOURCE_PREFIX} |"
   append_summary "| Dashboard URL | ${PAGES_URL} |"
   append_summary "| API URL | ${DASHBOARD_WORKER_URL} |"
   append_summary "| Probe URL | ${PROBE_WORKER_URL} |"
+  append_summary "| Fixed KV namespace | ${KV_NAMESPACE_NAME} |"
   append_summary ""
   append_summary "Next: open the Dashboard URL, complete login, then use Settings -> Probe Installation to generate probe config."
 }

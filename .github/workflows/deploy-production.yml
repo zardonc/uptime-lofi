@@ -7,6 +7,10 @@ on:
         description: Cloudflare Pages URL used for CORS and smoke validation
         required: false
         default: https://uptime-lofi.pages.dev
+      resource_prefix:
+        description: Prefix for D1, Workers, and Pages resources. SESSION_BLACKLIST is always reused separately.
+        required: false
+        default: uptime-lofi
 
 permissions:
   contents: read
@@ -22,6 +26,7 @@ env:
   API_SECRET_KEY: ${{ secrets.API_SECRET_KEY }}
   INITIAL_UI_PASSWORD: ${{ secrets.INITIAL_UI_PASSWORD }}
   SELF_HOST_PAGES_URL: ${{ inputs.pages_url || 'https://uptime-lofi.pages.dev' }}
+  RESOURCE_PREFIX: ${{ inputs.resource_prefix || 'uptime-lofi' }}
 
 jobs:
   deploy:
@@ -55,7 +60,7 @@ jobs:
           ensure_self_host_resources
 
       - name: Run D1 migrations
-        run: pnpm --dir backend exec wrangler --config wrangler.self-host.generated.toml d1 migrations apply uptime-lofi-db --remote
+        run: pnpm --dir backend exec wrangler --config wrangler.self-host.generated.toml d1 migrations apply ${{ steps.cf.outputs.d1_database_name }} --remote
 
       - name: Deploy Dashboard Worker
         working-directory: backend
