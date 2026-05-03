@@ -55,7 +55,7 @@ jobs:
           ensure_self_host_resources
 
       - name: Run D1 migrations
-        run: pnpm exec wrangler --config backend/wrangler.self-host.generated.toml d1 migrations apply uptime-lofi-db --remote
+        run: pnpm --dir backend exec wrangler --config wrangler.self-host.generated.toml d1 migrations apply uptime-lofi-db --remote
 
       - name: Deploy Dashboard Worker
         working-directory: backend
@@ -75,7 +75,7 @@ jobs:
           VITE_API_URL: ${{ steps.cf.outputs.dashboard_worker_url }}
 
       - name: Deploy Cloudflare Pages
-        run: pnpm exec wrangler pages deploy frontend/dist --project-name=${{ steps.cf.outputs.pages_project_name }} --branch=main
+        run: pnpm --dir backend exec wrangler pages deploy ../frontend/dist --project-name=${{ steps.cf.outputs.pages_project_name }} --branch=main
 
       - name: Configure initial UI password
         if: ${{ env.INITIAL_UI_PASSWORD != '' }}
