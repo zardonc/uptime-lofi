@@ -65,12 +65,29 @@ test_health_check() {
 test_frontend_accessibility() {
   section "Frontend Accessibility"
 
-  local resp
-  resp=$(curl -s -w "\n%{http_code}" "${PAGES_URL}")
-  local status
-  status=$(get_status "$resp")
-  local body
-  body=$(get_body "$resp")
+  local resp=""
+  local curl_status=0
+  local status="000"
+  local body=""
+
+  for attempt in $(seq 1 12); do
+    curl_status=0
+    resp=$(curl -sS -L -w "\n%{http_code}" "${PAGES_URL}" 2>&1) || curl_status=$?
+    if [ "$curl_status" -eq 0 ]; then
+      status=$(get_status "$resp")
+      body=$(get_body "$resp")
+      if [ "$status" = "200" ] && echo "$body" | grep -qi "</html>"; then
+        break
+      fi
+    fi
+    skip "Pages URL not ready yet (attempt ${attempt}/12, curl=${curl_status}, status=${status})"
+    sleep 10
+  done
+
+  if [ "$curl_status" -ne 0 ]; then
+    fail "Pages URL curl failed after retries: ${PAGES_URL}" "$resp"
+    return 0
+  fi
 
   if [ "$status" = "200" ]; then
     pass "Pages URL → 200"
