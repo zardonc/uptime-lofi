@@ -58,13 +58,13 @@ In your forked repo:
 1. Open `Actions`.
 2. Select `Deploy Self-Hosted`.
 3. Click `Run workflow`.
-4. Leave `pages_url` at the default unless Cloudflare Pages shows a different production URL for your project. The default is `https://uptime-lofi.pages.dev`. If you change `resource_prefix`, use `https://{resource_prefix}.pages.dev` unless Cloudflare shows a different URL.
-5. Leave `resource_prefix` as `uptime-lofi` for a single deployment, or set a custom lowercase prefix such as `uptime-lofi-lmyyah` if your Cloudflare account hosts multiple copies. The prefix controls D1, Workers, and Pages resources. `SESSION_BLACKLIST` is always reused as the fixed KV namespace.
+4. Leave `resource_prefix` empty to use the account-based default `uptime-lofi-{account}`, for example `uptime-lofi-lmyyah`. Or set a custom lowercase prefix if your Cloudflare account hosts multiple copies. The prefix controls D1, Workers, and Pages resources. `SESSION_BLACKLIST` is always reused as the fixed KV namespace.
+5. Leave `pages_url` empty unless Cloudflare Pages shows a different production URL for your project. If omitted, the workflow uses `https://{resource_prefix}.pages.dev`, for example `https://uptime-lofi-lmyyah.pages.dev`.
 6. Wait for the workflow to finish.
 
 The workflow creates or reuses Cloudflare resources, runs D1 migrations, deploys the dashboard Worker, deploys the probe Worker, builds the frontend with the deployed API URL, deploys Cloudflare Pages, then runs smoke validation.
 
-Default resource names are `uptime-lofi-db`, `uptime-lofi-backend`, `uptime-lofi-probe`, and `uptime-lofi`. With `resource_prefix=uptime-lofi-lmyyah`, they become `uptime-lofi-lmyyah-db`, `uptime-lofi-lmyyah-backend`, `uptime-lofi-lmyyah-probe`, and `uptime-lofi-lmyyah`. The KV namespace remains `SESSION_BLACKLIST` and is reused if it already exists.
+With the account-based default `resource_prefix=uptime-lofi-lmyyah`, resource names become `uptime-lofi-lmyyah-db`, `uptime-lofi-lmyyah-backend`, `uptime-lofi-lmyyah-probe`, and `uptime-lofi-lmyyah`. The KV namespace remains `SESSION_BLACKLIST` and is reused if it already exists.
 
 When it completes, open the workflow run summary. It shows:
 
