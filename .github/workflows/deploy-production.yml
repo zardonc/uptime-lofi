@@ -8,9 +8,9 @@ on:
         required: false
         default: ''
       resource_prefix:
-        description: Prefix for D1, Workers, and Pages resources. SESSION_BLACKLIST is always reused separately.
+        description: Optional prefix for D1, Workers, and Pages. Empty uses uptime-lofi-{account}. SESSION_BLACKLIST is always reused separately.
         required: false
-        default: uptime-lofi
+        default: ''
 
 permissions:
   contents: read
@@ -26,7 +26,7 @@ env:
   API_SECRET_KEY: ${{ secrets.API_SECRET_KEY }}
   INITIAL_UI_PASSWORD: ${{ secrets.INITIAL_UI_PASSWORD }}
   SELF_HOST_PAGES_URL: ${{ inputs.pages_url }}
-  RESOURCE_PREFIX: ${{ inputs.resource_prefix || 'uptime-lofi' }}
+  RESOURCE_PREFIX: ${{ inputs.resource_prefix }}
 
 jobs:
   deploy:

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-RESOURCE_PREFIX="${RESOURCE_PREFIX:-uptime-lofi}"
+RESOURCE_PREFIX="${RESOURCE_PREFIX:-}"
 KV_NAMESPACE_NAME="SESSION_BLACKLIST"
 GITHUB_REPO_SLUG="${GITHUB_REPOSITORY:-example/uptime-lofi}"
 
@@ -135,7 +135,20 @@ cf_api() {
   fi
 }
 
+normalize_resource_prefix() {
+  local value="$1"
+  printf '%s' "$value" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9-]+/-/g; s/^-+//; s/-+$//; s/-+/-/g'
+}
+
 validate_resource_prefix() {
+  if [ -z "$RESOURCE_PREFIX" ]; then
+    if [ -z "${ACCOUNT_SUBDOMAIN:-}" ]; then
+      fail "Cannot derive default resource_prefix before account subdomain is available"
+    fi
+    RESOURCE_PREFIX="uptime-lofi-$(normalize_resource_prefix "$ACCOUNT_SUBDOMAIN")"
+    log "Using default resource prefix ${RESOURCE_PREFIX}"
+  fi
+
   if ! [[ "$RESOURCE_PREFIX" =~ ^[a-z0-9][a-z0-9-]{0,62}$ ]]; then
     fail "resource_prefix must use lowercase letters, numbers, and hyphens, and start with a letter or number. Current value: ${RESOURCE_PREFIX}"
   fi
@@ -278,18 +291,18 @@ ensure_self_host_resources() {
   require_env CLOUDFLARE_API_TOKEN
   require_env CLOUDFLARE_ACCOUNT_ID
   require_env API_SECRET_KEY
+  ACCOUNT_SUBDOMAIN="${CLOUDFLARE_ACCOUNT_SUBDOMAIN:-$(get_workers_subdomain)}"
+  if [ -z "$ACCOUNT_SUBDOMAIN" ]; then
+    fail "Could not determine Workers subdomain. Set CLOUDFLARE_ACCOUNT_SUBDOMAIN as a repository variable or enable workers.dev for the account."
+  fi
   validate_resource_prefix
 
   D1_DATABASE_ID="$(find_or_create_d1 "$D1_DATABASE_NAME")"
   KV_NAMESPACE_ID="$(find_or_create_kv)"
   KV_PREVIEW_ID="$KV_NAMESPACE_ID"
-  ACCOUNT_SUBDOMAIN="${CLOUDFLARE_ACCOUNT_SUBDOMAIN:-$(get_workers_subdomain)}"
-  if [ -z "$ACCOUNT_SUBDOMAIN" ]; then
-    fail "Could not determine Workers subdomain. Set CLOUDFLARE_ACCOUNT_SUBDOMAIN as a repository variable or enable workers.dev for the account."
-  fi
   DASHBOARD_WORKER_URL="https://${DASHBOARD_WORKER_NAME}.${ACCOUNT_SUBDOMAIN}.workers.dev"
   PROBE_WORKER_URL="https://${PROBE_WORKER_NAME}.${ACCOUNT_SUBDOMAIN}.workers.dev"
-  PAGES_URL="${SELF_HOST_PAGES_URL:-https://${PAGES_PROJECT_NAME}.${ACCOUNT_SUBDOMAIN}.pages.dev}"
+  PAGES_URL="${SELF_HOST_PAGES_URL:-https://${PAGES_PROJECT_NAME}.pages.dev}"
 
   export D1_DATABASE_ID KV_NAMESPACE_ID KV_PREVIEW_ID DASHBOARD_WORKER_URL PROBE_WORKER_URL PAGES_URL
 
