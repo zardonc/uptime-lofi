@@ -42,14 +42,17 @@ write_output() {
   fi
 }
 
-json_field() {
-  local field="$1"
-  python -c "import json,sys; data=json.load(sys.stdin); print(data.get('$field',''))"
-}
-
 json_deep_any() {
   local fields="$1"
-  python -c "import json,sys; targets='$fields'.split(','); data=json.load(sys.stdin)
+  python -c "import json,sys; targets='$fields'.split(','); raw=sys.stdin.read().strip()
+if not raw:
+    print('')
+    raise SystemExit(0)
+try:
+    data=json.loads(raw)
+except json.JSONDecodeError:
+    print('')
+    raise SystemExit(0)
 def walk(value):
     if isinstance(value, dict):
         for target in targets:
@@ -68,6 +71,47 @@ def walk(value):
 print(walk(data))"
 }
 
+wrangler_capture() {
+  local output
+  if ! output=$(pnpm exec wrangler "$@" 2>&1); then
+    printf '%s\n' "$output" >&2
+    return 1
+  fi
+  printf '%s' "$output"
+}
+
+extract_d1_id_from_list() {
+  local name="$1"
+  json_deep_any uuid,database_id,id <<EOF
+$(printf '%s' "$2" | python -c "import json,sys; raw=sys.stdin.read().strip()
+try:
+    data=json.loads(raw)
+except json.JSONDecodeError:
+    print('[]')
+    raise SystemExit(0)
+items=data if isinstance(data, list) else data.get('result', data.get('databases', [])) if isinstance(data, dict) else []
+print(json.dumps([item for item in items if isinstance(item, dict) and item.get('name') == '$name']))")
+EOF
+}
+
+extract_kv_id_from_list() {
+  local name="$1"
+  json_deep_any id <<EOF
+$(printf '%s' "$2" | python -c "import json,sys; raw=sys.stdin.read().strip()
+try:
+    data=json.loads(raw)
+except json.JSONDecodeError:
+    print('[]')
+    raise SystemExit(0)
+items=data if isinstance(data, list) else data.get('result', []) if isinstance(data, dict) else []
+print(json.dumps([item for item in items if isinstance(item, dict) and (item.get('title') == '$name' or item.get('name') == '$name')]))")
+EOF
+}
+
+extract_id_from_text() {
+  printf '%s' "$1" | sed -nE 's/.*\b(id|uuid|database_id)[[:space:]]*=[[:space:]]*"?([a-fA-F0-9-]{32,36})"?.*/\2/p' | head -1
+}
+
 get_workers_subdomain() {
   local response
   response=$(curl --fail --silent --show-error \
@@ -79,8 +123,9 @@ get_workers_subdomain() {
 
 find_or_create_d1() {
   local name="${1:-$D1_DATABASE_NAME}"
-  local existing
-  existing=$(wrangler_json d1 list | python -c "import json,sys; data=json.load(sys.stdin); print(next((db.get('uuid') or db.get('database_id') or db.get('id') for db in data if db.get('name') == '$name'), ''))")
+  local list_output existing create_output created
+  list_output=$(wrangler_capture d1 list --json || true)
+  existing=$(extract_d1_id_from_list "$name" "$list_output")
   if [ -n "$existing" ]; then
     log "Reusing D1 database ${name}"
     printf '%s' "$existing"
@@ -88,13 +133,23 @@ find_or_create_d1() {
   fi
 
   log "Creating D1 database ${name}"
-  wrangler_json d1 create "$name" | json_deep_any uuid,database_id,id
+  create_output=$(wrangler_capture d1 create "$name" --json)
+  created=$(printf '%s' "$create_output" | json_deep_any uuid,database_id,id)
+  if [ -z "$created" ]; then
+    created=$(extract_id_from_text "$create_output")
+  fi
+  if [ -z "$created" ]; then
+    printf '%s\n' "$create_output" >&2
+    fail "Could not parse D1 database id for ${name} from Wrangler output"
+  fi
+  printf '%s' "$created"
 }
 
 find_or_create_kv() {
   local name="${1:-$KV_NAMESPACE_NAME}"
-  local existing
-  existing=$(wrangler_json kv namespace list | python -c "import json,sys; data=json.load(sys.stdin); print(next((ns.get('id') for ns in data if ns.get('title') == '$name' or ns.get('name') == '$name'), ''))")
+  local list_output existing create_output created
+  list_output=$(wrangler_capture kv namespace list --json || true)
+  existing=$(extract_kv_id_from_list "$name" "$list_output")
   if [ -n "$existing" ]; then
     log "Reusing KV namespace ${name}"
     printf '%s' "$existing"
@@ -102,7 +157,16 @@ find_or_create_kv() {
   fi
 
   log "Creating KV namespace ${name}"
-  wrangler_json kv namespace create "$name" | json_deep_any id
+  create_output=$(wrangler_capture kv namespace create "$name" --json)
+  created=$(printf '%s' "$create_output" | json_deep_any id)
+  if [ -z "$created" ]; then
+    created=$(extract_id_from_text "$create_output")
+  fi
+  if [ -z "$created" ]; then
+    printf '%s\n' "$create_output" >&2
+    fail "Could not parse KV namespace id for ${name} from Wrangler output"
+  fi
+  printf '%s' "$created"
 }
 
 ensure_pages_project() {
