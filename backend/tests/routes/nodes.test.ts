@@ -113,7 +113,8 @@ describe("Nodes Routes (/api/nodes)", () => {
     expect(body.data.node_id).toEqual(expect.any(String));
     expect(body.data.node_name).toBe("prod-vps-1");
     expect(body.data.node_secret).toEqual(expect.any(String));
-    expect(body.data.probe_push_url).toBe("https://uptime-lofi-probe.example.workers.dev");
+    expect(body.data.probe_push_url).toBe("https://uptime-lofi-probe.example.workers.dev/api/push");
+    expect(body.data.config_yaml).toContain("api_url: https://uptime-lofi-probe.example.workers.dev/api/push");
     expect(body.data.config_yaml).toContain("node_id:");
     expect(body.data.config_yaml).toContain("psk:");
     expect(body.data.downloads.linux_amd64).toContain("probe-linux-amd64.tar.gz");

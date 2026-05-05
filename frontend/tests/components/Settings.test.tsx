@@ -95,7 +95,7 @@ describe("Settings", () => {
 
     expect(await screen.findByText("node-generated-1")).toBeInTheDocument();
     expect(screen.getByText("node-secret-generated")).toBeInTheDocument();
-    expect(screen.getByText("https://uptime-lofi-probe.example.workers.dev")).toBeInTheDocument();
+    expect(screen.getByText("https://uptime-lofi-probe.example.workers.dev/api/push")).toBeInTheDocument();
     expect(screen.getByText("config.yaml")).toBeInTheDocument();
   });
 });

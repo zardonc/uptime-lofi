@@ -213,8 +213,8 @@ export const handlers = [
         node_id: "node-generated-1",
         node_name: nodeName,
         node_secret: "node-secret-generated",
-        probe_push_url: "https://uptime-lofi-probe.example.workers.dev",
-        config_yaml: "api_url: https://uptime-lofi-probe.example.workers.dev\nnode_id: node-generated-1\npsk: node-secret-generated\nenable_docker: true\n",
+        probe_push_url: "https://uptime-lofi-probe.example.workers.dev/api/push",
+        config_yaml: "api_url: https://uptime-lofi-probe.example.workers.dev/api/push\nnode_id: node-generated-1\npsk: node-secret-generated\nenable_docker: true\n",
         downloads: {
           linux_amd64: "https://github.com/example/uptime-lofi/releases/latest/download/probe-linux-amd64.tar.gz",
           linux_arm64: "https://github.com/example/uptime-lofi/releases/latest/download/probe-linux-arm64.tar.gz",
