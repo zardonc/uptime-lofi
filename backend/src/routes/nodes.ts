@@ -27,8 +27,8 @@ async function deriveNodeSecret(masterSecret: string, nodeId: string, salt: stri
   return Array.from(new Uint8Array(signature)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
-function releaseDownloads() {
-  const base = 'https://github.com/zardonc/uptime-lofi/releases/latest/download';
+function releaseDownloads(repo: string, tag: string) {
+  const base = `https://github.com/${repo}/releases/download/${tag}`;
   return {
     linux_amd64: `${base}/probe-linux-amd64.tar.gz`,
     linux_arm64: `${base}/probe-linux-arm64.tar.gz`,
@@ -97,7 +97,7 @@ nodesApi.post(
         node_secret: nodeSecret,
         probe_push_url: probePushUrl,
         config_yaml: createConfigYaml(probePushUrl, nodeId, nodeSecret),
-        downloads: releaseDownloads(),
+        downloads: releaseDownloads(c.env.PROBE_RELEASE_REPO ?? 'zardonc/uptime-lofi', c.env.PROBE_RELEASE_TAG ?? 'probe-latest'),
       },
     });
   }
