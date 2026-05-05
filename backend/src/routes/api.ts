@@ -20,6 +20,10 @@ export type Bindings = {
   CORS_ORIGINS?: string;
   // Deployed Probe Worker base URL for generated probe configs
   PROBE_PUSH_URL?: string;
+  // GitHub repository slug that hosts probe release assets
+  PROBE_RELEASE_REPO?: string;
+  // GitHub release tag that hosts probe binaries
+  PROBE_RELEASE_TAG?: string;
   // KV namespace for instant session blacklist (logout revocation)
   SESSION_BLACKLIST: KVNamespace;
 };

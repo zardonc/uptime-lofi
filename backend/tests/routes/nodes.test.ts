@@ -13,6 +13,8 @@ describe("Nodes Routes (/api/nodes)", () => {
       ...env, 
       API_SECRET_KEY: "test_admin_key",
       PROBE_PUSH_URL: "https://uptime-lofi-probe.example.workers.dev",
+      PROBE_RELEASE_REPO: "example/uptime-lofi",
+      PROBE_RELEASE_TAG: "probe-latest",
       JWT_AUDIENCE: "test_aud",
       JWT_ISSUER: "test_iss",
       SESSION_BLACKLIST: {
@@ -115,6 +117,7 @@ describe("Nodes Routes (/api/nodes)", () => {
     expect(body.data.config_yaml).toContain("node_id:");
     expect(body.data.config_yaml).toContain("psk:");
     expect(body.data.downloads.linux_amd64).toContain("probe-linux-amd64.tar.gz");
+    expect(body.data.downloads.linux_amd64).toContain("example/uptime-lofi/releases/download/probe-latest");
 
     const row = await (env as any).DB.prepare("SELECT * FROM nodes WHERE id = ?")
       .bind(body.data.node_id)

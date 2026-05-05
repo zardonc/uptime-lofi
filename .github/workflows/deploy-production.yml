@@ -15,6 +15,7 @@ on:
 permissions:
   contents: read
 
+
 concurrency:
   group: deploy-self-hosted
   cancel-in-progress: false
@@ -30,6 +31,8 @@ env:
 
 jobs:
   deploy:
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -81,6 +84,26 @@ jobs:
 
       - name: Deploy Cloudflare Pages
         run: pnpm --dir backend exec wrangler pages deploy ../frontend/dist --project-name=${{ steps.cf.outputs.pages_project_name }} --branch=main
+
+      - name: Build and publish probe release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          rm -rf release-assets
+          mkdir -p release-assets
+          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
+            goos="${target%/*}"
+            goarch="${target#*/}"
+            binary="probe-${goos}-${goarch}"
+            (cd server-probe && CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" go build -ldflags="-s -w -X main.version=probe-latest" -o "$binary" ./cmd/probe/)
+            tar -czf "release-assets/${binary}.tar.gz" -C server-probe "$binary"
+            rm "server-probe/${binary}"
+            sha256sum "release-assets/${binary}.tar.gz" > "release-assets/${binary}.tar.gz.sha256"
+          done
+          (cd release-assets && cat *.sha256 > checksums.txt)
+          gh release view probe-latest >/dev/null 2>&1 || gh release create probe-latest --title "Probe latest" --notes "Latest probe binaries for self-host deployments"
+          gh release upload probe-latest release-assets/*.tar.gz release-assets/checksums.txt --clobber
 
       - name: Configure initial UI password
         if: ${{ env.INITIAL_UI_PASSWORD != '' }}

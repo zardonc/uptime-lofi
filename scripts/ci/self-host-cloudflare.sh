@@ -280,6 +280,7 @@ values = {
     "__KV_PREVIEW_ID__": os.environ["KV_PREVIEW_ID"],
     "__PAGES_URL__": os.environ["PAGES_URL"],
     "__PROBE_WORKER_URL__": os.environ["PROBE_WORKER_URL"],
+    "__GITHUB_REPO_SLUG__": os.environ["GITHUB_REPO_SLUG"],
 }
 for token, value in values.items():
     text = text.replace(token, value)

@@ -62,7 +62,7 @@ In your forked repo:
 5. Leave `pages_url` empty unless Cloudflare Pages shows a different production URL for your project. If omitted, the workflow uses `https://{resource_prefix}.pages.dev`, for example `https://uptime-lofi-lmyyah.pages.dev`.
 6. Wait for the workflow to finish.
 
-The workflow creates or reuses Cloudflare resources, runs D1 migrations, deploys the dashboard Worker, deploys the probe Worker, builds the frontend with the deployed API URL, deploys Cloudflare Pages, then runs smoke validation.
+The workflow creates or reuses Cloudflare resources, runs D1 migrations, deploys the dashboard Worker, deploys the probe Worker, builds the frontend with the deployed API URL, deploys Cloudflare Pages, publishes probe binaries to the current fork's `probe-latest` GitHub Release, then runs smoke validation.
 
 With the account-based default `resource_prefix=uptime-lofi-lmyyah`, resource names become `uptime-lofi-lmyyah-db`, `uptime-lofi-lmyyah-backend`, `uptime-lofi-lmyyah-probe`, and `uptime-lofi-lmyyah`. The KV namespace remains `SESSION_BLACKLIST` and is reused if it already exists.
 
@@ -91,6 +91,8 @@ The dashboard provides:
 | Node ID | Identifies the server in the dashboard |
 | Node credential/config | Authenticates the probe without exposing the master secret |
 | Copyable or downloadable config | Use this on the server running the probe |
+
+Probe binary links point to your fork's `probe-latest` release. The deployment workflow publishes or refreshes those assets automatically.
 
 Start the probe on your server. Once it pushes metrics successfully, the node appears online in the dashboard.
 

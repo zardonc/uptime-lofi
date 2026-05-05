@@ -7,6 +7,8 @@ limits = { body_size = "1mb" }
 ENVIRONMENT = "production"
 CORS_ORIGINS = "__PAGES_URL__"
 PROBE_PUSH_URL = "__PROBE_WORKER_URL__"
+PROBE_RELEASE_REPO = "__GITHUB_REPO_SLUG__"
+PROBE_RELEASE_TAG = "probe-latest"
 
 [[d1_databases]]
 binding = "DB"
