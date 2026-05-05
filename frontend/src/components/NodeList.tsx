@@ -1,11 +1,16 @@
 import { StatusBadge } from './StatusBadge';
 import type { ApiNode } from '../api/types';
 
-function formatHeartbeat(epoch: number): string {
+function formatHeartbeat(epoch: number | null): string {
+  if (epoch == null) return '—';
   const diff = Math.floor(Date.now() / 1000) - epoch;
   if (diff < 60) return `${diff}s ago`;
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
   return `${Math.floor(diff / 3600)}h ago`;
+}
+
+function formatPercent(value: number | null): string {
+  return value == null ? '—' : `${Math.round(value * 10) / 10}%`;
 }
 
 interface NodeListProps {
@@ -21,6 +26,8 @@ export function NodeList({ nodes }: NodeListProps) {
           <span>Node</span>
           <span>Status</span>
           <span>Ping</span>
+          <span>CPU</span>
+          <span>Mem</span>
           <span>Last Seen</span>
         </div>
         {nodes.length === 0 && (
@@ -33,6 +40,8 @@ export function NodeList({ nodes }: NodeListProps) {
             <span className="node-list__ping">
               {node.ping_ms != null && node.ping_ms > 0 ? `${node.ping_ms}ms` : '—'}
             </span>
+            <span className="node-list__metric">{formatPercent(node.cpu_usage)}</span>
+            <span className="node-list__metric">{formatPercent(node.mem_usage)}</span>
             <span className="node-list__heartbeat">{formatHeartbeat(node.last_heartbeat)}</span>
           </div>
         ))}

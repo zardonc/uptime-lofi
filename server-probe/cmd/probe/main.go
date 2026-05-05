@@ -43,36 +43,43 @@ var rootCmd = &cobra.Command{
 		defer collectTicker.Stop()
 		defer pushTicker.Stop()
 
+		collectSnapshot := func() {
+			cpuPct, memPct, err := collector.CollectSystemMetrics()
+			if err != nil {
+				log.Printf("[Hardware Warn] Metric collection failed: %v", err)
+			}
+			ping := collector.PingTarget(cfg.ApiUrl)
+
+			payload := collector.MetricPayload{
+				NodeID:    cfg.NodeID,
+				Timestamp: time.Now().Unix(),
+				PingMs:    ping,
+				CpuUsage:  cpuPct,
+				MemUsage:  memPct,
+				IsUp:      true,
+			}
+
+			// Safely attempt IPC integration with Docker Engine
+			if cfg.EnableDocker {
+				containers, dErr := collector.CollectDockerMetrics()
+				if dErr == nil && len(containers) > 0 {
+					payload.ContainersJson = containers
+				}
+			}
+
+			batchPusher.AddMetric(payload)
+			log.Printf("Snapshot OK -> CPU: %.1f%% | MEM: %.1f%% | PING: %dms", cpuPct, memPct, ping)
+		}
+
+		collectSnapshot()
+		batchPusher.FlushToEdge()
+
 		// Core Telemetry Dispatch Routine
 		go func() {
 			for {
 				select {
 				case <-collectTicker.C:
-					cpuPct, memPct, err := collector.CollectSystemMetrics()
-					if err != nil {
-						log.Printf("[Hardware Warn] Metric collection failed: %v", err)
-					}
-					ping := collector.PingTarget(cfg.ApiUrl)
-
-					payload := collector.MetricPayload{
-						NodeID:    cfg.NodeID,
-						Timestamp: time.Now().Unix(),
-						PingMs:    ping,
-						CpuUsage:  cpuPct,
-						MemUsage:  memPct,
-						IsUp:      true,
-					}
-
-					// Safely attempt IPC integration with Docker Engine
-					if cfg.EnableDocker {
-						containers, dErr := collector.CollectDockerMetrics()
-						if dErr == nil && len(containers) > 0 {
-							payload.ContainersJson = containers
-						}
-					}
-					
-					batchPusher.AddMetric(payload)
-					log.Printf("Snapshot OK -> CPU: %.1f%% | MEM: %.1f%% | PING: %dms", cpuPct, memPct, ping)
+					collectSnapshot()
 
 				case <-pushTicker.C:
 					go batchPusher.FlushToEdge()

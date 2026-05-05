@@ -71,6 +71,10 @@ describe("Nodes Routes (/api/nodes)", () => {
     expect(nodes.data.length).toBe(1);
     expect(nodes.data[0].id).toBe(nodeId);
     expect(nodes.data[0].status).toBe("online");
+    expect(nodes.data[0].ping_ms).toBe(45);
+    expect(nodes.data[0].cpu_usage).toBe(12.5);
+    expect(nodes.data[0].mem_usage).toBe(33.3);
+    expect(nodes.data[0].uptime_ratio).toBe(100);
   });
 
   it("2. GET specific node with metrics", async () => {
@@ -85,6 +89,8 @@ describe("Nodes Routes (/api/nodes)", () => {
     expect(Array.isArray(data.data)).toBe(true);
     expect(data.data.length).toBe(1);
     expect(data.data[0].cpu_usage).toBe(12.5);
+    expect(data.data[0].cpu_percent).toBe(12.5);
+    expect(data.data[0].mem_percent).toBe(33.3);
   });
 
   it("3. Unauthenticated GET /api/nodes returns 401", async () => {

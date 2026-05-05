@@ -39,7 +39,7 @@ function formatRelativeTime(timestamp: number): string {
   return `${Math.floor(seconds / 86400)} days ago`;
 }
 
-function deriveActivity(nodes: ReadonlyArray<{ readonly name: string; readonly status: string; readonly last_heartbeat?: number }>): ReadonlyArray<ActivityEvent> {
+function deriveActivity(nodes: ReadonlyArray<{ readonly name: string; readonly status: string; readonly last_heartbeat?: number | null }>): ReadonlyArray<ActivityEvent> {
   return nodes.slice(0, 5).map((n, i) => ({
     id: `derived-${i}`,
     timestamp: n.last_heartbeat ? formatRelativeTime(n.last_heartbeat) : 'just now',
