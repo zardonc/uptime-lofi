@@ -1,6 +1,7 @@
 import './index.css';
 import { useState, useMemo } from 'react';
-import { Server, Wifi, Activity, Clock } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { Server, Wifi, Activity, Clock, Globe, Bell } from 'lucide-react';
 import { Sidebar } from './components/Sidebar';
 import { MetricCard } from './components/MetricCard';
 import { TrendChart } from './components/TrendChart';
@@ -162,8 +163,80 @@ function DashboardContent() {
   );
 }
 
+type PageId = 'dashboard' | 'nodes' | 'agentless' | 'statistics' | 'alerts' | 'settings';
+
+function NodesContent() {
+  const { isAuthenticated } = useAuth();
+  const { nodes, loading, error, refetch } = useNodes(isAuthenticated);
+
+  return (
+    <div className="dashboard">
+      <PageHeader title="Nodes" subtitle="Registered probe and synthetic monitoring targets" />
+      {error && <ErrorBanner message={error} onRetry={refetch} />}
+      {loading ? <NodeListSkeleton /> : <NodeList nodes={nodes} />}
+    </div>
+  );
+}
+
+function StatisticsContent() {
+  const { isAuthenticated } = useAuth();
+  const { nodes } = useNodes(isAuthenticated);
+  const firstNodeId = nodes.length > 0 ? nodes[0].id : null;
+  const { trendData, loading } = useMetrics(firstNodeId, 24, isAuthenticated);
+  const chartData = trendData.length > 0 ? trendData : generateMockTrend();
+
+  return (
+    <div className="dashboard">
+      <PageHeader title="Statistics" subtitle="Telemetry trends for the first reporting node" />
+      {loading ? <TrendChartSkeleton /> : <TrendChart data={chartData as TrendPoint[]} />}
+    </div>
+  );
+}
+
+function PlaceholderContent({ title, subtitle, icon }: { readonly title: string; readonly subtitle: string; readonly icon: ReactNode }) {
+  return (
+    <div className="dashboard">
+      <PageHeader title={title} subtitle={subtitle} />
+      <div className="card empty-page" role="region" aria-label={`${title} page`}>
+        <div className="empty-page__icon">{icon}</div>
+        <h2>{title} is not configured yet</h2>
+        <p>This section is ready for future setup. Use Dashboard, Nodes, or Settings for the current self-host flow.</p>
+      </div>
+    </div>
+  );
+}
+
+function PageHeader({ title, subtitle }: { readonly title: string; readonly subtitle: string }) {
+  return (
+    <header className="dashboard-header animate-in" role="banner">
+      <div>
+        <h1>{title}</h1>
+        <p className="subtitle">{subtitle}</p>
+      </div>
+    </header>
+  );
+}
+
+function ActivePage({ activeNav }: { readonly activeNav: PageId }) {
+  switch (activeNav) {
+    case 'nodes':
+      return <NodesContent />;
+    case 'agentless':
+      return <PlaceholderContent title="Agentless" subtitle="Synthetic checks and external probes" icon={<Globe size={30} />} />;
+    case 'statistics':
+      return <StatisticsContent />;
+    case 'alerts':
+      return <PlaceholderContent title="Alerts" subtitle="Notification routing and incident rules" icon={<Bell size={30} />} />;
+    case 'settings':
+      return <Settings />;
+    case 'dashboard':
+    default:
+      return <DashboardContent />;
+  }
+}
+
 export default function App() {
-  const [activeNav, setActiveNav] = useState('dashboard');
+  const [activeNav, setActiveNav] = useState<PageId>('dashboard');
   const { logout } = useAuth();
 
   return (
@@ -171,13 +244,11 @@ export default function App() {
       <div className="app-shell">
         <Sidebar activeId={activeNav} onNavigate={(id) => {
           if (id === 'logout') { logout(); return; }
-          setActiveNav(id);
+          setActiveNav(id as PageId);
         }} />
 
         <main className="main-content" role="main">
-          {activeNav === 'settings'
-            ? <ErrorBoundary><Settings /></ErrorBoundary>
-            : <ErrorBoundary><DashboardContent /></ErrorBoundary>}
+          <ErrorBoundary><ActivePage activeNav={activeNav} /></ErrorBoundary>
         </main>
       </div>
     </LoginGate>

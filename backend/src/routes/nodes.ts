@@ -47,6 +47,11 @@ function createConfigYaml(apiUrl: string, nodeId: string, nodeSecret: string) {
   ].join('\n');
 }
 
+function probePushEndpoint(baseUrl: string) {
+  const trimmed = baseUrl.replace(/\/+$/, '');
+  return trimmed.endsWith('/api/push') ? trimmed : `${trimmed}/api/push`;
+}
+
  nodesApi.get("/", async (c) => {
   const db = c.env.DB;
   const { results } = await db.prepare(
@@ -74,7 +79,7 @@ nodesApi.post(
     const nodeId = crypto.randomUUID();
     const salt = crypto.randomUUID();
     const nodeSecret = await deriveNodeSecret(c.env.API_SECRET_KEY, nodeId, salt);
-    const probePushUrl = c.env.PROBE_PUSH_URL ?? new URL(c.req.url).origin;
+    const probePushUrl = probePushEndpoint(c.env.PROBE_PUSH_URL ?? new URL(c.req.url).origin);
 
     await c.env.DB.prepare(
       `INSERT INTO nodes (id, name, type, status, salt, config_json)

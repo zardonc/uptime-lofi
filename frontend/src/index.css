@@ -308,6 +308,39 @@ h1, h2, h3, h4, h5, h6 {
   gap: var(--space-lg);
 }
 
+.empty-page {
+  min-height: 280px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: var(--space-3xl);
+  color: var(--text-secondary);
+}
+
+.empty-page__icon {
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--space-lg);
+  border-radius: var(--radius-lg);
+  color: var(--morandi-600);
+  background: var(--morandi-50);
+}
+
+.empty-page h2 {
+  margin-bottom: var(--space-sm);
+  color: var(--text-primary);
+  font-size: var(--text-xl);
+}
+
+.empty-page p {
+  max-width: 520px;
+}
+
 @media (max-width: 900px) {
   .bottom-row { grid-template-columns: 1fr; }
 }
