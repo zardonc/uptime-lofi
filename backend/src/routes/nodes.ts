@@ -54,9 +54,28 @@ function probePushEndpoint(baseUrl: string) {
 
  nodesApi.get("/", async (c) => {
   const db = c.env.DB;
+  const since = Math.floor(Date.now() / 1000) - 24 * 3600;
   const { results } = await db.prepare(
-    `SELECT * FROM nodes ORDER BY status DESC, last_heartbeat DESC`
-  ).all();
+    `SELECT
+       n.*,
+       lm.ping_ms,
+       lm.cpu_usage,
+       lm.mem_usage,
+       (
+         SELECT AVG(CASE WHEN r.is_up THEN 1.0 ELSE 0.0 END) * 100
+         FROM raw_metrics r
+         WHERE r.node_id = n.id AND r.timestamp > ?
+       ) AS uptime_ratio
+     FROM nodes n
+     LEFT JOIN raw_metrics lm ON lm.id = (
+       SELECT id
+       FROM raw_metrics
+       WHERE node_id = n.id
+       ORDER BY timestamp DESC, id DESC
+       LIMIT 1
+     )
+     ORDER BY n.status DESC, n.last_heartbeat DESC`
+  ).bind(since).all();
 
   // Try parsing config_json for each node if it exists
   const nodes = results.map(node => ({
@@ -133,7 +152,10 @@ nodesApi.get(
   // SECURITY: D1 prepared statements use parameterized queries (.bind())
   // This prevents SQL injection. Never use string concatenation in queries.
   const { results } = await db.prepare(
-    `SELECT * FROM raw_metrics WHERE node_id = ? AND timestamp > ? ORDER BY timestamp ASC`
+    `SELECT *, cpu_usage AS cpu_percent, mem_usage AS mem_percent
+     FROM raw_metrics
+     WHERE node_id = ? AND timestamp > ?
+     ORDER BY timestamp ASC`
   ).bind(id, since).all();
 
     // Map containers_json — decompress if compressed (gz: prefix), then parse JSON

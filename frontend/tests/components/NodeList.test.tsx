@@ -41,6 +41,8 @@ describe("NodeList", () => {
     expect(within(table).getByText("edge-sfo-1")).toBeInTheDocument();
     expect(within(table).getByText("edge-fra-1")).toBeInTheDocument();
     expect(within(table).getByText("18ms")).toBeInTheDocument();
+    expect(within(table).getByText("24%")).toBeInTheDocument();
+    expect(within(table).getByText("58%")).toBeInTheDocument();
   });
 
   it("shows the empty state when there are no nodes", () => {

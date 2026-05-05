@@ -8,7 +8,7 @@ export interface ApiNode {
   readonly id: string;
   readonly name: string;
   readonly status: NodeStatus;
-  readonly last_heartbeat: number;
+  readonly last_heartbeat: number | null;
   readonly ping_ms: number | null;
   readonly cpu_usage: number | null;
   readonly mem_usage: number | null;
