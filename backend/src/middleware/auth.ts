@@ -70,7 +70,9 @@ export const probeAuthMiddleware = async (c: Context, next: Next) => {
 
   // 1. Database Lookup for Salt
   const db = c.env.DB as D1Database;
-  const nodeRecord = await db.prepare("SELECT salt FROM nodes WHERE id = ?").bind(nodeId).first<{ salt: string | null }>();
+  const nodeRecord = await db.prepare(
+    "SELECT salt FROM nodes WHERE id = ? AND archived_at IS NULL AND status != 'paused' AND type = 'agent_push'",
+  ).bind(nodeId).first<{ salt: string | null }>();
   
   if (!nodeRecord || !nodeRecord.salt) {
     // If salt is missing, the probe is not natively initialized to authenticate

@@ -18,7 +18,9 @@ export function ProbeSetup() {
   const [config, setConfig] = useState<ProbeConfigData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [commandCopied, setCommandCopied] = useState(false);
+  const [configCopied, setConfigCopied] = useState(false);
+  const [showManual, setShowManual] = useState(false);
 
   const selectedDownload = config?.downloads[platform.replace('/', '_') as keyof ProbeConfigData['downloads']];
 
@@ -26,22 +28,30 @@ export function ProbeSetup() {
     event.preventDefault();
     setLoading(true);
     setError(null);
-    setCopied(false);
+    setCommandCopied(false);
+    setConfigCopied(false);
+    setShowManual(false);
 
     try {
       const response = await api.createProbeConfig({ name, platform });
       setConfig(response.data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to generate probe config');
+      setError(err instanceof Error ? err.message : 'Could not generate the install command. Try again, or use the manual config fallback.');
     } finally {
       setLoading(false);
     }
   };
 
+  const copyCommand = async () => {
+    if (!config) return;
+    await navigator.clipboard.writeText(config.install_command);
+    setCommandCopied(true);
+  };
+
   const copyConfig = async () => {
     if (!config) return;
     await navigator.clipboard.writeText(config.config_yaml);
-    setCopied(true);
+    setConfigCopied(true);
   };
 
   const downloadConfig = () => {
@@ -82,7 +92,7 @@ export function ProbeSetup() {
         </div>
 
         <button className="probe-setup__primary" type="submit" disabled={loading || !name.trim()}>
-          {loading ? 'Generating...' : 'Generate Probe Config'}
+          {loading ? 'Generating command...' : 'Generate Install Command'}
         </button>
       </form>
 
@@ -90,46 +100,74 @@ export function ProbeSetup() {
 
       {config && (
         <div className="probe-setup__result">
-          <p className="probe-setup__notice">
-            This node credential is generated for this probe only. It is not your master API secret.
-          </p>
+          <article className="probe-setup__command-card">
+            <div className="probe-setup__command-header">
+              <h3>Run this on your server</h3>
+              <button type="button" onClick={copyCommand}>Copy Command</button>
+            </div>
+            <pre className="probe-setup__code" data-testid="probe-install-command">{config.install_command}</pre>
+            {commandCopied && <p className="probe-setup__copied">Command copied</p>}
+            <p className="probe-setup__notice">
+              This command uses a node-specific credential. It never includes your master API secret.
+            </p>
+            <p className="probe-setup__hint">
+              For security, this bootstrap command may expire. Generate a new command if it stops working.
+            </p>
+          </article>
 
-          <dl className="probe-setup__details">
-            <div>
-              <dt>Node ID</dt>
-              <dd>{config.node_id}</dd>
-            </div>
-            <div>
-              <dt>Probe Push URL</dt>
-              <dd>{config.probe_push_url}</dd>
-            </div>
-            <div>
-              <dt>Node Credential</dt>
-              <dd>{config.node_secret}</dd>
-            </div>
-          </dl>
+          <button
+            type="button"
+            className="probe-setup__manual-toggle"
+            aria-expanded={showManual}
+            aria-controls="probe-manual-setup"
+            onClick={() => setShowManual((current) => !current)}
+          >
+            Show Manual Setup
+          </button>
 
-          <div className="probe-setup__downloads">
-            <h3>Download Probe Binary</h3>
-            {selectedDownload && (
-              <a href={selectedDownload} rel="noreferrer" target="_blank">Recommended for {platformLabels[platform]}</a>
-            )}
-            <div className="probe-setup__download-grid">
-              {Object.entries(config.downloads).map(([key, href]) => (
-                <a key={key} href={href} rel="noreferrer" target="_blank">{key.replace('_', ' ')}</a>
-              ))}
-            </div>
-          </div>
+          {showManual && (
+            <section id="probe-manual-setup" className="probe-setup__manual" role="region" aria-label="Manual setup">
+              <h3>Manual setup</h3>
+              <p>Use this if the one-command installer cannot run on your server. Download the matching binary, save config.yaml beside it, then start the probe.</p>
 
-          <div className="probe-setup__config-header">
-            <h3>config.yaml</h3>
-            <div>
-              <button type="button" onClick={copyConfig}>Copy Config</button>
-              <button type="button" onClick={downloadConfig}>Download config.yaml</button>
-            </div>
-          </div>
-          {copied && <p className="probe-setup__copied">Copied config.yaml</p>}
-          <pre className="probe-setup__code">{config.config_yaml}</pre>
+              <dl className="probe-setup__details">
+                <div>
+                  <dt>Node ID</dt>
+                  <dd>{config.node_id}</dd>
+                </div>
+                <div>
+                  <dt>Probe Push URL</dt>
+                  <dd>{config.probe_push_url}</dd>
+                </div>
+                <div>
+                  <dt>Node Credential</dt>
+                  <dd>{config.node_secret}</dd>
+                </div>
+              </dl>
+
+              <div className="probe-setup__downloads">
+                <h4>Download Probe Binary</h4>
+                {selectedDownload && (
+                  <a href={selectedDownload} rel="noreferrer" target="_blank">Recommended for {platformLabels[platform]}</a>
+                )}
+                <div className="probe-setup__download-grid">
+                  {Object.entries(config.downloads).map(([key, href]) => (
+                    <a key={key} href={href} rel="noreferrer" target="_blank">{key.replace('_', ' ')}</a>
+                  ))}
+                </div>
+              </div>
+
+              <div className="probe-setup__config-header">
+                <h4>config.yaml</h4>
+                <div>
+                  <button type="button" onClick={copyConfig}>Copy Config</button>
+                  <button type="button" onClick={downloadConfig}>Download config.yaml</button>
+                </div>
+              </div>
+              {configCopied && <p className="probe-setup__copied">Copied config.yaml</p>}
+              <pre className="probe-setup__code">{config.config_yaml}</pre>
+            </section>
+          )}
         </div>
       )}
     </section>

@@ -12,6 +12,8 @@ describe("Scheduled Tasks (Cron)", () => {
     await db.prepare("DELETE FROM refresh_tokens").run();
     await db.prepare("DELETE FROM login_attempts").run();
     await db.prepare("DELETE FROM audit_log").run();
+    await db.prepare("DELETE FROM raw_metrics").run();
+    await db.prepare("DELETE FROM nodes").run();
 
     const now = Math.floor(Date.now() / 1000);
 
@@ -26,6 +28,17 @@ describe("Scheduled Tasks (Cron)", () => {
     // Insert recent audit & old audit (90 days = 7776000s)
     await db.prepare("INSERT INTO audit_log (action, ip_hash, created_at) VALUES ('login', 'hash1', ?)").bind(now - 86400).run();
     await db.prepare("INSERT INTO audit_log (action, ip_hash, created_at) VALUES ('login', 'hash2', ?)").bind(now - 8000000).run();
+
+    await db.prepare(
+      "INSERT INTO nodes (id, name, type, status, config_json, last_heartbeat) VALUES (?, ?, ?, ?, ?, ?)",
+    ).bind(
+      "due_agentless_http",
+      "Due Agentless HTTP",
+      "agentless_http",
+      "offline",
+      JSON.stringify({ url: "https://example.invalid/health", interval: 300, timeout: 1, expected_status: 200 }),
+      now - 600,
+    ).run();
   });
 
   it("1. Run scheduled task — deletes expired entries but keeps active ones", async () => {
@@ -51,5 +64,14 @@ describe("Scheduled Tasks (Cron)", () => {
     const logs = await db.prepare("SELECT * FROM audit_log").all();
     expect(logs.results.length).toBe(1);
     expect(logs.results[0].ip_hash).toBe('hash1');
+
+    const metrics = await db.prepare("SELECT * FROM raw_metrics WHERE node_id = ?").bind("due_agentless_http").all();
+    expect(metrics.results.length).toBe(1);
+    expect(metrics.results[0].is_up).toBe(0);
+    expect(metrics.results[0].error_text).toEqual(expect.any(String));
+
+    const node = await db.prepare("SELECT status, last_heartbeat FROM nodes WHERE id = ?").bind("due_agentless_http").first();
+    expect(node.status).toBe("offline");
+    expect(node.last_heartbeat).toEqual(expect.any(Number));
   });
 });

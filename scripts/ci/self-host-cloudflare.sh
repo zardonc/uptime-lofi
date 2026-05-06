@@ -21,6 +21,33 @@ require_env() {
   fi
 }
 
+summary_preflight_failure() {
+  append_summary "## Preflight failed"
+  append_summary ""
+  append_summary "$1"
+}
+
+preflight_required_secrets() {
+  local missing=()
+  local name
+  for name in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID API_SECRET_KEY; do
+    if [ -z "${!name:-}" ]; then
+      missing+=("$name")
+    fi
+  done
+
+  if [ "${#missing[@]}" -eq 0 ]; then
+    return 0
+  fi
+
+  summary_preflight_failure "Missing GitHub repository secrets: ${missing[*]}. Add them at Settings -> Secrets and variables -> Actions -> New repository secret."
+  fail "Missing required GitHub repository secrets: ${missing[*]}"
+}
+
+summarize_cloudflare_api_failure() {
+  summary_preflight_failure "Cloudflare setup could not be verified. Check that CLOUDFLARE_ACCOUNT_ID matches your account and CLOUDFLARE_API_TOKEN has these account permissions: Workers Scripts Edit, Workers KV Storage Edit, D1 Edit, Cloudflare Pages Edit, Account Settings Read."
+}
+
 append_summary() {
   if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
     printf '%s\n' "$1" >> "$GITHUB_STEP_SUMMARY"
@@ -150,6 +177,7 @@ validate_resource_prefix() {
   fi
 
   if ! [[ "$RESOURCE_PREFIX" =~ ^[a-z0-9][a-z0-9-]{0,62}$ ]]; then
+    summary_preflight_failure "resource_prefix must use lowercase letters, numbers, and hyphens, start with a letter or number, and be 63 characters or less. Example: uptime-lofi-demo. Leave the workflow input blank to use the automatic default."
     fail "resource_prefix must use lowercase letters, numbers, and hyphens, and start with a letter or number. Current value: ${RESOURCE_PREFIX}"
   fi
 
@@ -164,7 +192,30 @@ validate_resource_prefix() {
 get_workers_subdomain() {
   local response
   response=$(cf_api GET "/workers/subdomain")
-  printf '%s' "$response" | python -c "import json,sys; data=json.load(sys.stdin); print((data.get('result') or {}).get('subdomain') or '')"
+  printf '%s' "$response" | python -c "import json,sys
+try:
+    data=json.load(sys.stdin)
+except Exception:
+    print('')
+    raise SystemExit(0)
+if data.get('success') is False:
+    print('')
+    raise SystemExit(0)
+print((data.get('result') or {}).get('subdomain') or '')"
+}
+
+preflight_self_host_deploy() {
+  preflight_required_secrets
+
+  ACCOUNT_SUBDOMAIN="${CLOUDFLARE_ACCOUNT_SUBDOMAIN:-$(get_workers_subdomain)}"
+  if [ -z "$ACCOUNT_SUBDOMAIN" ]; then
+    summarize_cloudflare_api_failure
+    fail "Could not verify Cloudflare account or Workers subdomain"
+  fi
+  export ACCOUNT_SUBDOMAIN
+
+  validate_resource_prefix
+  export PREFLIGHT_SELF_HOST_DONE=1
 }
 
 find_or_create_d1() {
@@ -196,6 +247,7 @@ find_or_create_d1() {
   fi
 
   printf '%s\n' "$create_response" >&2
+  summarize_cloudflare_api_failure
   fail "Could not create or find D1 database ${name}"
 }
 
@@ -228,6 +280,7 @@ find_or_create_kv() {
   fi
 
   printf '%s\n' "$create_response" >&2
+  summarize_cloudflare_api_failure
   fail "Could not create or find fixed KV namespace ${name}"
 }
 
@@ -257,6 +310,7 @@ ensure_pages_project() {
   fi
 
   printf '%s\n' "$create_response" >&2
+  summarize_cloudflare_api_failure
   fail "Could not create or find Pages project ${name}"
 }
 
@@ -289,14 +343,9 @@ PY
 }
 
 ensure_self_host_resources() {
-  require_env CLOUDFLARE_API_TOKEN
-  require_env CLOUDFLARE_ACCOUNT_ID
-  require_env API_SECRET_KEY
-  ACCOUNT_SUBDOMAIN="${CLOUDFLARE_ACCOUNT_SUBDOMAIN:-$(get_workers_subdomain)}"
-  if [ -z "$ACCOUNT_SUBDOMAIN" ]; then
-    fail "Could not determine Workers subdomain. Set CLOUDFLARE_ACCOUNT_SUBDOMAIN as a repository variable or enable workers.dev for the account."
+  if [ "${PREFLIGHT_SELF_HOST_DONE:-}" != "1" ]; then
+    preflight_self_host_deploy
   fi
-  validate_resource_prefix
 
   D1_DATABASE_ID="$(find_or_create_d1 "$D1_DATABASE_NAME")"
   KV_NAMESPACE_ID="$(find_or_create_kv)"
@@ -329,5 +378,5 @@ ensure_self_host_resources() {
   append_summary "| Probe URL | ${PROBE_WORKER_URL} |"
   append_summary "| Fixed KV namespace | ${KV_NAMESPACE_NAME} |"
   append_summary ""
-  append_summary "Next: open the Dashboard URL, complete login, then use Settings -> Probe Installation to generate probe config."
+  append_summary "Next: open the Dashboard URL, log in, then go to Nodes -> Add Node -> Agent Probe and click Generate Install Command."
 }

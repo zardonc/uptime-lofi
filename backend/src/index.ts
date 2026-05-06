@@ -4,6 +4,7 @@ import { HTTPException } from 'hono/http-exception'
 import type { ExportedHandlerScheduledHandler } from '@cloudflare/workers-types'
 import { api, Bindings } from './routes/api'
 import { securityHeadersMiddleware } from './middleware/securityHeaders'
+import { runDueAgentlessChecks } from './agentless/checks'
 
 // Payload size enforcement
 const MAX_BODY_SIZE = 1024 * 1024 // 1 MB
@@ -122,6 +123,7 @@ export default app
 // Scheduled handler for Cron Trigger — periodic cleanup of expired entries
 export const scheduled: ExportedHandlerScheduledHandler<Bindings> = async (controller, env) => {
   const db = env.DB;
+  const nowSeconds = Math.floor(controller.scheduledTime / 1000);
 
   // 1. Clean up expired refresh tokens
   const tokenResult = await db.prepare(
@@ -138,5 +140,7 @@ export const scheduled: ExportedHandlerScheduledHandler<Bindings> = async (contr
     "DELETE FROM audit_log WHERE created_at < (strftime('%s', 'now') - 7776000)"
   ).run();
 
-  console.log(`Cron cleanup: ${tokenResult.meta.changes} tokens, ${attemptResult.meta.changes} attempts, ${auditResult.meta.changes} audit entries removed`);
+  const agentlessChecks = await runDueAgentlessChecks(env, nowSeconds);
+
+  console.log(`Cron cleanup: ${tokenResult.meta.changes} tokens, ${attemptResult.meta.changes} attempts, ${auditResult.meta.changes} audit entries removed; ${agentlessChecks} agentless checks run`);
 };

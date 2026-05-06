@@ -24,10 +24,10 @@ binding = "SESSION_BLACKLIST"
 id = "PRODUCTION_KV_ID_PLACEHOLDER"
 preview_id = "PRODUCTION_KV_PREVIEW_ID_PLACEHOLDER"
 
-# Cron Trigger for periodic cleanup of expired tokens, login attempts, and audit log entries
-# Runs every 6 hours — lightweight, stays within Cloudflare Free Tier limits
+# Cron Trigger for cleanup and due Agentless checks.
+# Runs every 5 minutes; per-node SQL due filtering enforces configured intervals.
 [triggers]
-crons = ["0 */6 * * *"]
+crons = ["*/5 * * * *"]
 
 # ─── Staging Environment ───
 [env.staging]
@@ -47,4 +47,4 @@ id = "STAGING_KV_ID_PLACEHOLDER"
 preview_id = "STAGING_KV_PREVIEW_ID_PLACEHOLDER"
 
 [env.staging.triggers]
-crons = ["0 */6 * * *"]
+crons = ["*/5 * * * *"]

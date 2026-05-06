@@ -1,5 +1,5 @@
 import { http, HttpResponse } from "msw";
-import type { ApiMetric, ApiNode, OverviewStats } from "../../src/api/types";
+import type { AgentlessCheck, ApiMetric, ApiNode, OverviewStats } from "../../src/api/types";
 
 interface MockAuthState {
   readonly authenticated: boolean;
@@ -12,6 +12,7 @@ interface MockAuthState {
 interface MockApiState {
   readonly auth: MockAuthState;
   readonly nodes: ReadonlyArray<ApiNode>;
+  readonly agentlessChecks: ReadonlyArray<AgentlessCheck>;
   readonly overview: OverviewStats;
   readonly metricsByNode: Readonly<Record<string, ReadonlyArray<ApiMetric>>>;
   readonly failSettingsUpdate: boolean;
@@ -24,6 +25,7 @@ function createMockNodes(): ReadonlyArray<ApiNode> {
     {
       id: "node-1",
       name: "edge-sfo-1",
+      type: "agent_push",
       status: "online",
       last_heartbeat: now - 45,
       ping_ms: 18,
@@ -35,6 +37,7 @@ function createMockNodes(): ReadonlyArray<ApiNode> {
     {
       id: "node-2",
       name: "edge-fra-1",
+      type: "agent_push",
       status: "offline",
       last_heartbeat: now - 600,
       ping_ms: null,
@@ -93,6 +96,7 @@ function createMockState(): MockApiState {
       refreshToken: "test-refresh-token",
     },
     nodes: createMockNodes(),
+    agentlessChecks: [],
     overview: createOverview(),
     metricsByNode: createMetricsByNode(),
     failSettingsUpdate: false,
@@ -200,6 +204,53 @@ export const handlers = [
   http.get("/api/nodes", () => {
     return HttpResponse.json({ data: mockApiState.nodes });
   }),
+  http.put("/api/nodes/:nodeId", async ({ params, request }) => {
+    const nodeId = typeof params.nodeId === "string" ? params.nodeId : "";
+    const body = (await request.json()) as Partial<ApiNode>;
+    const nodes = mockApiState.nodes.map((node) => node.id === nodeId ? { ...node, ...body } : node);
+    const updated = nodes.find((node) => node.id === nodeId);
+    mockApiState = { ...mockApiState, nodes };
+    return updated ? HttpResponse.json({ data: updated }) : HttpResponse.json({ error: "Node not found" }, { status: 404 });
+  }),
+  http.delete("/api/nodes/:nodeId", ({ params }) => {
+    const nodeId = typeof params.nodeId === "string" ? params.nodeId : "";
+    mockApiState = { ...mockApiState, nodes: mockApiState.nodes.filter((node) => node.id !== nodeId) };
+    return HttpResponse.json({ data: { id: nodeId, archived_at: Math.floor(Date.now() / 1000) } });
+  }),
+  http.get("/api/agentless", () => {
+    return HttpResponse.json({ data: mockApiState.agentlessChecks });
+  }),
+  http.post("/api/agentless/http", async ({ request }) => {
+    const body = (await request.json()) as { name?: string; url?: string; interval?: number; timeout?: number; expected_status?: number };
+    const check: AgentlessCheck = {
+      id: `agentless-http-${mockApiState.agentlessChecks.length + 1}`,
+      name: body.name ?? "HTTP check",
+      type: "agentless_http",
+      status: "paused",
+      target: body.url ?? "https://example.com/health",
+      interval: body.interval ?? 300,
+      timeout: body.timeout ?? 10,
+      expected_status: body.expected_status ?? 200,
+      latest_result: null,
+    };
+    mockApiState = { ...mockApiState, agentlessChecks: [...mockApiState.agentlessChecks, check] };
+    return HttpResponse.json({ data: check });
+  }),
+  http.post("/api/agentless/tcp", async ({ request }) => {
+    const body = (await request.json()) as { name?: string; host?: string; port?: number; interval?: number; timeout?: number };
+    const check: AgentlessCheck = {
+      id: `agentless-tcp-${mockApiState.agentlessChecks.length + 1}`,
+      name: body.name ?? "TCP check",
+      type: "agentless_tcp",
+      status: "paused",
+      target: `${body.host ?? "db.example.com"}:${body.port ?? 5432}`,
+      interval: body.interval ?? 300,
+      timeout: body.timeout ?? 10,
+      latest_result: null,
+    };
+    mockApiState = { ...mockApiState, agentlessChecks: [...mockApiState.agentlessChecks, check] };
+    return HttpResponse.json({ data: check });
+  }),
   http.post("/api/nodes/probe-config", async ({ request }) => {
     const body = (await request.json()) as { name?: string; platform?: string };
     const nodeName = body.name?.trim();
@@ -214,6 +265,8 @@ export const handlers = [
         node_name: nodeName,
         node_secret: "node-secret-generated",
         probe_push_url: "https://uptime-lofi-probe.example.workers.dev/api/push",
+        install_command: "curl -fsSL 'https://raw.githubusercontent.com/example/uptime-lofi/main/scripts/install-probe.sh' | UPTIME_PLATFORM='linux/amd64' UPTIME_PROBE_PUSH_URL='https://uptime-lofi-probe.example.workers.dev/api/push' UPTIME_NODE_ID='node-generated-1' UPTIME_NODE_SECRET='node-secret-generated' UPTIME_RELEASE_REPO='example/uptime-lofi' UPTIME_RELEASE_TAG='probe-latest' bash",
+        install_script_url: "https://raw.githubusercontent.com/example/uptime-lofi/main/scripts/install-probe.sh",
         config_yaml: "api_url: https://uptime-lofi-probe.example.workers.dev/api/push\nnode_id: node-generated-1\npsk: node-secret-generated\nenable_docker: true\n",
         downloads: {
           linux_amd64: "https://github.com/example/uptime-lofi/releases/latest/download/probe-linux-amd64.tar.gz",
