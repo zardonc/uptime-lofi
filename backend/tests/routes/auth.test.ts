@@ -26,7 +26,7 @@ describe("Auth Routes (/api/auth)", () => {
   });
 
   // Helper to get a successful login and return token + raw cookie
-  async function setupAndLogin(envObj: any): Promise<{ token: string; rawCookie: string }> {
+  async function setupAndLogin(envObj: any): Promise<{ token: string; rawCookie: string; setCookie: string }> {
     const uniqueIp = "192.168.1." + Math.floor(Math.random() * 255);
     // 1. Setup password
     const setupRes = await app.fetch(
@@ -53,7 +53,23 @@ describe("Auth Routes (/api/auth)", () => {
     const json: any = await loginRes.json();
     const setCookie = loginRes.headers.get("Set-Cookie");
     const rawCookie = setCookie ? setCookie.split(";")[0] : ""; // e.g. refresh_token=XYZ
-    return { token: json.access_token, rawCookie };
+    return { token: json.access_token, rawCookie, setCookie: setCookie || "" };
+  }
+
+  function decodeJwtPayload(token: string): { exp: number } {
+    const payloadSegment = token.split(".")[1];
+    const base64 = payloadSegment.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
+    return JSON.parse(atob(padded));
+  }
+
+  function expectShortRefreshCookie(setCookie: string | null) {
+    expect(setCookie).toContain("refresh_token=");
+    expect(setCookie).toContain("HttpOnly");
+    expect(setCookie).toContain("Secure");
+    expect(setCookie).toContain("SameSite=None");
+    expect(setCookie).toContain("Path=/");
+    expect(setCookie).toContain("Max-Age=3600");
   }
 
   describe("POST /api/auth/setup", () => {
@@ -114,6 +130,16 @@ describe("Auth Routes (/api/auth)", () => {
       const json: any = await res.json();
       expect(json.access_token).toBeDefined();
       expect(res.headers.get("Set-Cookie")).toContain("refresh_token=");
+    });
+
+    it("sets a short secure refresh cookie and 15-minute JWT on login", async () => {
+      const issuedAt = Math.floor(Date.now() / 1000);
+      const { token, setCookie } = await setupAndLogin(testEnv);
+      const payload = decodeJwtPayload(token);
+
+      expectShortRefreshCookie(setCookie);
+      expect(payload.exp - issuedAt).toBeGreaterThanOrEqual(850);
+      expect(payload.exp - issuedAt).toBeLessThanOrEqual(950);
     });
 
     it("Missing password field — returns 400", async () => {
@@ -190,6 +216,50 @@ describe("Auth Routes (/api/auth)", () => {
       const newCookie = res.headers.get("Set-Cookie");
       expect(newCookie).toBeDefined();
       expect(newCookie).not.toBe(rawCookie); // Has rotated!
+    });
+
+    it("rotates to a short secure refresh cookie and 15-minute JWT", async () => {
+      const { rawCookie } = await setupAndLogin(testEnv);
+      const issuedAt = Math.floor(Date.now() / 1000);
+
+      const res = await app.fetch(
+        new Request("http://localhost/api/auth/refresh", {
+          method: "POST",
+          headers: { "Cookie": rawCookie }
+        }),
+        testEnv
+      );
+
+      expect(res.status).toBe(200);
+      const json: any = await res.json();
+      const payload = decodeJwtPayload(json.access_token);
+
+      expectShortRefreshCookie(res.headers.get("Set-Cookie"));
+      expect(payload.exp - issuedAt).toBeGreaterThanOrEqual(850);
+      expect(payload.exp - issuedAt).toBeLessThanOrEqual(950);
+    });
+
+    it("allows protected API calls with the access token issued after refresh rotation", async () => {
+      const { rawCookie } = await setupAndLogin(testEnv);
+
+      const refreshRes = await app.fetch(
+        new Request("http://localhost/api/auth/refresh", {
+          method: "POST",
+          headers: { "Cookie": rawCookie }
+        }),
+        testEnv
+      );
+
+      expect(refreshRes.status).toBe(200);
+      const refreshBody: any = await refreshRes.json();
+      const nodesRes = await app.fetch(
+        new Request("http://localhost/api/nodes", {
+          headers: { "Authorization": `Bearer ${refreshBody.access_token}` }
+        }),
+        testEnv
+      );
+
+      expect(nodesRes.status).toBe(200);
     });
 
     it("Expired refresh token — returns 401", async () => {

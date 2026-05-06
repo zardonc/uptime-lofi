@@ -5,11 +5,17 @@
 
 import type {
   LoginResponse,
+  ApiResponse,
   ApiNode,
   ApiMetric,
   OverviewStats,
   ProbeConfigRequest,
   ProbeConfigResponse,
+  UpdateNodeRequest,
+  DeleteNodeResponse,
+  AgentlessCheck,
+  CreateHttpCheckRequest,
+  CreateTcpCheckRequest,
 } from './types';
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
@@ -130,9 +136,29 @@ export const api = {
     }),
 
   getNodes: () => apiFetch<{ data: ApiNode[] }>('/nodes'),
+  updateNode: (id: string, payload: UpdateNodeRequest) =>
+    apiFetch<ApiResponse<ApiNode>>(`/nodes/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }),
+  deleteNode: (id: string) =>
+    apiFetch<ApiResponse<DeleteNodeResponse>>(`/nodes/${id}`, {
+      method: 'DELETE',
+    }),
   getOverview: () => apiFetch<{ data: OverviewStats }>('/stats/overview'),
   getMetrics: (nodeId: string, hours = 24) =>
     apiFetch<{ data: ApiMetric[] }>(`/nodes/${nodeId}/metrics?hours=${hours}`),
+  getAgentlessChecks: () => apiFetch<ApiResponse<AgentlessCheck[]>>('/agentless'),
+  createHttpCheck: (payload: CreateHttpCheckRequest) =>
+    apiFetch<ApiResponse<AgentlessCheck>>('/agentless/http', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  createTcpCheck: (payload: CreateTcpCheckRequest) =>
+    apiFetch<ApiResponse<AgentlessCheck>>('/agentless/tcp', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
 
   updateSecuritySettings: (payload: { enabled: boolean; password?: string }) =>
     apiFetch<{ success: boolean }>('/settings/security', {

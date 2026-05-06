@@ -9,7 +9,7 @@ import { useAuth } from '../hooks/useAuth';
 import { Shield, Loader2 } from 'lucide-react';
 
 export function LoginGate({ children }: { readonly children: React.ReactNode }) {
-  const { isAuthenticated, isLoading: authLoading, error, login } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, error, hasCheckedSession, login } = useAuth();
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [isUiLock, setIsUiLock] = useState<boolean | null>(null);
@@ -25,7 +25,7 @@ export function LoginGate({ children }: { readonly children: React.ReactNode }) 
       <div className="login-gate">
         <div className="login-gate__loader">
           <Loader2 className="spin-icon" size={32} />
-          <p>Resuming session...</p>
+          <p>Restoring secure session...</p>
         </div>
       </div>
     );
@@ -58,7 +58,9 @@ export function LoginGate({ children }: { readonly children: React.ReactNode }) 
         <p className="login-card__subtitle">
           {isUiLock === false
             ? 'First-time Setup: Enter Admin API Key'
-            : 'Enter your access key to continue'}
+            : hasCheckedSession
+              ? 'Session expired. Enter your dashboard key to continue.'
+              : 'Enter your access key to continue'}
         </p>
 
         <input

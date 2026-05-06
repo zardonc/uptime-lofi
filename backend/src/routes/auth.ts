@@ -8,8 +8,12 @@ import { dashboardAuthMiddleware } from "../middleware/dashboardAuth";
 import { hashPassword, verifyPassword, generateSalt, hashToken, hashIpAddress } from "../utils/crypto";
 
 // Token TTL constants
-const ACCESS_TOKEN_TTL_SECONDS = 60 * 60; // 60 minutes
-const REFRESH_TOKEN_TTL_SECONDS = 15 * 24 * 60 * 60; // 15 days
+const ACCESS_TOKEN_TTL_SECONDS = 15 * 60; // 15 minutes
+const REFRESH_TOKEN_TTL_SECONDS = 60 * 60; // 60 minutes
+
+function refreshCookie(value: string, maxAge: number) {
+  return `refresh_token=${value}; HttpOnly; Secure; SameSite=None; Path=/; Max-Age=${maxAge}`;
+}
 
 // Opportunistic cleanup of expired refresh tokens to prevent table bloat
 async function cleanupExpiredTokens(db: D1Database) {
@@ -170,7 +174,7 @@ authApi.post("/login", zValidator("json", z.object({ password: z.string() })), a
       exp: Math.floor(Date.now() / 1000) + ACCESS_TOKEN_TTL_SECONDS
   }, c.env.API_SECRET_KEY);
 
-  c.header('Set-Cookie', `refresh_token=${rawRefreshToken}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${REFRESH_TOKEN_TTL_SECONDS}`);
+  c.header('Set-Cookie', refreshCookie(rawRefreshToken, REFRESH_TOKEN_TTL_SECONDS));
 
   return c.json({ access_token: jwt });
 });
@@ -214,7 +218,7 @@ authApi.post("/refresh", async (c) => {
       exp: Math.floor(Date.now() / 1000) + ACCESS_TOKEN_TTL_SECONDS
   }, c.env.API_SECRET_KEY);
 
-  c.header('Set-Cookie', `refresh_token=${newRawRefreshToken}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${REFRESH_TOKEN_TTL_SECONDS}`);
+  c.header('Set-Cookie', refreshCookie(newRawRefreshToken, REFRESH_TOKEN_TTL_SECONDS));
 
   return c.json({ access_token: jwt });
 });

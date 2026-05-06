@@ -11,7 +11,7 @@ statsApi.get("/overview", async (c) => {
   const since = Math.floor(Date.now() / 1000) - 24 * 3600;
 
   const batchResults = await db.batch([
-    db.prepare(`SELECT COUNT(*) as total, SUM(CASE WHEN status = 'online' THEN 1 ELSE 0 END) as online FROM nodes`),
+    db.prepare(`SELECT COUNT(*) as total, SUM(CASE WHEN status = 'online' THEN 1 ELSE 0 END) as online FROM nodes WHERE archived_at IS NULL`),
     db.prepare(`SELECT AVG(ping_ms) as avgPing FROM raw_metrics WHERE timestamp > ?`).bind(since),
     db.prepare(`SELECT AVG(uptime_ratio) as avgUptime FROM daily_stats`)
   ]);

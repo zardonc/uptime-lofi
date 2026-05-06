@@ -21,4 +21,4 @@ id = "__KV_NAMESPACE_ID__"
 preview_id = "__KV_PREVIEW_ID__"
 
 [triggers]
-crons = ["0 */6 * * *"]
+crons = ["*/5 * * * *"]

@@ -58,11 +58,15 @@ describe("Stats Routes (/api/stats)", () => {
 
   it("2. Overview with data — returns aggregated stats", async () => {
     const db = (env as any).DB;
+    await db.prepare("DELETE FROM nodes").run();
     await db.prepare("INSERT INTO nodes (id, name, type, salt, status) VALUES (?, ?, ?, ?, ?)")
       .bind("node_a", "Node A", "vps", "s1", "online").run();
     
     await db.prepare("INSERT INTO nodes (id, name, type, salt, status) VALUES (?, ?, ?, ?, ?)")
       .bind("node_b", "Node B", "vps", "s2", "offline").run();
+
+    await db.prepare("INSERT INTO nodes (id, name, type, salt, status, archived_at) VALUES (?, ?, ?, ?, ?, ?)")
+      .bind("node_archived", "Archived", "agent_push", "s3", "online", Math.floor(Date.now() / 1000)).run();
 
     const res = await app.fetch(
       new Request("http://localhost/api/stats/overview", {

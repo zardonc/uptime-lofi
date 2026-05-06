@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { setupServer } from "msw/node";
-import { describe, beforeAll, afterAll, afterEach, expect, it } from "vitest";
+import { describe, beforeAll, afterAll, afterEach, expect, it, vi } from "vitest";
 import { AuthProvider, useAuth } from "../../src/hooks/useAuth";
 import { ApiClientError, getAccessToken, setAccessToken } from "../../src/api/client";
 import { handlers, resetMockApiState, setMockAuthState } from "../mocks/handlers";
@@ -40,6 +40,8 @@ describe("useAuth", () => {
   });
 
   it("logs in successfully and stores the access token", async () => {
+    const localStorageSetItem = vi.spyOn(window.localStorage.__proto__, "setItem");
+    const sessionStorageSetItem = vi.spyOn(window.sessionStorage.__proto__, "setItem");
     const { result } = renderHook(() => useAuth(), { wrapper });
 
     await waitFor(() => {
@@ -56,6 +58,8 @@ describe("useAuth", () => {
 
     expect(result.current.error).toBeNull();
     expect(getAccessToken()).toBe("test-access-token");
+    expect(localStorageSetItem).not.toHaveBeenCalled();
+    expect(sessionStorageSetItem).not.toHaveBeenCalled();
   });
 
   it("surfaces an API error when login fails", async () => {
@@ -101,6 +105,8 @@ describe("useAuth", () => {
   });
 
   it("resumes an existing session by refreshing and replacing a stale token", async () => {
+    const localStorageSetItem = vi.spyOn(window.localStorage.__proto__, "setItem");
+    const sessionStorageSetItem = vi.spyOn(window.sessionStorage.__proto__, "setItem");
     setAccessToken("stale-token");
     setMockAuthState({
       authenticated: true,
@@ -117,5 +123,7 @@ describe("useAuth", () => {
     expect(result.current.isAuthenticated).toBe(true);
     expect(result.current.error).toBeNull();
     expect(getAccessToken()).toBe("refreshed-access-token");
+    expect(localStorageSetItem).not.toHaveBeenCalled();
+    expect(sessionStorageSetItem).not.toHaveBeenCalled();
   });
 });

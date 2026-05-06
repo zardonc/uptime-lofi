@@ -1,7 +1,7 @@
 import './index.css';
-import { useState, useMemo } from 'react';
-import type { ReactNode } from 'react';
-import { Server, Wifi, Activity, Clock, Globe, Bell } from 'lucide-react';
+import { useEffect, useState, useMemo } from 'react';
+import type { FormEvent, ReactNode } from 'react';
+import { Server, Wifi, Activity, Clock, Bell, Plus } from 'lucide-react';
 import { Sidebar } from './components/Sidebar';
 import { MetricCard } from './components/MetricCard';
 import { TrendChart } from './components/TrendChart';
@@ -14,11 +14,14 @@ import { ErrorBanner } from './components/ErrorBanner';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { LoginGate } from './components/LoginGate';
 import { Settings } from './components/Settings';
+import { ProbeSetup } from './components/ProbeSetup';
 import { useNodes } from './hooks/useNodes';
 import { useOverview } from './hooks/useOverview';
 import { useMetrics } from './hooks/useMetrics';
 import { useAuth } from './hooks/useAuth';
 import type { TrendPoint } from './hooks/useMetrics';
+import { api, ApiClientError } from './api/client';
+import type { AgentlessCheck } from './api/types';
 
 // ── Fallback: generate synthetic trend data when no metrics exist ──
 function generateMockTrend(): ReadonlyArray<TrendPoint> {
@@ -148,7 +151,7 @@ function DashboardContent() {
           {nodesLoading ? (
             <NodeListSkeleton />
           ) : (
-            <NodeList nodes={nodes} />
+            <NodeList nodes={nodes} onRefresh={refetchNodes} />
           )}
         </div>
         <div className="animate-in delay-7">
@@ -165,16 +168,261 @@ function DashboardContent() {
 
 type PageId = 'dashboard' | 'nodes' | 'agentless' | 'statistics' | 'alerts' | 'settings';
 
-function NodesContent() {
+function NodesContent({ onNavigate }: { readonly onNavigate: (page: PageId) => void }) {
   const { isAuthenticated } = useAuth();
   const { nodes, loading, error, refetch } = useNodes(isAuthenticated);
+  const [addMode, setAddMode] = useState<'chooser' | 'probe' | null>(null);
 
   return (
     <div className="dashboard">
-      <PageHeader title="Nodes" subtitle="Registered probe and synthetic monitoring targets" />
+      <PageHeader
+        title="Nodes"
+        subtitle="Manage agent probes and synthetic checks"
+        actions={<button type="button" className="page-header__primary" onClick={() => setAddMode('chooser')}><Plus size={18} />Add Node</button>}
+      />
+      {addMode === 'chooser' && <AddNodeChooser onAddProbe={() => setAddMode('probe')} onAddAgentless={() => onNavigate('agentless')} />}
+      {addMode === 'probe' && (
+        <section className="card nodes-add-panel" aria-label="Add agent probe">
+          <div className="nodes-add-panel__header">
+            <div>
+              <h2>Agent Probe</h2>
+              <p>Generate the one-command probe installer for a server.</p>
+            </div>
+            <button type="button" className="node-action" onClick={() => setAddMode('chooser')}>Back</button>
+          </div>
+          <ProbeSetup />
+        </section>
+      )}
       {error && <ErrorBanner message={error} onRetry={refetch} />}
-      {loading ? <NodeListSkeleton /> : <NodeList nodes={nodes} />}
+      {loading ? <NodeListSkeleton /> : <NodeList nodes={nodes} onRefresh={refetch} />}
     </div>
+  );
+}
+
+function AddNodeChooser({ onAddProbe, onAddAgentless }: { readonly onAddProbe: () => void; readonly onAddAgentless: () => void }) {
+  return (
+    <section className="nodes-add-chooser card" aria-label="Choose node type">
+      <article className="nodes-add-chooser__option">
+        <h2>Agent Probe</h2>
+        <p>Install a small probe on a server to report CPU, memory, ping, Docker containers, and heartbeat.</p>
+        <button type="button" className="page-header__primary" onClick={onAddProbe}>Add Agent Probe</button>
+      </article>
+      <article className="nodes-add-chooser__option">
+        <h2>Agentless Check</h2>
+        <p>Monitor an HTTP URL or TCP endpoint from the backend scheduler.</p>
+        <button type="button" className="page-header__primary" onClick={onAddAgentless}>Add Agentless Check</button>
+      </article>
+    </section>
+  );
+}
+
+type AgentlessTab = 'http' | 'tcp';
+
+const TCP_AVAILABLE_COPY = 'TCP checks run from the backend scheduler. Private, localhost, and Cloudflare-blocked targets are rejected before storage.';
+
+const EMPTY_AGENTLESS_COPY = 'Create an HTTP or TCP check. Checks run from the backend, so the dashboard does not need to stay open.';
+
+function isTcpCheck(check: AgentlessCheck): boolean {
+  return check.type === 'agentless_tcp';
+}
+
+function getCheckConfig(check: AgentlessCheck): Record<string, unknown> {
+  if (check.config) return { ...check.config };
+  if (!check.config_json) return {};
+  try {
+    return JSON.parse(check.config_json) as Record<string, unknown>;
+  } catch {
+    return {};
+  }
+}
+
+function getCheckTarget(check: AgentlessCheck): string {
+  if (check.target) return check.target;
+  const config = getCheckConfig(check);
+  if (isTcpCheck(check)) return `${String(config.host ?? 'unknown')}:${String(config.port ?? '--')}`;
+  return String(config.url ?? 'unknown');
+}
+
+function getLatestResult(check: AgentlessCheck) {
+  if (check.latest_result) return check.latest_result;
+  return {
+    timestamp: check.latest_timestamp ?? null,
+    is_up: typeof check.latest_is_up === 'number' ? check.latest_is_up === 1 : check.latest_is_up ?? null,
+    latency_ms: check.latest_ping_ms ?? null,
+    error_text: check.latest_error_text ?? null,
+  };
+}
+
+function formatResultStatus(check: AgentlessCheck): string {
+  if (check.status === 'paused') return 'Paused';
+  const latest = getLatestResult(check);
+  if (latest.is_up === null) return 'No data yet';
+  return latest.is_up ? 'Reachable' : 'Failed';
+}
+
+function formatLatency(check: AgentlessCheck): string {
+  const latency = getLatestResult(check).latency_ms;
+  return typeof latency === 'number' ? `${latency}ms` : '--';
+}
+
+function formatLastRun(check: AgentlessCheck): string {
+  const timestamp = getLatestResult(check).timestamp;
+  return typeof timestamp === 'number' ? formatRelativeTime(timestamp) : 'No results yet';
+}
+
+function AgentlessContent() {
+  const [activeTab, setActiveTab] = useState<AgentlessTab>('http');
+  const [checks, setChecks] = useState<ReadonlyArray<AgentlessCheck>>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const tcpAvailable = true;
+
+  const loadChecks = async () => {
+    try {
+      setLoadError(null);
+      const response = await api.getAgentlessChecks();
+      setChecks(response.data);
+    } catch (error) {
+      setLoadError(error instanceof ApiClientError ? error.message : 'Could not load Agentless checks.');
+    }
+  };
+
+  useEffect(() => {
+    void loadChecks();
+  }, []);
+
+  const visibleChecks = checks.filter((check) => activeTab === 'tcp' ? isTcpCheck(check) : !isTcpCheck(check));
+
+  const handleHttpSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    setSaving(true);
+    setSaveError(null);
+    try {
+      await api.createHttpCheck({
+        name: String(formData.get('name') ?? ''),
+        url: String(formData.get('url') ?? ''),
+        interval: Number(formData.get('interval')),
+        timeout: Number(formData.get('timeout')),
+        expected_status: Number(formData.get('expected_status')),
+      });
+      await loadChecks();
+      event.currentTarget.reset();
+    } catch {
+      setSaveError('Could not save this check. Review the fields and try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleTcpSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    setSaving(true);
+    setSaveError(null);
+    try {
+      await api.createTcpCheck({
+        name: String(formData.get('name') ?? ''),
+        host: String(formData.get('host') ?? ''),
+        port: Number(formData.get('port')),
+        timeout: Number(formData.get('timeout')),
+        interval: Number(formData.get('interval')),
+      });
+      await loadChecks();
+      event.currentTarget.reset();
+    } catch (error) {
+      setSaveError(error instanceof ApiClientError ? error.message : 'Could not save this check. Review the fields and try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="dashboard agentless-page">
+      <PageHeader
+        title="Agentless"
+        subtitle="Configure HTTP and TCP checks that run from the backend scheduler"
+        actions={<><button type="button" className="page-header__primary" onClick={() => setActiveTab('http')}>Create HTTP Check</button><button type="button" className="agentless-page__secondary" onClick={() => setActiveTab('tcp')}>Create TCP Check</button></>}
+      />
+      {loadError && <ErrorBanner message={loadError} onRetry={loadChecks} />}
+      <section className="agentless-page__intro card">
+        <p>Checks run from backend/Worker scheduled execution, not from the browser. Recent results below update after the backend scheduler runs.</p>
+      </section>
+      <div className="agentless-tabs" role="tablist" aria-label="Agentless check types">
+        <button type="button" aria-selected={activeTab === 'http'} className="agentless-tabs__button" onClick={() => setActiveTab('http')}>HTTP Checks</button>
+        <button type="button" aria-selected={activeTab === 'tcp'} className="agentless-tabs__button" onClick={() => setActiveTab('tcp')}>TCP Checks</button>
+      </div>
+      {saveError && <p className="agentless-form__error" role="alert">{saveError}</p>}
+      <section className="agentless-page__grid">
+        {activeTab === 'http' ? <HttpCheckForm disabled={saving} onSubmit={handleHttpSubmit} /> : <TcpCheckForm disabled={saving || !tcpAvailable} onSubmit={handleTcpSubmit} />}
+        <RecentAgentlessResults checks={visibleChecks} />
+      </section>
+    </div>
+  );
+}
+
+function HttpCheckForm({ disabled, onSubmit }: { readonly disabled: boolean; readonly onSubmit: (event: FormEvent<HTMLFormElement>) => void }) {
+  return (
+    <form className="agentless-form card" aria-label="HTTP check form" onSubmit={onSubmit}>
+      <h2>Create HTTP Check</h2>
+      <label>Check name<input name="name" placeholder="Homepage" required /></label>
+      <label>URL<input name="url" type="url" placeholder="https://example.com/health" required /></label>
+      <label htmlFor="agentless-http-interval">Interval</label><input id="agentless-http-interval" name="interval" type="number" min="60" defaultValue="300" aria-describedby="agentless-http-interval-help" required /><span id="agentless-http-interval-help">How often the backend should run this check.</span>
+      <label htmlFor="agentless-http-timeout">Timeout</label><input id="agentless-http-timeout" name="timeout" type="number" min="1" defaultValue="10" aria-describedby="agentless-http-timeout-help" required /><span id="agentless-http-timeout-help">How long to wait before marking the check failed.</span>
+      <label>Expected status<input name="expected_status" type="number" min="100" max="599" defaultValue="200" required /></label>
+      <button type="submit" className="page-header__primary" disabled={disabled}>Create HTTP Check</button>
+    </form>
+  );
+}
+
+function TcpCheckForm({ disabled, onSubmit }: { readonly disabled: boolean; readonly onSubmit: (event: FormEvent<HTMLFormElement>) => void }) {
+  return (
+    <form className="agentless-form card" aria-label="TCP check form" onSubmit={onSubmit}>
+      <h2>Create TCP Check</h2>
+      <p className="agentless-form__warning">{TCP_AVAILABLE_COPY}</p>
+      <label>Check name<input name="name" placeholder="Postgres" required /></label>
+      <label>Host<input name="host" placeholder="db.example.com" required /></label>
+      <label>Port<input name="port" type="number" min="1" max="65535" placeholder="5432" required /></label>
+      <label>Timeout<input name="timeout" type="number" min="1" defaultValue="10" required /></label>
+      <label>Interval<input name="interval" type="number" min="60" defaultValue="300" required /></label>
+      <button type="submit" className="page-header__primary" disabled={disabled}>Create TCP Check</button>
+    </form>
+  );
+}
+
+function RecentAgentlessResults({ checks }: { readonly checks: ReadonlyArray<AgentlessCheck> }) {
+  return (
+    <section className="agentless-results card" aria-label="Recent synthetic results">
+      <div>
+        <h2>Recent results</h2>
+        <p>Results are produced by the backend scheduler. No browser tab needs to stay open.</p>
+      </div>
+      {checks.length === 0 ? (
+        <div className="agentless-results__empty">
+          <h3>No synthetic checks yet</h3>
+          <p>{EMPTY_AGENTLESS_COPY}</p>
+          <p>No results yet. The next scheduled run will appear here.</p>
+        </div>
+      ) : (
+        <div className="agentless-results__list">
+          {checks.map((check) => (
+            <article className="agentless-result" key={check.id}>
+              <div>
+                <h3>{check.name}</h3>
+                <p>{getCheckTarget(check)}</p>
+              </div>
+              <span className="agentless-result__badge">{formatResultStatus(check)}</span>
+              <dl>
+                <div><dt>Latency</dt><dd>{formatLatency(check)}</dd></div>
+                <div><dt>Last run</dt><dd>{formatLastRun(check)}</dd></div>
+              </dl>
+              {getLatestResult(check).error_text && <p className="agentless-result__error">{getLatestResult(check).error_text}</p>}
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -206,23 +454,24 @@ function PlaceholderContent({ title, subtitle, icon }: { readonly title: string;
   );
 }
 
-function PageHeader({ title, subtitle }: { readonly title: string; readonly subtitle: string }) {
+function PageHeader({ title, subtitle, actions }: { readonly title: string; readonly subtitle: string; readonly actions?: ReactNode }) {
   return (
     <header className="dashboard-header animate-in" role="banner">
       <div>
         <h1>{title}</h1>
         <p className="subtitle">{subtitle}</p>
       </div>
+      {actions && <div className="page-header__actions">{actions}</div>}
     </header>
   );
 }
 
-function ActivePage({ activeNav }: { readonly activeNav: PageId }) {
+function ActivePage({ activeNav, onNavigate }: { readonly activeNav: PageId; readonly onNavigate: (page: PageId) => void }) {
   switch (activeNav) {
     case 'nodes':
-      return <NodesContent />;
+      return <NodesContent onNavigate={onNavigate} />;
     case 'agentless':
-      return <PlaceholderContent title="Agentless" subtitle="Synthetic checks and external probes" icon={<Globe size={30} />} />;
+      return <AgentlessContent />;
     case 'statistics':
       return <StatisticsContent />;
     case 'alerts':
@@ -248,7 +497,7 @@ export default function App() {
         }} />
 
         <main className="main-content" role="main">
-          <ErrorBoundary><ActivePage activeNav={activeNav} /></ErrorBoundary>
+          <ErrorBoundary><ActivePage activeNav={activeNav} onNavigate={setActiveNav} /></ErrorBoundary>
         </main>
       </div>
     </LoginGate>

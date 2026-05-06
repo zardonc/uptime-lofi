@@ -4,11 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       pages_url:
-        description: Cloudflare Pages URL used for CORS and smoke validation
+        description: Advanced troubleshooting; leave blank for automatic default Cloudflare Pages URL
         required: false
         default: ''
       resource_prefix:
-        description: Optional prefix for D1, Workers, and Pages. Empty uses uptime-lofi-{account}. SESSION_BLACKLIST is always reused separately.
+        description: Advanced troubleshooting; leave blank for automatic default resource names
         required: false
         default: ''
 
@@ -52,14 +52,14 @@ jobs:
 
       - name: Validate required secrets
         run: |
-          test -n "$CLOUDFLARE_API_TOKEN"
-          test -n "$CLOUDFLARE_ACCOUNT_ID"
-          test -n "$API_SECRET_KEY"
+          source scripts/ci/self-host-cloudflare.sh
+          preflight_self_host_deploy
 
       - name: Provision Cloudflare resources
         id: cf
         run: |
           source scripts/ci/self-host-cloudflare.sh
+          preflight_self_host_deploy
           ensure_self_host_resources
 
       - name: Run D1 migrations
@@ -131,5 +131,5 @@ jobs:
 
           Dashboard URL: ${{ steps.cf.outputs.pages_url }}
 
-          Open the Dashboard URL, log in, then go to Settings -> Probe Installation and click Generate Probe Config.
+          Open the Dashboard URL, log in, then go to Nodes -> Add Node -> Agent Probe and click Generate Install Command.
           SUMMARY

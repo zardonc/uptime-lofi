@@ -56,7 +56,7 @@ describe("Probe Auth Middleware (HMAC)", () => {
     await (env as any).DB.prepare(
       "INSERT INTO nodes (id, name, type, salt, status) VALUES (?, ?, ?, ?, ?)"
     )
-      .bind(nodeId, "Auth Node Test", "vps", salt, "online")
+      .bind(nodeId, "Auth Node Test", "agent_push", salt, "online")
       .run();
 
     masterSecret = (env as any).API_SECRET_KEY || "default_test_secret";

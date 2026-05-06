@@ -58,13 +58,12 @@ In your forked repo:
 1. Open `Actions`.
 2. Select `Deploy Self-Hosted`.
 3. Click `Run workflow`.
-4. Leave `resource_prefix` empty to use the account-based default `uptime-lofi-{account}`, for example `uptime-lofi-lmyyah`. Or set a custom lowercase prefix if your Cloudflare account hosts multiple copies. The prefix controls D1, Workers, and Pages resources. `SESSION_BLACKLIST` is always reused as the fixed KV namespace.
-5. Leave `pages_url` empty unless Cloudflare Pages shows a different production URL for your project. If omitted, the workflow uses `https://{resource_prefix}.pages.dev`, for example `https://uptime-lofi-lmyyah.pages.dev`.
-6. Wait for the workflow to finish.
+4. Leave the optional inputs blank.
+5. Wait for the workflow to finish.
 
 The workflow creates or reuses Cloudflare resources, runs D1 migrations, deploys the dashboard Worker, deploys the probe Worker, builds the frontend with the deployed API URL, deploys Cloudflare Pages, publishes probe binaries to the current fork's `probe-latest` GitHub Release, then runs smoke validation.
 
-With the account-based default `resource_prefix=uptime-lofi-lmyyah`, resource names become `uptime-lofi-lmyyah-db`, `uptime-lofi-lmyyah-backend`, `uptime-lofi-lmyyah-probe`, and `uptime-lofi-lmyyah`. The KV namespace remains `SESSION_BLACKLIST` and is reused if it already exists.
+The workflow chooses safe default resource names for you. The KV namespace remains `SESSION_BLACKLIST` and is reused if it already exists.
 
 When it completes, open the workflow run summary. It shows:
 
@@ -74,33 +73,54 @@ When it completes, open the workflow run summary. It shows:
 | API URL | Dashboard Worker API endpoint |
 | Probe URL | Probe Worker push endpoint |
 
-### 5. Open The Dashboard
+### 5. Open The Dashboard URL
 
 Open the Dashboard URL from the workflow summary. Complete the initial setup/login flow and confirm the panel loads normally.
 
-### 6. Generate Probe Config
+### 6. Add Your First Node
 
-From the dashboard, open `Settings -> Probe Installation` and click `Generate Probe Config`.
+From the dashboard:
+
+1. Open `Nodes`.
+2. Click `Add Node`.
+3. Choose `Agent Probe`.
+4. Click `Generate Install Command`.
+5. Copy the command under `Run this on your server`.
+6. Run that command on the server you want to monitor.
 
 The dashboard provides:
 
 | Item | Purpose |
 |------|---------|
-| Probe binary download link | Download the probe for your server platform |
+| Install command | Downloads the right probe binary, writes `config.yaml`, and prints start guidance |
 | Probe push URL | Points the probe at your deployed Probe Worker |
 | Node ID | Identifies the server in the dashboard |
-| Node credential/config | Authenticates the probe without exposing the master secret |
-| Copyable or downloadable config | Use this on the server running the probe |
+| Node-specific credential | Authenticates the probe without exposing `API_SECRET_KEY` |
 
 Probe binary links point to your fork's `probe-latest` release. The deployment workflow publishes or refreshes those assets automatically.
 
-Start the probe on your server. Once it pushes metrics successfully, the node appears online in the dashboard.
+Once the probe pushes metrics successfully, the node appears online in `Nodes`. Open `View Details` on the node to see current metrics and Docker container data when your server reports it.
+
+### Advanced troubleshooting options
+
+Use these Advanced troubleshooting options only when the default deployment path does not fit your Cloudflare account.
+
+Normal users should leave these `Deploy Self-Hosted` inputs blank:
+
+| Input | When to use it |
+|-------|----------------|
+| `resource_prefix` | Only when the default Cloudflare resource names conflict with another uptime-lofi copy in the same account. Use lowercase letters, numbers, and hyphens only. |
+| `pages_url` | Only when Cloudflare Pages reports a production URL that differs from the workflow's automatic `*.pages.dev` default. |
 
 ## Troubleshooting
 
+### Deploy Self-Hosted stops during preflight
+
+Open the workflow run summary. The preflight section names the missing or invalid setting and gives the exact fix. Common fixes are adding `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, and `API_SECRET_KEY` under `Settings -> Secrets and variables -> Actions -> New repository secret`, or correcting an advanced `resource_prefix` value.
+
 ### Cloudflare token permission errors
 
-Check that the token includes Workers Scripts Edit, Workers KV Storage Edit, D1 Edit, Cloudflare Pages Edit, and Account Settings Read on the correct account.
+Check that the token includes Workers Scripts Edit, Workers KV Storage Edit, D1 Edit, Cloudflare Pages Edit, and Account Settings Read on the correct account. Also confirm `CLOUDFLARE_ACCOUNT_ID` belongs to that same account. The happy path does not need zone permissions.
 
 ### GitHub Actions cannot find a secret
 
@@ -117,3 +137,7 @@ Confirm the workflow built the frontend with the deployed Dashboard Worker URL a
 ### Probe does not appear online
 
 Confirm the probe is using the generated Probe Worker URL, node ID, and node-specific credential from the dashboard. Do not use `API_SECRET_KEY` directly in client-side/browser-visible config.
+
+### Docker data is empty
+
+If the node is online but Docker shows no data, make sure Docker collection is enabled for the probe and that the user running the probe can read the Docker socket. After changing probe settings, wait for the next push and reopen the node detail drawer.

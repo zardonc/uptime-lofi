@@ -55,7 +55,7 @@ describe("Push Routes (/api/push)", () => {
     await db.prepare("DELETE FROM raw_metrics").run();
     await db.prepare("DELETE FROM nodes").run();
     await db.prepare("INSERT INTO nodes (id, name, type, salt, status) VALUES (?, ?, ?, ?, ?)")
-      .bind(nodeId, "Push Node", "vps", salt, "online")
+      .bind(nodeId, "Push Node", "agent_push", salt, "online")
       .run();
 
     psk = await derivePsk(testEnv.API_SECRET_KEY, nodeId, salt);
@@ -154,5 +154,25 @@ describe("Push Routes (/api/push)", () => {
 
     const res = await probeApp.fetch(req, testEnv);
     expect(res.status).toBe(401);
+  });
+
+  it("5. Rejects archived probe nodes before writing metrics", async () => {
+    const ts = Math.floor(Date.now() / 1000);
+    await (env as any).DB.prepare("UPDATE nodes SET archived_at = ?, status = 'paused' WHERE id = ?")
+      .bind(ts, nodeId)
+      .run();
+
+    const before = await (env as any).DB.prepare("SELECT count(*) as c FROM raw_metrics WHERE node_id = ?")
+      .bind(nodeId)
+      .first("c");
+
+    const req = await getPushRequest([{ node_id: nodeId, timestamp: ts, ping: 45, cpu: 10, mem: 20, is_up: true }], ts);
+    const res = await probeApp.fetch(req, testEnv);
+
+    expect(res.status).toBe(401);
+    const after = await (env as any).DB.prepare("SELECT count(*) as c FROM raw_metrics WHERE node_id = ?")
+      .bind(nodeId)
+      .first("c");
+    expect(after).toBe(before);
   });
 });

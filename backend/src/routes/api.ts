@@ -5,6 +5,7 @@ import { nodesApi } from "./nodes";
 import { statsApi } from "./stats";
 import { authApi } from "./auth";
 import { settingsApi } from "./settings";
+import { agentlessApi } from "./agentless";
 
 // Rate-limiting: apply before authentication on selected routes
 
@@ -22,6 +23,8 @@ export type Bindings = {
   PROBE_PUSH_URL?: string;
   // GitHub repository slug that hosts probe release assets
   PROBE_RELEASE_REPO?: string;
+  // GitHub Actions-style repository slug fallback for generated installer URLs
+  GITHUB_REPOSITORY?: string;
   // GitHub release tag that hosts probe binaries
   PROBE_RELEASE_TAG?: string;
   // KV namespace for instant session blacklist (logout revocation)
@@ -37,6 +40,7 @@ api.use("/auth/unlock", strictRateLimit);
 api.use("/auth/login", strictRateLimit);
 api.use("/auth/*", standardRateLimit);
 api.use("/nodes", standardRateLimit);
+api.use("/agentless", standardRateLimit);
 api.use("/stats", standardRateLimit);
 
 // Note: /push route moved to dedicated probe Worker (probe-wrangler.toml)
@@ -48,6 +52,7 @@ api.route("/auth", authApi);
 const dashboard = new Hono<{ Bindings: Bindings }>();
 dashboard.use("*", dashboardAuthMiddleware);
 dashboard.route("/nodes", nodesApi);
+dashboard.route("/agentless", agentlessApi);
 dashboard.route("/stats", statsApi);
 dashboard.route("/settings", settingsApi);
 api.route("/", dashboard);

@@ -11,6 +11,7 @@ interface AuthState {
   readonly isAuthenticated: boolean;
   readonly isLoading: boolean;
   readonly error: string | null;
+  readonly hasCheckedSession: boolean;
   readonly login: (password: string) => Promise<void>;
   readonly logout: () => void;
 }
@@ -20,6 +21,7 @@ const AuthContext = createContext<AuthState | null>(null);
 export function AuthProvider({ children }: { readonly children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [hasCheckedSession, setHasCheckedSession] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // On mount, attempt a silent refresh to resume an existing session
@@ -36,7 +38,10 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
       } catch {
         // No session — that's fine, user will see login
       } finally {
-        if (!cancelled) setIsLoading(false);
+        if (!cancelled) {
+          setHasCheckedSession(true);
+          setIsLoading(false);
+        }
       }
     })();
 
@@ -75,7 +80,7 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext value={{ isAuthenticated, isLoading, error, login, logout }}>
+    <AuthContext value={{ isAuthenticated, isLoading, error, hasCheckedSession, login, logout }}>
       {children}
     </AuthContext>
   );

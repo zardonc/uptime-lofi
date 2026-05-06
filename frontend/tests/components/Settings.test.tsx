@@ -91,9 +91,15 @@ describe("Settings", () => {
     const nameInput = await screen.findByLabelText(/node name/i);
     await user.clear(nameInput);
     await user.type(nameInput, "prod-vps-1");
-    await user.click(screen.getByRole("button", { name: /generate probe config/i }));
+    await user.click(screen.getByRole("button", { name: /generate install command/i }));
 
-    expect(await screen.findByText("node-generated-1")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /run this on your server/i })).toBeInTheDocument();
+    expect(screen.getByTestId("probe-install-command")).toHaveTextContent("node-generated-1");
+    expect(screen.queryByText("node-secret-generated")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /show manual setup/i }));
+
+    expect(screen.getByText("node-generated-1")).toBeInTheDocument();
     expect(screen.getByText("node-secret-generated")).toBeInTheDocument();
     expect(screen.getByText("https://uptime-lofi-probe.example.workers.dev/api/push")).toBeInTheDocument();
     expect(screen.getByText("config.yaml")).toBeInTheDocument();

@@ -23,6 +23,13 @@ const metricSchema = z.object({
   if (typeof data.timestamp !== 'number' || data.timestamp > now || data.timestamp < now - 24 * 60 * 60) {
     ctx.addIssue({ path: ['timestamp'], code: z.ZodIssueCode.custom, message: 'timestamp must be within last 24 hours and not in the future' })
   }
+  if (data.containers_json) {
+    try {
+      JSON.parse(data.containers_json)
+    } catch {
+      ctx.addIssue({ path: ['containers_json'], code: z.ZodIssueCode.custom, message: 'containers_json must be valid JSON' })
+    }
+  }
 })
 
 const batchPayloadSchema = z.array(metricSchema).max(MAX_BATCH_SIZE, { message: 'Batch size must be <= 100' })
@@ -81,9 +88,9 @@ pushApi.post(
       const isUpStatus = m.is_up ? "online" : "offline";
       return db.prepare(
         `UPDATE nodes 
-         SET status = ?, last_heartbeat = ?, config_json = json_set(COALESCE(config_json, '{}'), '$.agent.containers', ?) 
-         WHERE id = ?`
-      ).bind(isUpStatus, m.timestamp, m.containers_json ?? null, m.node_id);
+         SET status = ?, last_heartbeat = ?
+         WHERE id = ? AND archived_at IS NULL AND type = 'agent_push'`
+      ).bind(isUpStatus, m.timestamp, m.node_id);
     });
 
     try {

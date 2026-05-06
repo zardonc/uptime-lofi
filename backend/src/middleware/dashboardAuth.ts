@@ -56,10 +56,14 @@ export const dashboardAuthMiddleware = async (c: Context, next: Next) => {
 			try {
 				const db = c.env.DB;
 				const row = await (db
-					.prepare("SELECT status FROM refresh_tokens WHERE session_id = ?")
+					.prepare(
+						`SELECT 1 FROM refresh_tokens
+						 WHERE session_id = ? AND status = 'active' AND expires_at > strftime('%s', 'now')
+						 LIMIT 1`,
+					)
 					.bind(payload.session_id)
-					.first() as { status: string } | undefined);
-				if (!row || row.status !== "active") {
+					.first() as { 1: number } | undefined);
+				if (!row) {
 					throw new HTTPException(401, { message: "Invalid or inactive session" });
 				}
 			} catch {

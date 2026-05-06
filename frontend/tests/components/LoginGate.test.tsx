@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, waitForElementToBeRemoved } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { setupServer } from "msw/node";
 import { describe, beforeAll, afterAll, afterEach, expect, it } from "vitest";
@@ -37,6 +37,28 @@ describe("LoginGate", () => {
     expect(await screen.findByRole("form", { name: /login form/i })).toBeInTheDocument();
     expect(screen.getByLabelText(/access key/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /unlock/i })).toBeDisabled();
+    expect(screen.queryByText(/protected dashboard/i)).not.toBeInTheDocument();
+  });
+
+  it("shows secure session restore copy while silent refresh is pending", async () => {
+    renderWithAuth(
+      <LoginGate>
+        <div>Protected dashboard</div>
+      </LoginGate>,
+    );
+
+    expect(screen.getByText("Restoring secure session...")).toBeInTheDocument();
+    await waitForElementToBeRemoved(() => screen.queryByText("Restoring secure session..."));
+  });
+
+  it("shows session expired copy after silent refresh fails", async () => {
+    renderWithAuth(
+      <LoginGate>
+        <div>Protected dashboard</div>
+      </LoginGate>,
+    );
+
+    expect(await screen.findByText("Session expired. Enter your dashboard key to continue.")).toBeInTheDocument();
     expect(screen.queryByText(/protected dashboard/i)).not.toBeInTheDocument();
   });
 
