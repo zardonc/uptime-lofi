@@ -265,8 +265,8 @@ export const handlers = [
         node_name: nodeName,
         node_secret: "node-secret-generated",
         probe_push_url: "https://uptime-lofi-probe.example.workers.dev/api/push",
-        install_command: "curl -fsSL 'https://raw.githubusercontent.com/example/uptime-lofi/main/scripts/install-probe.sh' | UPTIME_PLATFORM='linux/amd64' UPTIME_PROBE_PUSH_URL='https://uptime-lofi-probe.example.workers.dev/api/push' UPTIME_NODE_ID='node-generated-1' UPTIME_NODE_SECRET='node-secret-generated' UPTIME_RELEASE_REPO='example/uptime-lofi' UPTIME_RELEASE_TAG='probe-latest' bash",
-        install_script_url: "https://raw.githubusercontent.com/example/uptime-lofi/main/scripts/install-probe.sh",
+        install_command: "curl -fsSL 'https://github.com/example/uptime-lofi/releases/download/probe-latest/install-probe.sh' | UPTIME_PLATFORM='linux/amd64' UPTIME_PROBE_PUSH_URL='https://uptime-lofi-probe.example.workers.dev/api/push' UPTIME_NODE_ID='node-generated-1' UPTIME_NODE_SECRET='node-secret-generated' UPTIME_RELEASE_REPO='example/uptime-lofi' UPTIME_RELEASE_TAG='probe-latest' bash",
+        install_script_url: "https://github.com/example/uptime-lofi/releases/download/probe-latest/install-probe.sh",
         config_yaml: "api_url: https://uptime-lofi-probe.example.workers.dev/api/push\nnode_id: node-generated-1\npsk: node-secret-generated\nenable_docker: true\n",
         downloads: {
           linux_amd64: "https://github.com/example/uptime-lofi/releases/latest/download/probe-linux-amd64.tar.gz",

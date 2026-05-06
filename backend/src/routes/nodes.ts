@@ -95,8 +95,8 @@ function shellQuote(value: string) {
   return `'${value.replace(/'/g, `'"'"'`)}'`;
 }
 
-function installScriptUrl(repo: string) {
-  return `https://raw.githubusercontent.com/${repo}/main/scripts/install-probe.sh`;
+function installScriptUrl(repo: string, tag: string) {
+  return `https://github.com/${repo}/releases/download/${tag}/install-probe.sh`;
 }
 
 function createInstallCommand(data: {
@@ -206,7 +206,7 @@ nodesApi.post(
     const probePushUrl = probePushEndpoint(c.env.PROBE_PUSH_URL ?? new URL(c.req.url).origin);
     const releaseRepo = c.env.PROBE_RELEASE_REPO ?? c.env.GITHUB_REPOSITORY ?? DEFAULT_PROBE_RELEASE_REPO;
     const releaseTag = c.env.PROBE_RELEASE_TAG ?? DEFAULT_PROBE_RELEASE_TAG;
-    const scriptUrl = installScriptUrl(releaseRepo);
+    const scriptUrl = installScriptUrl(releaseRepo, releaseTag);
 
     await c.env.DB.prepare(
       `INSERT INTO nodes (id, name, type, status, salt, config_json)

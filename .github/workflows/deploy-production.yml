@@ -92,6 +92,7 @@ jobs:
           set -euo pipefail
           rm -rf release-assets
           mkdir -p release-assets
+          cp scripts/install-probe.sh release-assets/install-probe.sh
           for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
             goos="${target%/*}"
             goarch="${target#*/}"
@@ -103,7 +104,7 @@ jobs:
           done
           (cd release-assets && cat *.sha256 > checksums.txt)
           gh release view probe-latest >/dev/null 2>&1 || gh release create probe-latest --title "Probe latest" --notes "Latest probe binaries for self-host deployments"
-          gh release upload probe-latest release-assets/*.tar.gz release-assets/checksums.txt --clobber
+          gh release upload probe-latest release-assets/install-probe.sh release-assets/*.tar.gz release-assets/checksums.txt --clobber
 
       - name: Configure initial UI password
         if: ${{ env.INITIAL_UI_PASSWORD != '' }}

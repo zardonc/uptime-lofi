@@ -131,12 +131,12 @@ describe("Nodes Routes (/api/nodes)", () => {
     expect(body.data.node_name).toBe("prod-vps-1");
     expect(body.data.node_secret).toEqual(expect.any(String));
     expect(body.data.probe_push_url).toBe("https://uptime-lofi-probe.example.workers.dev/api/push");
-    expect(body.data.install_script_url).toBe("https://raw.githubusercontent.com/example/uptime-lofi/main/scripts/install-probe.sh");
+    expect(body.data.install_script_url).toBe("https://github.com/example/uptime-lofi/releases/download/probe-latest/install-probe.sh");
     expect(body.data.install_command).toContain("UPTIME_PLATFORM='linux/amd64'");
     expect(body.data.install_command).toContain("UPTIME_PROBE_PUSH_URL='https://uptime-lofi-probe.example.workers.dev/api/push'");
     expect(body.data.install_command).toContain(`UPTIME_NODE_ID='${body.data.node_id}'`);
     expect(body.data.install_command).toContain(`UPTIME_NODE_SECRET='${body.data.node_secret}'`);
-    expect(body.data.install_command).toContain("scripts/install-probe.sh");
+    expect(body.data.install_command).toContain("releases/download/probe-latest/install-probe.sh");
     expect(body.data.install_command).toContain("UPTIME_RELEASE_REPO='example/uptime-lofi'");
     expect(body.data.install_command).toContain("UPTIME_RELEASE_TAG='probe-latest'");
     expect(body.data.install_command).toContain(" bash");

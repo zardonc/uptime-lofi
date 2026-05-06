@@ -43,7 +43,7 @@ describe("ProbeSetup", () => {
     const commandBlock = screen.getByTestId("probe-install-command");
     expect(commandBlock).toHaveTextContent("UPTIME_NODE_ID='node-generated-1'");
     expect(commandBlock).toHaveTextContent("UPTIME_NODE_SECRET='node-secret-generated'");
-    expect(commandBlock).toHaveTextContent("scripts/install-probe.sh");
+    expect(commandBlock).toHaveTextContent("releases/download/probe-latest/install-probe.sh");
     expect(commandBlock).not.toHaveTextContent("API_SECRET_KEY");
 
     await user.click(screen.getByRole("button", { name: "Copy Command" }));
