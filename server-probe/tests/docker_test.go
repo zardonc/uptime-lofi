@@ -37,6 +37,59 @@ func TestDockerCollectsContainerFieldsFromFakeList(t *testing.T) {
 	}
 }
 
+func TestDockerCollectsCPUAndMemoryStatsForRunningContainers(t *testing.T) {
+	jsonText, err := collector.CollectDockerMetricsWithListAndStats(
+		func(ctx context.Context, options container.ListOptions) ([]container.Summary, error) {
+			return []container.Summary{
+				{ID: "1234567890abcdef", Names: []string{"/web"}, Image: "nginx:1.27", State: "running", Status: "Up 5 minutes"},
+				{ID: "abcdef1234567890", Names: []string{"/worker"}, Image: "busybox:latest", State: "exited", Status: "Exited (0) 1 hour ago"},
+			}, nil
+		},
+		func(ctx context.Context, containerID string) (container.StatsResponse, error) {
+			if containerID != "1234567890abcdef" {
+				t.Fatalf("stats should only be requested for the running container, got %s", containerID)
+			}
+			return container.StatsResponse{
+				CPUStats: container.CPUStats{
+					CPUUsage:    container.CPUUsage{TotalUsage: 150_000_000},
+					SystemUsage: 1_000_000_000,
+					OnlineCPUs:  4,
+				},
+				PreCPUStats: container.CPUStats{
+					CPUUsage:    container.CPUUsage{TotalUsage: 100_000_000},
+					SystemUsage: 500_000_000,
+				},
+				MemoryStats: container.MemoryStats{
+					Usage: 600,
+					Limit: 1000,
+					Stats: map[string]uint64{"total_inactive_file": 100},
+				},
+			}, nil
+		},
+	)
+	if err != nil {
+		t.Fatalf("expected fake list and stats to succeed, got %v", err)
+	}
+
+	var containers []map[string]any
+	if err := json.Unmarshal([]byte(jsonText), &containers); err != nil {
+		t.Fatalf("expected valid JSON array, got %q: %v", jsonText, err)
+	}
+
+	if containers[0]["cpu_percent"] != 40.0 {
+		t.Fatalf("expected running container CPU percent, got %#v", containers[0])
+	}
+	if containers[0]["mem_percent"] != 50.0 {
+		t.Fatalf("expected running container memory percent, got %#v", containers[0])
+	}
+	if _, exists := containers[1]["cpu_percent"]; exists {
+		t.Fatalf("expected exited container to omit CPU percent, got %#v", containers[1])
+	}
+	if _, exists := containers[1]["mem_percent"]; exists {
+		t.Fatalf("expected exited container to omit memory percent, got %#v", containers[1])
+	}
+}
+
 func TestDockerUnavailableReturnsError(t *testing.T) {
 	expected := errors.New("docker unavailable")
 	_, err := collector.CollectDockerMetricsWithList(func(ctx context.Context, options container.ListOptions) ([]container.Summary, error) {
