@@ -3,7 +3,9 @@ package collector
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"math"
+	"runtime"
 	"time"
 
 	"github.com/docker/docker/api/types/container"
@@ -40,17 +42,7 @@ func CollectDockerMetrics() (string, error) {
 	defer cli.Close()
 
 	return CollectDockerMetricsWithListAndStats(cli.ContainerList, func(ctx context.Context, containerID string) (container.StatsResponse, error) {
-		statsReader, err := cli.ContainerStats(ctx, containerID, false)
-		if err != nil {
-			return container.StatsResponse{}, err
-		}
-		defer statsReader.Body.Close()
-
-		var stats container.StatsResponse
-		if err := json.NewDecoder(statsReader.Body).Decode(&stats); err != nil {
-			return container.StatsResponse{}, err
-		}
-		return stats, nil
+		return collectContainerStats(ctx, cli, containerID)
 	})
 }
 
@@ -60,9 +52,9 @@ func CollectDockerMetricsWithList(listContainers ContainerListFunc) (string, err
 
 func CollectDockerMetricsWithListAndStats(listContainers ContainerListFunc, getStats ContainerStatsFunc) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
 
 	containers, err := listContainers(ctx, container.ListOptions{All: true})
+	cancel()
 	if err != nil {
 		return "", err
 	}
@@ -82,9 +74,17 @@ func CollectDockerMetricsWithListAndStats(listContainers ContainerListFunc, getS
 		}
 
 		if getStats != nil && c.State == "running" {
-			if stats, err := getStats(ctx, c.ID); err == nil {
+			statsCtx, statsCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			stats, err := getStats(statsCtx, c.ID)
+			statsCancel()
+			if err == nil {
 				info.CpuPercent = calculateDockerCPUPercent(stats)
 				info.MemPercent = calculateDockerMemoryPercent(stats)
+				if info.CpuPercent == nil || info.MemPercent == nil {
+					log.Printf("[Docker Warn] stats incomplete for container %s: cpu=%v memory=%v", shortContainerID(c.ID), info.CpuPercent != nil, info.MemPercent != nil)
+				}
+			} else {
+				log.Printf("[Docker Warn] stats failed for container %s: %v", shortContainerID(c.ID), err)
 			}
 		}
 
@@ -100,6 +100,48 @@ func CollectDockerMetricsWithListAndStats(listContainers ContainerListFunc, getS
 	}
 
 	return string(bytes), nil
+}
+
+func collectContainerStats(ctx context.Context, cli *client.Client, containerID string) (container.StatsResponse, error) {
+	first, err := readContainerStatsOneShot(ctx, cli, containerID)
+	if err != nil {
+		return container.StatsResponse{}, err
+	}
+
+	timer := time.NewTimer(300 * time.Millisecond)
+	select {
+	case <-ctx.Done():
+		if !timer.Stop() {
+			select {
+			case <-timer.C:
+			default:
+			}
+		}
+		return container.StatsResponse{}, ctx.Err()
+	case <-timer.C:
+	}
+
+	second, err := readContainerStatsOneShot(ctx, cli, containerID)
+	if err != nil {
+		return container.StatsResponse{}, err
+	}
+	second.PreCPUStats = first.CPUStats
+	second.PreRead = first.Read
+	return second, nil
+}
+
+func readContainerStatsOneShot(ctx context.Context, cli *client.Client, containerID string) (container.StatsResponse, error) {
+	statsReader, err := cli.ContainerStatsOneShot(ctx, containerID)
+	if err != nil {
+		return container.StatsResponse{}, err
+	}
+	defer statsReader.Body.Close()
+
+	var stats container.StatsResponse
+	if err := json.NewDecoder(statsReader.Body).Decode(&stats); err != nil {
+		return container.StatsResponse{}, err
+	}
+	return stats, nil
 }
 
 func calculateDockerCPUPercent(stats container.StatsResponse) *float64 {
@@ -123,7 +165,7 @@ func calculateDockerCPUPercent(stats container.StatsResponse) *float64 {
 		onlineCPUs = float64(len(stats.CPUStats.CPUUsage.PercpuUsage))
 	}
 	if onlineCPUs == 0 {
-		return nil
+		onlineCPUs = float64(runtime.NumCPU())
 	}
 
 	percent := (cpuDelta / systemDelta) * onlineCPUs * 100
@@ -138,6 +180,8 @@ func calculateDockerMemoryPercent(stats container.StatsResponse) *float64 {
 
 	usage := stats.MemoryStats.Usage
 	if inactiveFile, ok := stats.MemoryStats.Stats["total_inactive_file"]; ok && inactiveFile < usage {
+		usage -= inactiveFile
+	} else if inactiveFile, ok := stats.MemoryStats.Stats["inactive_file"]; ok && inactiveFile < usage {
 		usage -= inactiveFile
 	} else if cache, ok := stats.MemoryStats.Stats["cache"]; ok && cache < usage {
 		usage -= cache
