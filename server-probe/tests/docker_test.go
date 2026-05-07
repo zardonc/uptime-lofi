@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log"
 	"strings"
 	"testing"
 
@@ -87,6 +88,71 @@ func TestDockerCollectsCPUAndMemoryStatsForRunningContainers(t *testing.T) {
 	}
 	if _, exists := containers[1]["mem_percent"]; exists {
 		t.Fatalf("expected exited container to omit memory percent, got %#v", containers[1])
+	}
+}
+
+func TestDockerCollectsCPUWhenOnlineCPUCountIsMissing(t *testing.T) {
+	jsonText, err := collector.CollectDockerMetricsWithListAndStats(
+		func(ctx context.Context, options container.ListOptions) ([]container.Summary, error) {
+			return []container.Summary{{ID: "1234567890abcdef", Names: []string{"/web"}, Image: "nginx:1.27", State: "running", Status: "Up 5 minutes"}}, nil
+		},
+		func(ctx context.Context, containerID string) (container.StatsResponse, error) {
+			return container.StatsResponse{
+				CPUStats: container.CPUStats{
+					CPUUsage:    container.CPUUsage{TotalUsage: 150_000_000},
+					SystemUsage: 1_000_000_000,
+				},
+				PreCPUStats: container.CPUStats{
+					CPUUsage:    container.CPUUsage{TotalUsage: 100_000_000},
+					SystemUsage: 500_000_000,
+				},
+				MemoryStats: container.MemoryStats{Usage: 600, Limit: 1000},
+			}, nil
+		},
+	)
+	if err != nil {
+		t.Fatalf("expected fake list and stats to succeed, got %v", err)
+	}
+
+	var containers []map[string]any
+	if err := json.Unmarshal([]byte(jsonText), &containers); err != nil {
+		t.Fatalf("expected valid JSON array, got %q: %v", jsonText, err)
+	}
+	if containers[0]["cpu_percent"] == nil {
+		t.Fatalf("expected CPU percent fallback when Docker omits online CPU count, got %#v", containers[0])
+	}
+	if containers[0]["mem_percent"] != 60.0 {
+		t.Fatalf("expected memory percent, got %#v", containers[0])
+	}
+}
+
+func TestDockerStatsFailuresAreLoggedAndDoNotDropContainerState(t *testing.T) {
+	var logBuffer strings.Builder
+	originalOutput := log.Writer()
+	log.SetOutput(&logBuffer)
+	t.Cleanup(func() { log.SetOutput(originalOutput) })
+
+	jsonText, err := collector.CollectDockerMetricsWithListAndStats(
+		func(ctx context.Context, options container.ListOptions) ([]container.Summary, error) {
+			return []container.Summary{{ID: "1234567890abcdef", Names: []string{"/web"}, Image: "nginx:1.27", State: "running", Status: "Up 5 minutes"}}, nil
+		},
+		func(ctx context.Context, containerID string) (container.StatsResponse, error) {
+			return container.StatsResponse{}, errors.New("stats denied")
+		},
+	)
+	if err != nil {
+		t.Fatalf("expected container list to succeed despite stats failure, got %v", err)
+	}
+
+	var containers []map[string]any
+	if err := json.Unmarshal([]byte(jsonText), &containers); err != nil {
+		t.Fatalf("expected valid JSON array, got %q: %v", jsonText, err)
+	}
+	if containers[0]["state"] != "running" || containers[0]["cpu_percent"] != nil || containers[0]["mem_percent"] != nil {
+		t.Fatalf("expected state without stats fields, got %#v", containers[0])
+	}
+	if !strings.Contains(logBuffer.String(), "[Docker Warn] stats failed") {
+		t.Fatalf("expected stats failure warning, got %q", logBuffer.String())
 	}
 }
 
