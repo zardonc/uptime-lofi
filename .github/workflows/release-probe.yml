@@ -2,6 +2,11 @@ name: Release Go Probe
 
 on:
   workflow_dispatch:
+    inputs:
+      tag_name:
+        description: Release tag to publish when run manually
+        required: true
+        default: probe-latest
   push:
     tags:
       - 'v*'
@@ -11,6 +16,7 @@ permissions:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  PROBE_RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag_name || github.ref_name }}
 
 jobs:
   build-and-release:
@@ -46,7 +52,7 @@ jobs:
           CGO_ENABLED: "0"
         run: |
           BINARY_NAME="probe-${{ matrix.goos }}-${{ matrix.goarch }}"
-          go build -ldflags="-s -w -X main.version=${{ github.ref_name }}" \
+          go build -ldflags="-s -w -X main.version=${{ env.PROBE_RELEASE_TAG }}" \
             -o "${BINARY_NAME}" ./cmd/probe/
           tar -czf "${BINARY_NAME}.tar.gz" "${BINARY_NAME}"
           sha256sum "${BINARY_NAME}.tar.gz" > "${BINARY_NAME}.tar.gz.sha256"
@@ -77,10 +83,15 @@ jobs:
           cd release-assets
           cat *.sha256 > checksums.txt
 
+      - name: Add installer script
+        run: cp scripts/install-probe.sh release-assets/install-probe.sh
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ env.PROBE_RELEASE_TAG }}
           files: |
+            release-assets/install-probe.sh
             release-assets/*.tar.gz
             release-assets/checksums.txt
           generate_release_notes: true
