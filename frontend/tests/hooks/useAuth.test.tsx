@@ -126,4 +126,20 @@ describe("useAuth", () => {
     expect(localStorageSetItem).not.toHaveBeenCalled();
     expect(sessionStorageSetItem).not.toHaveBeenCalled();
   });
+
+  it("marks the session unauthenticated when API refresh fails later", async () => {
+    setMockAuthState({ authenticated: true });
+    const { result } = renderHook(() => useAuth(), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.isAuthenticated).toBe(true);
+    });
+
+    act(() => {
+      window.dispatchEvent(new CustomEvent("uptime-lofi:session-expired"));
+    });
+
+    expect(result.current.isAuthenticated).toBe(false);
+    expect(getAccessToken()).toBeNull();
+  });
 });

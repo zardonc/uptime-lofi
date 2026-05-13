@@ -1,7 +1,7 @@
 import './index.css';
 import { useEffect, useState, useMemo } from 'react';
 import type { FormEvent, ReactNode } from 'react';
-import { Server, Wifi, Activity, Clock, Bell, Plus } from 'lucide-react';
+import { Server, Wifi, Activity, Clock, Bell, Plus, RefreshCw } from 'lucide-react';
 import { Sidebar } from './components/Sidebar';
 import { MetricCard } from './components/MetricCard';
 import { TrendChart } from './components/TrendChart';
@@ -56,6 +56,7 @@ function DashboardContent() {
   const { isAuthenticated } = useAuth();
   const { nodes, loading: nodesLoading, error: nodesError, refetch: refetchNodes } = useNodes(isAuthenticated);
   const { stats, loading: statsLoading, error: statsError, refetch: refetchStats } = useOverview(isAuthenticated);
+  const [lastRefreshAt, setLastRefreshAt] = useState(() => Date.now());
 
   // Pick first node for the chart, or null
   const firstNodeId = nodes.length > 0 ? nodes[0].id : null;
@@ -68,7 +69,12 @@ function DashboardContent() {
   }, [trendData]);
 
   const activityEvents = useMemo(() => deriveActivity(nodes), [nodes]);
-  const lastRefreshText = nodesLoading ? 'Loading...' : `Last refresh: just now`;
+  const lastRefreshText = nodesLoading ? 'Loading...' : `Last refresh: ${formatRelativeTime(Math.floor(lastRefreshAt / 1000))}`;
+  const handleRefresh = () => {
+    setLastRefreshAt(Date.now());
+    refetchNodes();
+    refetchStats();
+  };
 
   return (
     <div className="dashboard">
@@ -78,7 +84,12 @@ function DashboardContent() {
           <h1>Dashboard</h1>
           <p className="subtitle">System overview and real-time monitoring</p>
         </div>
-        <span className="header-timestamp">{lastRefreshText}</span>
+        <div className="dashboard-header__actions">
+          <span className="header-timestamp">{lastRefreshText}</span>
+          <button type="button" className="header-refresh" onClick={handleRefresh} disabled={nodesLoading || statsLoading}>
+            <RefreshCw size={16} /> Refresh
+          </button>
+        </div>
       </header>
 
       {/* ── Error Banners ── */}
@@ -296,21 +307,24 @@ function AgentlessContent() {
 
   const handleHttpSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const formData = new FormData(event.currentTarget);
+    const form = event.currentTarget;
+    const formData = new FormData(form);
     setSaving(true);
     setSaveError(null);
     try {
-      await api.createHttpCheck({
+      const created = await api.createHttpCheck({
         name: String(formData.get('name') ?? ''),
         url: String(formData.get('url') ?? ''),
         interval: Number(formData.get('interval')),
         timeout: Number(formData.get('timeout')),
         expected_status: Number(formData.get('expected_status')),
       });
-      await loadChecks();
-      event.currentTarget.reset();
-    } catch {
-      setSaveError('Could not save this check. Review the fields and try again.');
+      setChecks((current) => [created.data, ...current.filter((check) => check.id !== created.data.id)]);
+      loadChecks().catch(() => undefined);
+      setSaveError(null);
+      form.reset();
+    } catch (error) {
+      setSaveError(error instanceof ApiClientError ? error.message : 'Could not save this check. Review the fields and try again.');
     } finally {
       setSaving(false);
     }
@@ -318,19 +332,22 @@ function AgentlessContent() {
 
   const handleTcpSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const formData = new FormData(event.currentTarget);
+    const form = event.currentTarget;
+    const formData = new FormData(form);
     setSaving(true);
     setSaveError(null);
     try {
-      await api.createTcpCheck({
+      const created = await api.createTcpCheck({
         name: String(formData.get('name') ?? ''),
         host: String(formData.get('host') ?? ''),
         port: Number(formData.get('port')),
         timeout: Number(formData.get('timeout')),
         interval: Number(formData.get('interval')),
       });
-      await loadChecks();
-      event.currentTarget.reset();
+      setChecks((current) => [created.data, ...current.filter((check) => check.id !== created.data.id)]);
+      loadChecks().catch(() => undefined);
+      setSaveError(null);
+      form.reset();
     } catch (error) {
       setSaveError(error instanceof ApiClientError ? error.message : 'Could not save this check. Review the fields and try again.');
     } finally {

@@ -51,6 +51,22 @@ describe("App navigation", () => {
     expect(screen.getByText("Configure HTTP and TCP checks that run from the backend scheduler")).toBeInTheDocument();
   });
 
+  it("exposes logout and a real dashboard refresh action", async () => {
+    const user = userEvent.setup();
+    setMockAuthState({ authenticated: true });
+
+    renderApp();
+
+    expect(await screen.findByRole("heading", { name: "Dashboard" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Refresh/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Logout" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Refresh/i }));
+    await user.click(screen.getByRole("button", { name: "Logout" }));
+
+    expect(await screen.findByRole("button", { name: "Unlock" })).toBeInTheDocument();
+  });
+
   it("opens the Nodes Add Node chooser and switches between setup paths", async () => {
     const user = userEvent.setup();
     setMockAuthState({ authenticated: true });

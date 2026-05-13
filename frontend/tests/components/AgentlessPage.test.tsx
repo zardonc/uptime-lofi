@@ -1,5 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import App from "../../src/App";
@@ -91,5 +92,25 @@ describe("Agentless page", () => {
 
     expect(await screen.findByText("Postgres")).toBeInTheDocument();
     expect(screen.getByText("db.example.com:5432")).toBeInTheDocument();
+  });
+
+  it("keeps a created HTTP check visible when the follow-up reload fails", async () => {
+    let listCalls = 0;
+    server.use(
+      http.get("/api/agentless", () => {
+        listCalls += 1;
+        if (listCalls > 1) return HttpResponse.json({ error: "Session expired" }, { status: 401 });
+        return HttpResponse.json({ data: [] });
+      }),
+    );
+    const user = await openAgentlessPage();
+
+    const form = await screen.findByRole("form", { name: "HTTP check form" });
+    await user.type(within(form).getByLabelText("Check name"), "Homepage");
+    await user.type(within(form).getByLabelText("URL"), "https://example.com/health");
+    await user.click(within(form).getByRole("button", { name: "Create HTTP Check" }));
+
+    expect(await screen.findByText("Homepage")).toBeInTheDocument();
+    expect(screen.queryByText("Could not save this check. Review the fields and try again.")).not.toBeInTheDocument();
   });
 });

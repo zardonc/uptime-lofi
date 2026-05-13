@@ -251,6 +251,10 @@ h1, h2, h3, h4, h5, h6 {
   border-bottom: 1px solid var(--border-light);
 }
 
+.dashboard-header > div:first-child {
+  min-width: 0;
+}
+
 .dashboard-header h1 {
   font-size: var(--text-2xl);
   font-weight: 700;
@@ -271,6 +275,36 @@ h1, h2, h3, h4, h5, h6 {
   background: var(--morandi-50);
   padding: 4px 12px;
   border-radius: 20px;
+}
+
+.dashboard-header__actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+}
+
+.header-refresh {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  min-height: 36px;
+  padding: 6px 12px;
+  border: 1px solid var(--border-mid);
+  border-radius: 20px;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+.header-refresh:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .page-header__actions {
@@ -448,6 +482,17 @@ h1, h2, h3, h4, h5, h6 {
 .agentless-result {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
+  min-width: 0;
+}
+
+.agentless-result > div,
+.agentless-result h3,
+.agentless-result p,
+.agentless-result dd,
+.agentless-form,
+.agentless-results {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .agentless-result__badge {
@@ -922,13 +967,14 @@ h1, h2, h3, h4, h5, h6 {
 
 .node-card {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) minmax(300px, 1.4fr) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 1.4fr) minmax(0, auto);
   gap: var(--space-xl);
   align-items: center;
   padding: var(--space-xl);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-lg);
   background: var(--bg-card);
+  min-width: 0;
 }
 
 .node-card__identity,
@@ -938,6 +984,19 @@ h1, h2, h3, h4, h5, h6 {
   align-items: center;
   gap: var(--space-lg);
   justify-content: space-between;
+}
+
+.node-card__identity,
+.node-card__identity > div,
+.node-card__metrics,
+.node-drawer__metrics,
+.node-card h4,
+.node-card__last-seen,
+.node-card__type,
+.node-metric,
+.node-metric__value {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .node-card h4,
@@ -1246,6 +1305,11 @@ h1, h2, h3, h4, h5, h6 {
   .node-card__identity,
   .node-card__actions {
     align-items: flex-start;
+  }
+
+  .node-card__actions,
+  .node-dialog__actions {
+    justify-content: flex-start;
   }
 
   .node-card__metrics,

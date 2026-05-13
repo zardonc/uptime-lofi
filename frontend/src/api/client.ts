@@ -24,6 +24,7 @@ const BASE = '/api';
 // ── Token store (memory-only, never persisted) ──
 let accessToken: string | null = null;
 let refreshPromise: Promise<string | null> | null = null;
+const ACCESS_TOKEN_REFRESH_SKEW_SECONDS = 60;
 
 export function setAccessToken(token: string | null): void {
   accessToken = token;
@@ -39,6 +40,14 @@ async function apiFetch<T>(
   { auth = true, ...init }: RequestInit & { auth?: boolean } = {},
 ): Promise<T> {
   const headers = new Headers(init.headers);
+
+  if (auth && accessToken && accessTokenExpiresSoon(accessToken)) {
+    const refreshed = await tryRefresh();
+    if (!refreshed) {
+      notifySessionExpired();
+      throw new ApiClientError(401, 'Session expired');
+    }
+  }
 
   if (auth && accessToken) {
     headers.set('Authorization', `Bearer ${accessToken}`);
@@ -57,11 +66,35 @@ async function apiFetch<T>(
       if (!retry.ok) throw new ApiClientError(retry.status, await safeText(retry));
       return retry.json() as Promise<T>;
     }
+    notifySessionExpired();
     throw new ApiClientError(401, 'Session expired');
   }
 
   if (!res.ok) throw new ApiClientError(res.status, await safeText(res));
   return res.json() as Promise<T>;
+}
+
+function accessTokenExpiresSoon(token: string): boolean {
+  const payload = decodeJwtPayload(token);
+  if (typeof payload?.exp !== 'number') return false;
+  return payload.exp <= Math.floor(Date.now() / 1000) + ACCESS_TOKEN_REFRESH_SKEW_SECONDS;
+}
+
+function decodeJwtPayload(token: string): { readonly exp?: unknown } | null {
+  try {
+    const part = token.split('.')[1];
+    if (!part) return null;
+    const padded = part.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(part.length / 4) * 4, '=');
+    return JSON.parse(atob(padded)) as { readonly exp?: unknown };
+  } catch {
+    return null;
+  }
+}
+
+function notifySessionExpired(): void {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('uptime-lofi:session-expired'));
+  }
 }
 
 // ── Refresh token rotation (coalesced) ──
