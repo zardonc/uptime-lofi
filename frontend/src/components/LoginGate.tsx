@@ -20,6 +20,10 @@ export function LoginGate({ children }: { readonly children: React.ReactNode }) 
     });
   }, []);
 
+  useEffect(() => {
+    if (!isAuthenticated) setPassword('');
+  }, [isAuthenticated]);
+
   if (authLoading) {
     return (
       <div className="login-gate">
@@ -41,6 +45,7 @@ export function LoginGate({ children }: { readonly children: React.ReactNode }) 
     setSubmitting(true);
     try {
       await login(password);
+      setPassword('');
     } catch {
       // error is set via context
     } finally {

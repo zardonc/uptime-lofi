@@ -84,4 +84,21 @@ describe("Stats Routes (/api/stats)", () => {
     const res = await app.fetch(new Request("http://localhost/api/stats/overview"), testEnv);
     expect(res.status).toBe(401);
   });
+
+  it("4. Counts recently batched probe nodes as online", async () => {
+    const db = (env as any).DB;
+    const now = Math.floor(Date.now() / 1000);
+    await db.prepare("DELETE FROM nodes").run();
+    await db.prepare("INSERT INTO nodes (id, name, type, salt, status, last_heartbeat) VALUES (?, ?, ?, ?, ?, ?)")
+      .bind("batched_node", "Batched Node", "agent_push", "s1", "online", now - 300).run();
+
+    const res = await app.fetch(
+      new Request("http://localhost/api/stats/overview", {
+        headers: { "Authorization": `Bearer ${adminToken}` }
+      }),
+      testEnv
+    );
+    const json: any = await res.json();
+    expect(json.data.onlineNodes).toBe(1);
+  });
 });

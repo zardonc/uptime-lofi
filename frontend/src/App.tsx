@@ -233,6 +233,8 @@ const TCP_AVAILABLE_COPY = 'TCP checks run from the backend scheduler. Private, 
 
 const EMPTY_AGENTLESS_COPY = 'Create an HTTP or TCP check. Checks run from the backend, so the dashboard does not need to stay open.';
 
+const AGENTLESS_POLL_INTERVAL_MS = 30_000;
+
 function isTcpCheck(check: AgentlessCheck): boolean {
   return check.type === 'agentless_tcp';
 }
@@ -301,7 +303,11 @@ function AgentlessContent() {
 
   useEffect(() => {
     void loadChecks();
-  }, []);
+    const id = window.setInterval(() => {
+      void loadChecks();
+    }, AGENTLESS_POLL_INTERVAL_MS);
+    return () => window.clearInterval(id);
+  }, [activeTab]);
 
   const visibleChecks = checks.filter((check) => activeTab === 'tcp' ? isTcpCheck(check) : !isTcpCheck(check));
 
