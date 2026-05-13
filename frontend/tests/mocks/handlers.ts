@@ -154,6 +154,7 @@ function authStatusResponse() {
   return HttpResponse.json({
     authenticated: mockApiState.auth.authenticated,
     is_ui_lock_enabled: mockApiState.auth.isUiLockEnabled,
+    has_refresh_cookie: mockApiState.auth.authenticated,
   });
 }
 

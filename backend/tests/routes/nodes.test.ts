@@ -344,7 +344,7 @@ describe("Nodes Routes (/api/nodes)", () => {
     const now = Math.floor(Date.now() / 1000);
     await (env as any).DB.prepare(
       "INSERT INTO nodes (id, name, type, salt, status, last_heartbeat) VALUES (?, ?, ?, ?, ?, ?)",
-    ).bind("stale_probe_api", "Stale Probe", "agent_push", "salt-stale", "online", now - 600).run();
+    ).bind("stale_probe_api", "Stale Probe", "agent_push", "salt-stale", "online", now - 900).run();
     await (env as any).DB.prepare(
       "INSERT INTO nodes (id, name, type, salt, status, last_heartbeat) VALUES (?, ?, ?, ?, ?, ?)",
     ).bind("fresh_paused_probe_api", "Fresh Paused Probe", "agent_push", "salt-fresh", "paused", now - 30).run();
@@ -369,6 +369,20 @@ describe("Nodes Routes (/api/nodes)", () => {
     );
     const resumeBody: any = await resumeRes.json();
     expect(resumeBody.data.status).toBe("online");
+  });
+
+  it("8d. Keeps recently batched probe nodes online between five-minute flushes", async () => {
+    const now = Math.floor(Date.now() / 1000);
+    await (env as any).DB.prepare(
+      "INSERT INTO nodes (id, name, type, salt, status, last_heartbeat) VALUES (?, ?, ?, ?, ?, ?)",
+    ).bind("batched_probe_api", "Batched Probe", "agent_push", "salt-batched", "online", now - 300).run();
+
+    const listRes = await app.fetch(
+      new Request("http://localhost/api/nodes", { headers: { "Authorization": `Bearer ${adminToken}` } }),
+      testEnv,
+    );
+    const listBody: any = await listRes.json();
+    expect(listBody.data.find((node: any) => node.id === "batched_probe_api").status).toBe("online");
   });
 
   it("9. Rejects direct and nested secret fields during node edits", async () => {

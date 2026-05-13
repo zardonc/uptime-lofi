@@ -148,7 +148,7 @@ export class ApiClientError extends Error {
 // ── Public API methods ──
 export const api = {
   getAuthStatus: () =>
-    apiFetch<{ is_ui_lock_enabled: boolean }>('/auth/status', { auth: false }),
+    apiFetch<{ is_ui_lock_enabled: boolean; has_refresh_cookie?: boolean }>('/auth/status', { auth: false }),
 
   login: (password: string) =>
     apiFetch<LoginResponse>('/auth/login', {

@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import { Bindings } from "./api";
+import { AGENT_PUSH_STALE_AFTER_SECONDS } from "../utils/nodeStatus";
 
 const statsApi = new Hono<{ Bindings: Bindings }>();
-const AGENT_PUSH_STALE_AFTER_SECONDS = 2 * 60;
 
 statsApi.get("/overview", async (c) => {
   const db = c.env.DB;

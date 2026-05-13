@@ -30,6 +30,8 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
 
     (async () => {
       try {
+        const status = await api.getAuthStatus();
+        if (!status.has_refresh_cookie) return;
         const body = await api.refreshSession();
         if (!cancelled) {
           setAccessToken(body.access_token);

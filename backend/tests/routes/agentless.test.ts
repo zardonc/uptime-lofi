@@ -114,6 +114,8 @@ describe("Agentless Routes (/api/agentless)", () => {
     const body: any = await res.json();
     expect(body.data).toHaveLength(1);
     expect(body.data[0]).toMatchObject({ id: "agentless_list_http", latest_ping_ms: 42, latest_is_up: 1, latest_error_text: null });
+    expect(body.data[0].target).toBe("https://example.com");
+    expect(body.data[0].latest_result).toEqual({ timestamp: now, is_up: true, latency_ms: 42, error_text: null });
   });
 
   it("pauses, resumes, and archives checks using safe lifecycle semantics", async () => {

@@ -45,7 +45,10 @@ authApi.post("/setup", zValidator("json", z.object({ admin_key: z.string(), new_
 authApi.get("/status", async (c) => {
   const db = c.env.DB;
   const isEnabledRecord = await db.prepare("SELECT value FROM kv_settings WHERE key = 'ui_lock_enabled'").first<{ value: string }>();
-  return c.json({ is_ui_lock_enabled: isEnabledRecord?.value === 'true' });
+  return c.json({
+    is_ui_lock_enabled: isEnabledRecord?.value === 'true',
+    has_refresh_cookie: Boolean(getCookie(c, "refresh_token")),
+  });
 });
 
 authApi.post("/unlock", zValidator("json", z.object({ admin_key: z.string() })), async (c) => {

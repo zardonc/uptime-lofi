@@ -113,4 +113,37 @@ describe("Agentless page", () => {
     expect(await screen.findByText("Homepage")).toBeInTheDocument();
     expect(screen.queryByText("Could not save this check. Review the fields and try again.")).not.toBeInTheDocument();
   });
+
+  it("polls for scheduled Agentless results after creation", async () => {
+    const user = userEvent.setup();
+    let listCalls = 0;
+    server.use(
+      http.get("/api/agentless", () => {
+        listCalls += 1;
+        if (listCalls === 1) return HttpResponse.json({ data: [] });
+        return HttpResponse.json({
+          data: [{
+            id: "agentless-http-1",
+            name: "Homepage",
+            type: "agentless_http",
+            status: "online",
+            target: "https://example.com/health",
+            latest_result: { timestamp: Math.floor(Date.now() / 1000), is_up: true, latency_ms: 42, error_text: null },
+          }],
+        });
+      }),
+    );
+
+    setMockAuthState({ authenticated: true });
+    renderApp();
+    await user.click(await screen.findByRole("button", { name: "Agentless" }));
+    expect(await screen.findByText("No synthetic checks yet")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "TCP Checks" }));
+    await user.click(screen.getByRole("button", { name: "HTTP Checks" }));
+
+    expect(await screen.findByText("Homepage")).toBeInTheDocument();
+    expect(screen.getByText("Reachable")).toBeInTheDocument();
+    expect(screen.getByText("42ms")).toBeInTheDocument();
+  });
 });

@@ -79,6 +79,24 @@ describe("LoginGate", () => {
     expect(screen.queryByRole("form", { name: /login form/i })).not.toBeInTheDocument();
   });
 
+  it("clears the password field when a session ends", async () => {
+    const user = userEvent.setup();
+
+    renderWithAuth(
+      <LoginGate>
+        <button type="button" onClick={() => window.dispatchEvent(new CustomEvent("uptime-lofi:session-expired"))}>Expire session</button>
+      </LoginGate>,
+    );
+
+    const passwordInput = await screen.findByLabelText(/access key/i);
+    await user.type(passwordInput, "test-password");
+    await user.click(screen.getByRole("button", { name: /unlock/i }));
+
+    await user.click(await screen.findByRole("button", { name: /expire session/i }));
+
+    expect(await screen.findByLabelText(/access key/i)).toHaveValue("");
+  });
+
   it("shows an error when login fails", async () => {
     const user = userEvent.setup();
 

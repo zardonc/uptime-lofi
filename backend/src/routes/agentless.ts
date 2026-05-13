@@ -96,10 +96,20 @@ agentlessApi.get("/", async (c) => {
   ).all();
 
   return c.json({
-    data: results.map((row: any) => ({
-      ...row,
-      config: row.config_json ? JSON.parse(row.config_json) : null,
-    })),
+    data: results.map((row: any) => {
+      const config = row.config_json ? JSON.parse(row.config_json) : null;
+      return {
+        ...row,
+        config,
+        target: row.type === "agentless_tcp" && config ? `${config.host}:${config.port}` : config?.url ?? null,
+        latest_result: row.latest_timestamp == null ? null : {
+          timestamp: row.latest_timestamp,
+          is_up: typeof row.latest_is_up === "number" ? row.latest_is_up === 1 : row.latest_is_up,
+          latency_ms: row.latest_ping_ms,
+          error_text: row.latest_error_text,
+        },
+      };
+    }),
   });
 });
 

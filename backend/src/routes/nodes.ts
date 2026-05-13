@@ -4,6 +4,7 @@ import { zValidator } from "@hono/zod-validator";
 import { Bindings } from "./api";
 import { dashboardAuthMiddleware } from "../middleware/dashboardAuth";
 import { decompress } from "../utils/compression";
+import { AGENT_PUSH_STALE_AFTER_SECONDS } from "../utils/nodeStatus";
 
 const nodesApi = new Hono<{ Bindings: Bindings }>();
 
@@ -11,8 +12,6 @@ const FORBIDDEN_EDIT_KEYS = new Set(['node_secret', 'psk', 'salt', 'api_secret_k
 const NODE_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
 const DEFAULT_PROBE_RELEASE_REPO = 'zardonc/uptime-lofi';
 const DEFAULT_PROBE_RELEASE_TAG = 'probe-latest';
-const AGENT_PUSH_STALE_AFTER_SECONDS = 2 * 60;
-
 const probeConfigSchema = z.object({
   name: z.string().trim().min(1).max(80),
   platform: z.enum(['linux/amd64', 'linux/arm64', 'darwin/amd64', 'darwin/arm64']).optional().default('linux/amd64'),
