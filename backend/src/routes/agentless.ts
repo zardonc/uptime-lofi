@@ -57,6 +57,13 @@ async function createCheck(db: D1Database, input: CreateCheckInput) {
   return node;
 }
 
+async function activeNameExists(db: D1Database, name: string) {
+  const row = await db.prepare(
+    `SELECT id FROM nodes WHERE archived_at IS NULL AND lower(name) = ? LIMIT 1`,
+  ).bind(name.trim().toLowerCase()).first<{ id: string }>();
+  return Boolean(row);
+}
+
 async function updateCheckStatus(db: D1Database, id: string, status: "paused" | "offline") {
   const now = Math.floor(Date.now() / 1000);
   const result = await db.prepare(
@@ -102,6 +109,7 @@ agentlessApi.post("/http", async (c) => {
   const allowed = isHttpTargetAllowed(parsed.data.url);
   if (!allowed.allowed) return c.json({ error: allowed.reason ?? "HTTP target is not allowed" }, 400);
   const { name, ...config } = parsed.data;
+  if (await activeNameExists(c.env.DB, name)) return c.json({ error: "A node with this name already exists" }, 409);
   const node = await createCheck(c.env.DB, { name, type: "agentless_http", config });
   return c.json({ data: node });
 });
@@ -112,6 +120,7 @@ agentlessApi.post("/tcp", async (c) => {
   const allowed = isTcpTargetAllowed(parsed.data.host, parsed.data.port);
   if (!allowed.allowed) return c.json({ error: allowed.reason ?? "TCP target is not allowed" }, 400);
   const { name, ...config } = parsed.data;
+  if (await activeNameExists(c.env.DB, name)) return c.json({ error: "A node with this name already exists" }, 409);
   const node = await createCheck(c.env.DB, { name, type: "agentless_tcp", config });
   return c.json({ data: node });
 });

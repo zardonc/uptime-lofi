@@ -58,6 +58,16 @@ describe("Agentless Routes (/api/agentless)", () => {
     expect(body.data.config).toEqual({ url: "https://example.com", interval: 300, timeout: 10, expected_status: 200 });
   });
 
+  it("rejects duplicate active Agentless check names", async () => {
+    const payload = { name: "Duplicate Check", url: "https://example.com", interval: 300, timeout: 10, expected_status: 200 };
+    const first = await request("/api/agentless/http", { method: "POST", body: JSON.stringify(payload) });
+    const second = await request("/api/agentless/http", { method: "POST", body: JSON.stringify(payload) });
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(409);
+    expect(((await second.json()) as any).error).toContain("already exists");
+  });
+
   it("rejects unsafe HTTP targets before storage", async () => {
     const res = await request("/api/agentless/http", {
       method: "POST",

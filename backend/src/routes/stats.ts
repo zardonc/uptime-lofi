@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { Bindings } from "./api";
 
 const statsApi = new Hono<{ Bindings: Bindings }>();
+const AGENT_PUSH_STALE_AFTER_SECONDS = 2 * 60;
 
 statsApi.get("/overview", async (c) => {
   const db = c.env.DB;
@@ -9,9 +10,17 @@ statsApi.get("/overview", async (c) => {
   // Retrieve basic statistics across DB
   // For average ping, we constrain it to the last 24 hours to be relevant.
   const since = Math.floor(Date.now() / 1000) - 24 * 3600;
+  const staleCutoff = Math.floor(Date.now() / 1000) - AGENT_PUSH_STALE_AFTER_SECONDS;
 
   const batchResults = await db.batch([
-    db.prepare(`SELECT COUNT(*) as total, SUM(CASE WHEN status = 'online' THEN 1 ELSE 0 END) as online FROM nodes WHERE archived_at IS NULL`),
+    db.prepare(
+      `SELECT COUNT(*) as total,
+        SUM(CASE
+          WHEN status = 'online' AND (type != 'agent_push' OR last_heartbeat >= ?) THEN 1
+          ELSE 0
+        END) as online
+       FROM nodes WHERE archived_at IS NULL`,
+    ).bind(staleCutoff),
     db.prepare(`SELECT AVG(ping_ms) as avgPing FROM raw_metrics WHERE timestamp > ?`).bind(since),
     db.prepare(`SELECT AVG(uptime_ratio) as avgUptime FROM daily_stats`)
   ]);

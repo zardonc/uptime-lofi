@@ -11,6 +11,7 @@ const FORBIDDEN_EDIT_KEYS = new Set(['node_secret', 'psk', 'salt', 'api_secret_k
 const NODE_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
 const DEFAULT_PROBE_RELEASE_REPO = 'zardonc/uptime-lofi';
 const DEFAULT_PROBE_RELEASE_TAG = 'probe-latest';
+const AGENT_PUSH_STALE_AFTER_SECONDS = 2 * 60;
 
 const probeConfigSchema = z.object({
   name: z.string().trim().min(1).max(80),
@@ -46,6 +47,7 @@ type NodeRecord = {
   name: string;
   type: string;
   status: string;
+  last_heartbeat?: number | null;
   archived_at?: number | null;
   updated_at?: number | null;
   config_json?: string | null;
@@ -155,8 +157,37 @@ async function safeParseContainers(value: unknown) {
 function normalizeNode(row: NodeRecord) {
   return {
     ...row,
+    status: deriveStatus(row),
     config: safeParseConfig(row.config_json),
   };
+}
+
+function deriveStatus(row: NodeRecord) {
+  if (row.type !== 'agent_push' || row.status !== 'online') return row.status;
+  const lastHeartbeat = typeof row.last_heartbeat === 'number' ? row.last_heartbeat : null;
+  if (lastHeartbeat == null) return 'offline';
+  return Math.floor(Date.now() / 1000) - lastHeartbeat > AGENT_PUSH_STALE_AFTER_SECONDS ? 'offline' : 'online';
+}
+
+async function activeNameExists(db: D1Database, name: string, excludeId?: string) {
+  const normalized = name.trim().toLowerCase();
+  if (excludeId) {
+    const row = await db.prepare(
+      `SELECT id FROM nodes WHERE archived_at IS NULL AND lower(name) = ? AND id != ? LIMIT 1`,
+    ).bind(normalized, excludeId).first<{ id: string }>();
+    return Boolean(row);
+  }
+  const row = await db.prepare(
+    `SELECT id FROM nodes WHERE archived_at IS NULL AND lower(name) = ? LIMIT 1`,
+  ).bind(normalized).first<{ id: string }>();
+  return Boolean(row);
+}
+
+function resumeStatus(current: NodeRecord) {
+  if (current.type !== 'agent_push') return 'offline';
+  const lastHeartbeat = typeof current.last_heartbeat === 'number' ? current.last_heartbeat : null;
+  if (lastHeartbeat == null) return 'offline';
+  return Math.floor(Date.now() / 1000) - lastHeartbeat <= AGENT_PUSH_STALE_AFTER_SECONDS ? 'online' : 'offline';
 }
 
  nodesApi.get("/", async (c) => {
@@ -200,6 +231,7 @@ nodesApi.post(
   }),
   async (c) => {
     const { name, platform } = c.req.valid("json");
+    if (await activeNameExists(c.env.DB, name)) return c.json({ error: "A node with this name already exists" }, 409);
     const nodeId = crypto.randomUUID();
     const salt = crypto.randomUUID();
     const nodeSecret = await deriveNodeSecret(c.env.API_SECRET_KEY, nodeId, salt);
@@ -297,6 +329,7 @@ nodesApi.post("/", dashboardAuthMiddleware, async (c) => {
 
   const configResult = configSchemaForType(parsed.data.type).safeParse(parsed.data.config);
   if (!configResult.success) return c.json({ error: "Invalid node config" }, 400);
+  if (await activeNameExists(c.env.DB, parsed.data.name)) return c.json({ error: "A node with this name already exists" }, 409);
 
   const now = Math.floor(Date.now() / 1000);
   const node = {
@@ -331,11 +364,15 @@ nodesApi.put("/:id", dashboardAuthMiddleware, async (c) => {
   }
 
   const current = await c.env.DB.prepare(
-    "SELECT id, name, type, status, config_json FROM nodes WHERE id = ? AND archived_at IS NULL"
+    "SELECT id, name, type, status, last_heartbeat, config_json FROM nodes WHERE id = ? AND archived_at IS NULL"
   ).bind(id).first<NodeRecord>();
   if (!current) return c.json({ error: "Node not found" }, 404);
 
-  const nextStatus = parsed.data.status ?? current.status;
+  if (parsed.data.name && await activeNameExists(c.env.DB, parsed.data.name, id)) {
+    return c.json({ error: "A node with this name already exists" }, 409);
+  }
+
+  const nextStatus = parsed.data.status === 'offline' ? resumeStatus(current) : parsed.data.status ?? current.status;
   if (parsed.data.status && current.status !== 'paused' && parsed.data.status !== 'paused') {
     return c.json({ error: "Status edits are limited to pause or resume" }, 400);
   }
@@ -346,13 +383,15 @@ nodesApi.put("/:id", dashboardAuthMiddleware, async (c) => {
   if (!configResult.success) return c.json({ error: "Invalid node config" }, 400);
 
   const now = Math.floor(Date.now() / 1000);
+  const nextHeartbeat = parsed.data.status === 'offline' && nextStatus === 'online' ? now : current.last_heartbeat ?? null;
   await c.env.DB.prepare(
     `UPDATE nodes
-     SET name = ?, status = ?, config_json = ?, updated_at = ?
+     SET name = ?, status = ?, last_heartbeat = ?, config_json = ?, updated_at = ?
      WHERE id = ? AND archived_at IS NULL`
   ).bind(
     parsed.data.name ?? current.name,
     nextStatus,
+    nextHeartbeat,
     JSON.stringify(configResult.data),
     now,
     id,

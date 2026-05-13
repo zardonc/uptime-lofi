@@ -45,8 +45,9 @@ describe("Nodes Routes (/api/nodes)", () => {
 
     // Insert test data
     await db.prepare("INSERT INTO nodes (id, name, type, salt, status) VALUES (?, ?, ?, ?, ?)")
-      .bind(nodeId, "API Node Test", "vps", "salt123", "online")
+      .bind(nodeId, "API Node Test", "agent_push", "salt123", "online")
       .run();
+    await db.prepare("UPDATE nodes SET last_heartbeat = ? WHERE id = ?").bind(ts, nodeId).run();
 
     await db.prepare("INSERT INTO nodes (id, name, type, salt, status, archived_at) VALUES (?, ?, ?, ?, ?, ?)")
       .bind(archivedNodeId, "Archived Node Test", "agent_push", "salt456", "paused", ts)
@@ -172,6 +173,23 @@ describe("Nodes Routes (/api/nodes)", () => {
     expect(res.status).toBe(400);
   });
 
+  it("4b. Rejects duplicate probe node names", async () => {
+    const res = await app.fetch(
+      new Request("http://localhost/api/nodes/probe-config", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${adminToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ name: "API Node Test", platform: "linux/amd64" }),
+      }),
+      testEnv,
+    );
+
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as any).error).toContain("already exists");
+  });
+
   it("6. Creates agentless HTTP nodes offline with validated config", async () => {
     const res = await app.fetch(
       new Request("http://localhost/api/nodes", {
@@ -287,6 +305,70 @@ describe("Nodes Routes (/api/nodes)", () => {
     expect(resumeRes.status).toBe(200);
     const resumedBody: any = await resumeRes.json();
     expect(resumedBody.data.status).toBe("offline");
+  });
+
+  it("8b. Rejects duplicate node names on create and update", async () => {
+    const createRes = await app.fetch(
+      new Request("http://localhost/api/nodes", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${adminToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: "API Node Test",
+          type: "agentless_http",
+          config: { url: "https://example.com/health", interval: 300, timeout: 10, expected_status: 200 },
+        }),
+      }),
+      testEnv,
+    );
+
+    const updateRes = await app.fetch(
+      new Request("http://localhost/api/nodes/editable_node_api", {
+        method: "PUT",
+        headers: {
+          "Authorization": `Bearer ${adminToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ name: "API Node Test" }),
+      }),
+      testEnv,
+    );
+
+    expect(createRes.status).toBe(409);
+    expect(updateRes.status).toBe(409);
+  });
+
+  it("8c. Derives stale probe nodes as offline and resumes fresh paused probes quickly", async () => {
+    const now = Math.floor(Date.now() / 1000);
+    await (env as any).DB.prepare(
+      "INSERT INTO nodes (id, name, type, salt, status, last_heartbeat) VALUES (?, ?, ?, ?, ?, ?)",
+    ).bind("stale_probe_api", "Stale Probe", "agent_push", "salt-stale", "online", now - 600).run();
+    await (env as any).DB.prepare(
+      "INSERT INTO nodes (id, name, type, salt, status, last_heartbeat) VALUES (?, ?, ?, ?, ?, ?)",
+    ).bind("fresh_paused_probe_api", "Fresh Paused Probe", "agent_push", "salt-fresh", "paused", now - 30).run();
+
+    const listRes = await app.fetch(
+      new Request("http://localhost/api/nodes", { headers: { "Authorization": `Bearer ${adminToken}` } }),
+      testEnv,
+    );
+    const listBody: any = await listRes.json();
+    expect(listBody.data.find((node: any) => node.id === "stale_probe_api").status).toBe("offline");
+
+    const resumeRes = await app.fetch(
+      new Request("http://localhost/api/nodes/fresh_paused_probe_api", {
+        method: "PUT",
+        headers: {
+          "Authorization": `Bearer ${adminToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ status: "offline" }),
+      }),
+      testEnv,
+    );
+    const resumeBody: any = await resumeRes.json();
+    expect(resumeBody.data.status).toBe("online");
   });
 
   it("9. Rejects direct and nested secret fields during node edits", async () => {

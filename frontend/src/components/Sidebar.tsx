@@ -6,6 +6,7 @@ import {
   BarChart3,
   Bell,
   Settings,
+  LogOut,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
@@ -26,6 +27,7 @@ const NAV_ITEMS: NavItem[] = [
 
 const BOTTOM_ITEMS: NavItem[] = [
   { id: 'settings', label: 'Settings', icon: Settings },
+  { id: 'logout', label: 'Logout', icon: LogOut },
 ];
 
 interface SidebarProps {

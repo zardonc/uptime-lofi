@@ -48,6 +48,15 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
     return () => { cancelled = true; };
   }, []);
 
+  useEffect(() => {
+    const expireSession = () => {
+      setAccessToken(null);
+      setIsAuthenticated(false);
+    };
+    window.addEventListener('uptime-lofi:session-expired', expireSession);
+    return () => window.removeEventListener('uptime-lofi:session-expired', expireSession);
+  }, []);
+
   const login = useCallback(async (password: string) => {
     setError(null);
     setIsLoading(true);
