@@ -2,6 +2,7 @@ import { describe, expect, it, beforeEach } from "vitest";
 import { env } from "cloudflare:workers";
 import { sign } from "hono/jwt";
 import app from "../../src/index";
+import { runDueAgentlessChecks } from "../../src/agentless/checks";
 
 describe("Agentless Routes (/api/agentless)", () => {
   let testEnv: any;
@@ -116,6 +117,25 @@ describe("Agentless Routes (/api/agentless)", () => {
     expect(body.data[0]).toMatchObject({ id: "agentless_list_http", latest_ping_ms: 42, latest_is_up: 1, latest_error_text: null });
     expect(body.data[0].target).toBe("https://example.com");
     expect(body.data[0].latest_result).toEqual({ timestamp: now, is_up: true, latency_ms: 42, error_text: null });
+  });
+
+  it("records a failed result when a due Agentless fetch throws", async () => {
+    const now = Math.floor(Date.now() / 1000);
+    const id = "agentless_throwing_http";
+    await (env as any).DB.prepare(
+      "INSERT INTO nodes (id, name, type, status, config_json, last_heartbeat) VALUES (?, ?, ?, ?, ?, ?)",
+    ).bind(id, "Throwing HTTP", "agentless_http", "offline", JSON.stringify({ url: "https://example.com", interval: 300, timeout: 10, expected_status: 200 }), null).run();
+
+    const count = await runDueAgentlessChecks(testEnv, now, {
+      fetchImpl: (() => { throw new Error("fetch exploded"); }) as any,
+    });
+
+    expect(count).toBeGreaterThanOrEqual(1);
+    const metric: any = await (env as any).DB.prepare("SELECT is_up, error_text FROM raw_metrics WHERE node_id = ? ORDER BY id DESC LIMIT 1")
+      .bind(id)
+      .first();
+    expect(metric.is_up).toBe(0);
+    expect(metric.error_text).toContain("fetch exploded");
   });
 
   it("pauses, resumes, and archives checks using safe lifecycle semantics", async () => {
