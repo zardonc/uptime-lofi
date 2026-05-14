@@ -188,6 +188,11 @@ async function recordCheckResult(db: D1Database, node: DueNode, nowSeconds: numb
   ]);
 }
 
+async function recordInternalCheckError(db: D1Database, node: DueNode, nowSeconds: number, error: unknown) {
+  const message = `Internal Agentless check error: ${errorMessage(error)}`;
+  await recordCheckResult(db, node, nowSeconds, { isUp: false, latencyMs: null, errorText: message });
+}
+
 export async function runDueAgentlessChecks(
   env: Pick<Bindings, "DB">,
   nowSeconds: number,
@@ -206,12 +211,18 @@ export async function runDueAgentlessChecks(
 
   let checked = 0;
   for (const node of results) {
-    const config = parseConfig<Record<string, unknown>>(node.config_json);
-    const interval = intervalSeconds(config);
-    if (!interval) continue;
-    const result = await runNodeCheck(node, options);
-    await recordCheckResult(env.DB, node, nowSeconds, result);
-    checked += 1;
+    try {
+      const config = parseConfig<Record<string, unknown>>(node.config_json);
+      const interval = intervalSeconds(config);
+      if (!interval) continue;
+      const result = await runNodeCheck(node, options);
+      await recordCheckResult(env.DB, node, nowSeconds, result);
+      checked += 1;
+    } catch (error) {
+      console.error(`Agentless check failed for node ${node.id}:`, errorMessage(error));
+      await recordInternalCheckError(env.DB, node, nowSeconds, error);
+      checked += 1;
+    }
   }
   return checked;
 }

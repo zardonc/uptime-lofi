@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, vi } from "vitest";
 import { env } from "cloudflare:workers";
-import { scheduled } from "../../src/index";
+import worker, { scheduled } from "../../src/index";
 
 describe("Scheduled Tasks (Cron)", () => {
   let testEnv: any;
@@ -41,6 +41,16 @@ describe("Scheduled Tasks (Cron)", () => {
     ).run();
   });
 
+  it("0. Exposes scheduled handler on the Worker default export", () => {
+    expect(worker.scheduled).toBe(scheduled);
+    expect(worker.fetch).toEqual(expect.any(Function));
+  });
+
+  it("0b. Default export fetch handles HTTP requests", async () => {
+    const response = await worker.fetch(new Request("http://localhost/"), testEnv, {} as any);
+    expect(response.status).toBe(200);
+  });
+
   it("1. Run scheduled task — deletes expired entries but keeps active ones", async () => {
     // Run cron handler
     const event = { scheduledTime: Date.now(), cron: "*/15 * * * *" } as any;
@@ -73,5 +83,24 @@ describe("Scheduled Tasks (Cron)", () => {
     const node = await db.prepare("SELECT status, last_heartbeat FROM nodes WHERE id = ?").bind("due_agentless_http").first();
     expect(node.status).toBe("offline");
     expect(node.last_heartbeat).toEqual(expect.any(Number));
+  });
+
+  it("2. Does not fail the cron when cleanup tables are unavailable", async () => {
+    const now = Math.floor(Date.now() / 1000);
+    const fakeDb = {
+      prepare(sql: string) {
+        if (sql.includes("refresh_tokens") || sql.includes("login_attempts") || sql.includes("audit_log")) {
+          return { run: () => Promise.reject(new Error("missing cleanup table")) };
+        }
+        return db.prepare(sql);
+      },
+      batch: db.batch.bind(db),
+    };
+    const event = { scheduledTime: now * 1000, cron: "*/5 * * * *" } as any;
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    await expect(scheduled(event, { ...testEnv, DB: fakeDb }, {} as any)).resolves.toBeUndefined();
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("Cron cleanup failed"), expect.any(String));
+    consoleSpy.mockRestore();
   });
 });

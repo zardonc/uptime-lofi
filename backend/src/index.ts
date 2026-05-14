@@ -118,29 +118,48 @@ app.get('/ready', async (c) => {
 // Mount the protected modular routes
 app.route('/api', api);
 
-export default app
+async function runCronCleanup(db: D1Database, label: string, sql: string): Promise<number> {
+  try {
+    const result = await db.prepare(sql).run();
+    return result.meta.changes ?? 0;
+  } catch (error) {
+    console.error(`Cron cleanup failed for ${label}:`, error instanceof Error ? error.message : String(error));
+    return 0;
+  }
+}
 
 // Scheduled handler for Cron Trigger — periodic cleanup of expired entries
 export const scheduled: ExportedHandlerScheduledHandler<Bindings> = async (controller, env) => {
   const db = env.DB;
   const nowSeconds = Math.floor(controller.scheduledTime / 1000);
+  console.log(`Cron started at ${nowSeconds}`);
 
   // 1. Clean up expired refresh tokens
-  const tokenResult = await db.prepare(
+  const tokenChanges = await runCronCleanup(db, "refresh_tokens",
     "DELETE FROM refresh_tokens WHERE expires_at < strftime('%s', 'now')"
-  ).run();
+  );
 
   // 2. Clean up expired login attempts (older than 15 minutes)
-  const attemptResult = await db.prepare(
+  const attemptChanges = await runCronCleanup(db, "login_attempts",
     "DELETE FROM login_attempts WHERE last_attempt_at < (strftime('%s', 'now') - 900)"
-  ).run();
+  );
 
   // 3. Clean up old audit log entries (older than 90 days)
-  const auditResult = await db.prepare(
+  const auditChanges = await runCronCleanup(db, "audit_log",
     "DELETE FROM audit_log WHERE created_at < (strftime('%s', 'now') - 7776000)"
-  ).run();
+  );
 
-  const agentlessChecks = await runDueAgentlessChecks(env, nowSeconds);
+  let agentlessChecks = 0;
+  try {
+    agentlessChecks = await runDueAgentlessChecks(env, nowSeconds);
+  } catch (error) {
+    console.error("Cron Agentless checks failed:", error instanceof Error ? error.message : String(error));
+  }
 
-  console.log(`Cron cleanup: ${tokenResult.meta.changes} tokens, ${attemptResult.meta.changes} attempts, ${auditResult.meta.changes} audit entries removed; ${agentlessChecks} agentless checks run`);
+  console.log(`Cron cleanup: ${tokenChanges} tokens, ${attemptChanges} attempts, ${auditChanges} audit entries removed; ${agentlessChecks} agentless checks run`);
 };
+
+export default {
+  fetch: app.fetch.bind(app),
+  scheduled,
+}
