@@ -270,6 +270,7 @@ function formatResultStatus(check: AgentlessCheck): string {
   if (check.status === 'paused') return 'Paused';
   const latest = getLatestResult(check);
   if (latest.is_up === null) return 'No data yet';
+  if (latest.is_up && latest.error_text) return 'Reachable with warning';
   return latest.is_up ? 'Reachable' : 'Failed';
 }
 

@@ -13,11 +13,17 @@ describe("Agentless check runners", () => {
     expect(result.errorText).toBeNull();
   });
 
-  it("returns down with clear errors when HTTP status mismatches or fetch rejects", async () => {
+  it("returns reachable with warning when HTTP responds with an unexpected status", async () => {
     const mismatch = await runHttpCheck(
       { url: "https://example.com/health", expected_status: 200, timeout: 5 },
       async () => new Response(null, { status: 503 }),
     );
+
+    expect(mismatch).toMatchObject({ isUp: true, latencyMs: expect.any(Number) });
+    expect(mismatch.errorText).toContain("Expected HTTP 200, got 503");
+  });
+
+  it("returns down with clear errors when HTTP fetch rejects", async () => {
     const rejected = await runHttpCheck(
       { url: "https://example.com/health", expected_status: 200, timeout: 5 },
       async () => {
@@ -25,8 +31,6 @@ describe("Agentless check runners", () => {
       },
     );
 
-    expect(mismatch).toMatchObject({ isUp: false, latencyMs: expect.any(Number) });
-    expect(mismatch.errorText).toContain("Expected HTTP 200, got 503");
     expect(rejected).toEqual({ isUp: false, latencyMs: null, errorText: "network failed" });
   });
 

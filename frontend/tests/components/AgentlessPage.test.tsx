@@ -146,4 +146,26 @@ describe("Agentless page", () => {
     expect(screen.getByText("Reachable")).toBeInTheDocument();
     expect(screen.getByText("42ms")).toBeInTheDocument();
   });
+
+  it("shows HTTP status mismatches as reachable warnings", async () => {
+    server.use(
+      http.get("/api/agentless", () => HttpResponse.json({
+        data: [{
+          id: "agentless-http-warning",
+          name: "Protected Homepage",
+          type: "agentless_http",
+          status: "online",
+          target: "https://hal.282643.xyz/",
+          latest_result: { timestamp: Math.floor(Date.now() / 1000), is_up: true, latency_ms: 51, error_text: "Expected HTTP 200, got 403" },
+        }],
+      })),
+    );
+
+    await openAgentlessPage();
+
+    expect(await screen.findByText("Protected Homepage")).toBeInTheDocument();
+    expect(screen.getByText("Reachable with warning")).toBeInTheDocument();
+    expect(screen.getByText("Expected HTTP 200, got 403")).toBeInTheDocument();
+    expect(screen.getByText("51ms")).toBeInTheDocument();
+  });
 });

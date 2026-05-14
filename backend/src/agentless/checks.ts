@@ -76,7 +76,7 @@ export async function runHttpCheck(config: HttpCheckConfig, fetchImpl: typeof fe
     const response = await fetchImpl(config.url, { signal: timeoutSignal(config.timeout) });
     const latencyMs = Math.max(0, nowMs() - start);
     if (response.status !== config.expected_status) {
-      return { isUp: false, latencyMs, errorText: `Expected HTTP ${config.expected_status}, got ${response.status}` };
+      return { isUp: true, latencyMs, errorText: `Expected HTTP ${config.expected_status}, got ${response.status}` };
     }
     return { isUp: true, latencyMs, errorText: null };
   } catch (error) {
