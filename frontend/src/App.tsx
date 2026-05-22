@@ -15,6 +15,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { LoginGate } from './components/LoginGate';
 import { Settings } from './components/Settings';
 import { ProbeSetup } from './components/ProbeSetup';
+import { MonitorsPage } from './components/MonitorsPage';
 import { useNodes } from './hooks/useNodes';
 import { useOverview } from './hooks/useOverview';
 import { useMetrics } from './hooks/useMetrics';
@@ -177,7 +178,7 @@ function DashboardContent() {
   );
 }
 
-type PageId = 'dashboard' | 'nodes' | 'agentless' | 'statistics' | 'alerts' | 'settings';
+type PageId = 'dashboard' | 'monitors' | 'nodes' | 'agentless' | 'statistics' | 'alerts' | 'settings';
 
 function NodesContent({ onNavigate }: { readonly onNavigate: (page: PageId) => void }) {
   const { isAuthenticated } = useAuth();
@@ -492,6 +493,8 @@ function PageHeader({ title, subtitle, actions }: { readonly title: string; read
 
 function ActivePage({ activeNav, onNavigate }: { readonly activeNav: PageId; readonly onNavigate: (page: PageId) => void }) {
   switch (activeNav) {
+    case 'monitors':
+      return <MonitorsPage />;
     case 'nodes':
       return <NodesContent onNavigate={onNavigate} />;
     case 'agentless':

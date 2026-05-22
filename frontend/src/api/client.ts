@@ -16,6 +16,9 @@ import type {
   AgentlessCheck,
   CreateHttpCheckRequest,
   CreateTcpCheckRequest,
+  CreateMonitorRequest,
+  Monitor,
+  UpdateMonitorRequest,
 } from './types';
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
@@ -182,6 +185,29 @@ export const api = {
   getMetrics: (nodeId: string, hours = 24) =>
     apiFetch<{ data: ApiMetric[] }>(`/nodes/${nodeId}/metrics?hours=${hours}`),
   getAgentlessChecks: () => apiFetch<ApiResponse<AgentlessCheck[]>>('/agentless'),
+  getMonitors: () => apiFetch<ApiResponse<Monitor[]>>('/v1/monitors'),
+  createMonitor: (payload: CreateMonitorRequest) =>
+    apiFetch<ApiResponse<Monitor>>('/v1/monitors', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  updateMonitor: (id: string, payload: UpdateMonitorRequest) =>
+    apiFetch<ApiResponse<Monitor>>(`/v1/monitors/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }),
+  pauseMonitor: (id: string) =>
+    apiFetch<ApiResponse<Monitor>>(`/v1/monitors/${id}/pause`, {
+      method: 'POST',
+    }),
+  resumeMonitor: (id: string) =>
+    apiFetch<ApiResponse<Monitor>>(`/v1/monitors/${id}/resume`, {
+      method: 'POST',
+    }),
+  deleteMonitor: (id: string) =>
+    apiFetch<ApiResponse<Monitor>>(`/v1/monitors/${id}`, {
+      method: 'DELETE',
+    }),
   createHttpCheck: (payload: CreateHttpCheckRequest) =>
     apiFetch<ApiResponse<AgentlessCheck>>('/agentless/http', {
       method: 'POST',

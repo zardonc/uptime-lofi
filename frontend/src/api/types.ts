@@ -45,10 +45,30 @@ export interface Monitor extends BackendSource {
   readonly type: MonitorType;
   readonly status: MonitorStatus;
   readonly target: MonitorTargetSummary;
+  readonly interval_sec: number;
+  readonly timeout_sec: number;
+  readonly public_visible: boolean;
   readonly latest: MonitorLatestMetrics;
   readonly visibility: MonitorVisibility;
   readonly created_at: number;
   readonly updated_at: number;
+}
+
+export interface CreateMonitorRequest {
+  readonly name: string;
+  readonly type: MonitorType;
+  readonly interval_sec?: number;
+  readonly timeout_sec?: number;
+  readonly config?: Record<string, unknown>;
+  readonly public_visible?: boolean;
+}
+
+export interface UpdateMonitorRequest {
+  readonly name?: string;
+  readonly interval_sec?: number;
+  readonly timeout_sec?: number;
+  readonly config?: Record<string, unknown>;
+  readonly public_visible?: boolean;
 }
 
 export interface PublicMonitor extends BackendSource {

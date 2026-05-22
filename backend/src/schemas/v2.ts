@@ -38,10 +38,44 @@ export const monitorSchema = backendSourceSchema.extend({
   type: monitorTypeSchema,
   status: monitorStatusSchema,
   target: monitorTargetSummarySchema,
+  interval_sec: z.number().int().min(30).max(86400).default(60),
+  timeout_sec: z.number().int().min(1).max(300).default(10),
+  public_visible: z.boolean().default(true),
   latest: monitorLatestMetricsSchema,
   visibility: monitorVisibilitySchema,
   created_at: z.number().int().nonnegative(),
   updated_at: z.number().int().nonnegative(),
+}).strict();
+
+export const agentMonitorConfigSchema = z.object({
+  platform: z.enum(["linux/amd64", "linux/arm64", "darwin/amd64", "darwin/arm64"]).optional(),
+}).strict();
+
+export const httpMonitorConfigSchema = z.object({
+  url: z.string().url(),
+  expected_status: z.number().int().min(100).max(599).optional().default(200),
+}).strict();
+
+export const tcpMonitorConfigSchema = z.object({
+  host: z.string().trim().min(1).max(253),
+  port: z.number().int().min(1).max(65535),
+}).strict();
+
+export const createMonitorSchema = z.object({
+  name: z.string().trim().min(1).max(80),
+  type: monitorTypeSchema,
+  interval_sec: z.number().int().min(30).max(86400).optional().default(60),
+  timeout_sec: z.number().int().min(1).max(300).optional().default(10),
+  config: z.unknown().optional(),
+  public_visible: z.boolean().optional().default(true),
+}).strict();
+
+export const updateMonitorSchema = z.object({
+  name: z.string().trim().min(1).max(80).optional(),
+  interval_sec: z.number().int().min(30).max(86400).optional(),
+  timeout_sec: z.number().int().min(1).max(300).optional(),
+  config: z.unknown().optional(),
+  public_visible: z.boolean().optional(),
 }).strict();
 
 export const publicMonitorSchema = backendSourceSchema.extend({
@@ -124,6 +158,8 @@ export type BackendSource = z.infer<typeof backendSourceSchema>;
 export type MonitorType = z.infer<typeof monitorTypeSchema>;
 export type MonitorStatus = z.infer<typeof monitorStatusSchema>;
 export type Monitor = z.infer<typeof monitorSchema>;
+export type CreateMonitorInput = z.infer<typeof createMonitorSchema>;
+export type UpdateMonitorInput = z.infer<typeof updateMonitorSchema>;
 export type PublicMonitor = z.infer<typeof publicMonitorSchema>;
 export type PublicStatusResponse = z.infer<typeof publicStatusResponseSchema>;
 export type AlertRule = z.infer<typeof alertRuleSchema>;

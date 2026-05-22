@@ -1,5 +1,5 @@
 import { http, HttpResponse } from "msw";
-import type { AgentlessCheck, ApiMetric, ApiNode, OverviewStats } from "../../src/api/types";
+import type { AgentlessCheck, ApiMetric, ApiNode, Monitor, MonitorType, OverviewStats } from "../../src/api/types";
 
 interface MockAuthState {
   readonly authenticated: boolean;
@@ -12,6 +12,7 @@ interface MockAuthState {
 interface MockApiState {
   readonly auth: MockAuthState;
   readonly nodes: ReadonlyArray<ApiNode>;
+  readonly monitors: ReadonlyArray<Monitor>;
   readonly agentlessChecks: ReadonlyArray<AgentlessCheck>;
   readonly overview: OverviewStats;
   readonly metricsByNode: Readonly<Record<string, ReadonlyArray<ApiMetric>>>;
@@ -45,6 +46,47 @@ function createMockNodes(): ReadonlyArray<ApiNode> {
       mem_usage: null,
       uptime_ratio: 87.2,
       config: null,
+    },
+  ];
+}
+
+function createMockMonitors(): ReadonlyArray<Monitor> {
+  const now = Math.floor(Date.now() / 1000);
+
+  return [
+    {
+      id: "monitor-agent-1",
+      backend_id: "default",
+      backend_label: "Default backend",
+      backend_type: "cloudflare_worker",
+      name: "edge-sfo-1",
+      type: "agent",
+      status: "online",
+      target: { label: "Agent probe" },
+      interval_sec: 60,
+      timeout_sec: 10,
+      public_visible: true,
+      latest: { checked_at: now - 45, latency_ms: 18, uptime_ratio: 99.9, cpu_percent: 24, mem_percent: 58, error_text: null },
+      visibility: { public: true, show_uptime: true, show_latency: true, show_incidents: true },
+      created_at: now - 3600,
+      updated_at: now - 45,
+    },
+    {
+      id: "monitor-http-1",
+      backend_id: "default",
+      backend_label: "Default backend",
+      backend_type: "cloudflare_worker",
+      name: "Homepage",
+      type: "http",
+      status: "unknown",
+      target: { label: "https://example.com/health", url: "https://example.com/health" },
+      interval_sec: 300,
+      timeout_sec: 10,
+      public_visible: true,
+      latest: { checked_at: null, latency_ms: null, uptime_ratio: null, cpu_percent: null, mem_percent: null, error_text: null },
+      visibility: { public: true, show_uptime: true, show_latency: true, show_incidents: true },
+      created_at: now - 1800,
+      updated_at: now - 1800,
     },
   ];
 }
@@ -96,6 +138,7 @@ function createMockState(): MockApiState {
       refreshToken: "test-refresh-token",
     },
     nodes: createMockNodes(),
+    monitors: createMockMonitors(),
     agentlessChecks: [],
     overview: createOverview(),
     metricsByNode: createMetricsByNode(),
@@ -123,6 +166,13 @@ export function setMockNodes(nodes: ReadonlyArray<ApiNode>): void {
   mockApiState = {
     ...mockApiState,
     nodes,
+  };
+}
+
+export function setMockMonitors(monitors: ReadonlyArray<Monitor>): void {
+  mockApiState = {
+    ...mockApiState,
+    monitors,
   };
 }
 
@@ -220,6 +270,65 @@ export const handlers = [
   }),
   http.get("/api/agentless", () => {
     return HttpResponse.json({ data: mockApiState.agentlessChecks });
+  }),
+  http.get("/api/v1/monitors", () => {
+    return HttpResponse.json({ data: mockApiState.monitors });
+  }),
+  http.post("/api/v1/monitors", async ({ request }) => {
+    const body = (await request.json()) as { name?: string; type?: MonitorType; interval_sec?: number; timeout_sec?: number; config?: Record<string, unknown> };
+    const type = body.type ?? "http";
+    const target = type === "http"
+      ? { label: String(body.config?.url ?? "https://example.com"), url: String(body.config?.url ?? "https://example.com") }
+      : type === "tcp"
+        ? { label: `${String(body.config?.host ?? "db.example.com")}:${Number(body.config?.port ?? 5432)}`, host: String(body.config?.host ?? "db.example.com"), port: Number(body.config?.port ?? 5432) }
+        : { label: "Agent probe" };
+    const monitor: Monitor = {
+      id: `monitor-${type}-${mockApiState.monitors.length + 1}`,
+      backend_id: "default",
+      backend_label: "Default backend",
+      backend_type: "cloudflare_worker",
+      name: body.name ?? "Monitor",
+      type,
+      status: "unknown",
+      target,
+      interval_sec: body.interval_sec ?? 300,
+      timeout_sec: body.timeout_sec ?? 10,
+      public_visible: true,
+      latest: { checked_at: null, latency_ms: null, uptime_ratio: null, cpu_percent: null, mem_percent: null, error_text: null },
+      visibility: { public: true, show_uptime: true, show_latency: true, show_incidents: true },
+      created_at: Math.floor(Date.now() / 1000),
+      updated_at: Math.floor(Date.now() / 1000),
+    };
+    mockApiState = { ...mockApiState, monitors: [monitor, ...mockApiState.monitors] };
+    return HttpResponse.json({ data: monitor });
+  }),
+  http.put("/api/v1/monitors/:monitorId", async ({ params, request }) => {
+    const monitorId = typeof params.monitorId === "string" ? params.monitorId : "";
+    const body = (await request.json()) as Partial<Monitor>;
+    const monitors = mockApiState.monitors.map((monitor) => monitor.id === monitorId ? { ...monitor, ...body } : monitor);
+    const updated = monitors.find((monitor) => monitor.id === monitorId);
+    mockApiState = { ...mockApiState, monitors };
+    return updated ? HttpResponse.json({ data: updated }) : HttpResponse.json({ error: "Monitor not found" }, { status: 404 });
+  }),
+  http.post("/api/v1/monitors/:monitorId/pause", ({ params }) => {
+    const monitorId = typeof params.monitorId === "string" ? params.monitorId : "";
+    const monitors = mockApiState.monitors.map((monitor) => monitor.id === monitorId ? { ...monitor, status: "paused" as const } : monitor);
+    const updated = monitors.find((monitor) => monitor.id === monitorId);
+    mockApiState = { ...mockApiState, monitors };
+    return updated ? HttpResponse.json({ data: updated }) : HttpResponse.json({ error: "Monitor not found" }, { status: 404 });
+  }),
+  http.post("/api/v1/monitors/:monitorId/resume", ({ params }) => {
+    const monitorId = typeof params.monitorId === "string" ? params.monitorId : "";
+    const monitors = mockApiState.monitors.map((monitor) => monitor.id === monitorId ? { ...monitor, status: "unknown" as const } : monitor);
+    const updated = monitors.find((monitor) => monitor.id === monitorId);
+    mockApiState = { ...mockApiState, monitors };
+    return updated ? HttpResponse.json({ data: updated }) : HttpResponse.json({ error: "Monitor not found" }, { status: 404 });
+  }),
+  http.delete("/api/v1/monitors/:monitorId", ({ params }) => {
+    const monitorId = typeof params.monitorId === "string" ? params.monitorId : "";
+    const monitor = mockApiState.monitors.find((item) => item.id === monitorId);
+    mockApiState = { ...mockApiState, monitors: mockApiState.monitors.filter((item) => item.id !== monitorId) };
+    return monitor ? HttpResponse.json({ data: { ...monitor, status: "paused" } }) : HttpResponse.json({ error: "Monitor not found" }, { status: 404 });
   }),
   http.post("/api/agentless/http", async ({ request }) => {
     const body = (await request.json()) as { name?: string; url?: string; interval?: number; timeout?: number; expected_status?: number };

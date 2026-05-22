@@ -523,6 +523,205 @@ h1, h2, h3, h4, h5, h6 {
   color: var(--color-danger) !important;
 }
 
+.monitors-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xl);
+}
+
+.monitors-page .dashboard-header {
+  align-items: flex-start;
+  margin-bottom: 0;
+}
+
+.monitors-page__add-actions {
+  max-width: 520px;
+}
+
+.monitors-toolbar {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) minmax(140px, 180px) minmax(140px, 180px);
+  gap: var(--space-lg);
+  align-items: end;
+  padding: var(--space-lg);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  background: var(--bg-sidebar);
+}
+
+.monitors-toolbar label,
+.monitor-form label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.monitors-toolbar input,
+.monitors-toolbar select,
+.monitor-form input {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--border-mid);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font: inherit;
+  padding: 10px 12px;
+}
+
+.monitors-search {
+  position: relative;
+}
+
+.monitors-search svg {
+  position: absolute;
+  left: 12px;
+  bottom: 14px;
+  color: var(--text-tertiary);
+}
+
+.monitors-search input {
+  padding-left: 38px;
+}
+
+.monitor-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-lg);
+}
+
+.monitor-form__header {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-lg);
+}
+
+.monitor-form__header p,
+.monitors-empty p,
+.monitor-card__identity p {
+  color: var(--text-secondary);
+}
+
+.monitor-form__checkbox {
+  align-items: center;
+  flex-direction: row !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+}
+
+.monitor-form__checkbox input {
+  width: auto;
+  min-height: auto;
+}
+
+.monitors-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.monitor-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 1.2fr) auto;
+  gap: var(--space-xl);
+  align-items: center;
+  padding: var(--space-xl);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  background: var(--bg-card);
+  box-shadow: var(--shadow-card);
+}
+
+.monitor-card__identity,
+.monitor-card__identity h2,
+.monitor-card__identity p {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.monitor-card__identity h2 {
+  font-size: var(--text-xl);
+}
+
+.monitor-card__metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(72px, 1fr));
+  gap: var(--space-sm);
+}
+
+.monitor-metric {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px var(--space-sm);
+  min-height: 58px;
+  padding: var(--space-sm);
+  border-radius: var(--radius-md);
+  background: var(--bg-hover);
+  min-width: 0;
+}
+
+.monitor-metric span:first-child {
+  display: flex;
+  color: var(--morandi-600);
+}
+
+.monitor-metric span:nth-child(2) {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.monitor-metric strong {
+  grid-column: 2;
+  font-size: var(--text-lg);
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+.monitor-metric--empty,
+.monitor-metric--empty span:first-child,
+.monitor-metric--empty strong {
+  color: var(--text-tertiary);
+}
+
+.monitor-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+}
+
+.monitors-empty {
+  text-align: center;
+}
+
+@media (max-width: 980px) {
+  .monitor-card,
+  .monitors-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .monitor-card__actions {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 620px) {
+  .monitor-form,
+  .monitor-card__metrics {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 900px) {
   .agentless-page__grid {
     grid-template-columns: 1fr;
