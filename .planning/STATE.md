@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: MVP
 status: unknown
-last_updated: "2026-05-22T23:16:58.507Z"
+last_updated: "2026-05-22T23:35:36.081Z"
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 9
-  completed_plans: 5
+  completed_plans: 6
   percent: 0
 ---
 
@@ -18,7 +18,7 @@ progress:
 
 **Milestone:** v1.2 MVP complete
 **Closed:** 2026-05-16
-**Current focus:** Phase 11 page-level and whole-product functional refactor - completed plan 11-05 Public Status and Settings visibility controls
+**Current focus:** Phase 11 page-level and whole-product functional refactor - completed plan 11-06 Alerts rules, state machine, and history
 
 ## Project Reference
 
@@ -52,3 +52,4 @@ Items acknowledged and deferred at milestone close on 2026-05-16:
 - Phase 11 plan 11-03 added the v2 Monitor D1 tables, internal Monitor CRUD routes, type-specific config validation, Pages-backed frontend client calls, and a unified Monitors management page.
 - Phase 11 plan 11-04 wired v2 runtime data: Worker cron now writes HTTP/TCP check_results plus monitor_latest, probe pushes optionally populate v2 agent_metrics/latest state without changing probe auth or payload shape, and Public Status can read latest state without scanning history.
 - Phase 11 plan 11-05 added a kv_settings-backed Public Status exposure model, server-side redacted public DTOs, read-only Pages Functions public routes, a standalone /status page, and Settings controls for slug, field, and monitor visibility.
+- Phase 11 plan 11-06 added durable alert rules/state/history tables, monitor-type-aware alert validation, alert evaluation after latest-state writes, and an Alerts page with Rules and History tabs.
