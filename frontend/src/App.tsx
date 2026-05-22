@@ -16,6 +16,7 @@ import { LoginGate } from './components/LoginGate';
 import { Settings } from './components/Settings';
 import { ProbeSetup } from './components/ProbeSetup';
 import { MonitorsPage } from './components/MonitorsPage';
+import { PublicStatus } from './components/PublicStatus';
 import { useNodes } from './hooks/useNodes';
 import { useOverview } from './hooks/useOverview';
 import { useMetrics } from './hooks/useMetrics';
@@ -512,6 +513,14 @@ function ActivePage({ activeNav, onNavigate }: { readonly activeNav: PageId; rea
 }
 
 export default function App() {
+  if (window.location.pathname === '/status') {
+    return <PublicStatus />;
+  }
+
+  return <AdminApp />;
+}
+
+function AdminApp() {
   const [activeNav, setActiveNav] = useState<PageId>('dashboard');
   const { logout } = useAuth();
 

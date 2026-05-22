@@ -18,6 +18,9 @@ import type {
   CreateTcpCheckRequest,
   CreateMonitorRequest,
   Monitor,
+  PublicStatusResponse,
+  PublicStatusSettings,
+  SettingsResponse,
   UpdateMonitorRequest,
 } from './types';
 
@@ -153,6 +156,8 @@ export const api = {
   getAuthStatus: () =>
     apiFetch<{ is_ui_lock_enabled: boolean; has_refresh_cookie?: boolean }>('/auth/status', { auth: false }),
 
+  getSettings: () => apiFetch<ApiResponse<SettingsResponse>>('/settings'),
+
   login: (password: string) =>
     apiFetch<LoginResponse>('/auth/login', {
       method: 'POST',
@@ -224,6 +229,17 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
+
+  updatePublicStatusSettings: (payload: PublicStatusSettings & { readonly monitors?: ReadonlyArray<{ readonly id: string; readonly public_visible: boolean }> }) =>
+    apiFetch<ApiResponse<{ public_status: PublicStatusSettings }>>('/settings/public-status', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  getPublicStatus: (slug?: string | null) => {
+    const query = slug ? `?slug=${encodeURIComponent(slug)}` : '';
+    return apiFetch<PublicStatusResponse>(`/public/status${query}`, { auth: false });
+  },
 
   createProbeConfig: (payload: ProbeConfigRequest) =>
     apiFetch<ProbeConfigResponse>('/nodes/probe-config', {

@@ -78,6 +78,19 @@ describe("Settings", () => {
     expect(await screen.findByText(/failed to save settings/i)).toBeInTheDocument();
   });
 
+  it("exposes Public Status visibility controls", async () => {
+    setMockAuthState({ isUiLockEnabled: false, authenticated: true });
+    renderWithAuth(<Settings />);
+
+    expect(await screen.findByRole("heading", { name: /public status/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/public status enabled/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/private slug/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/uptime/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/latency/i)).toBeInTheDocument();
+    expect(screen.getByText("edge-sfo-1")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /save public status/i })).toBeInTheDocument();
+  });
+
   it("generates probe installation config", async () => {
     const user = userEvent.setup();
     Object.defineProperty(navigator, "clipboard", {

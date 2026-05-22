@@ -1,5 +1,5 @@
 import { http, HttpResponse } from "msw";
-import type { AgentlessCheck, ApiMetric, ApiNode, Monitor, MonitorType, OverviewStats } from "../../src/api/types";
+import type { AgentlessCheck, ApiMetric, ApiNode, Monitor, MonitorType, OverviewStats, PublicStatusSettings } from "../../src/api/types";
 
 interface MockAuthState {
   readonly authenticated: boolean;
@@ -16,6 +16,7 @@ interface MockApiState {
   readonly agentlessChecks: ReadonlyArray<AgentlessCheck>;
   readonly overview: OverviewStats;
   readonly metricsByNode: Readonly<Record<string, ReadonlyArray<ApiMetric>>>;
+  readonly publicStatus: PublicStatusSettings;
   readonly failSettingsUpdate: boolean;
 }
 
@@ -142,6 +143,14 @@ function createMockState(): MockApiState {
     agentlessChecks: [],
     overview: createOverview(),
     metricsByNode: createMetricsByNode(),
+    publicStatus: {
+      enabled: true,
+      private_slug: null,
+      show_uptime: true,
+      show_latency: false,
+      show_incidents: true,
+      show_monitor_type: true,
+    },
     failSettingsUpdate: false,
   };
 }
@@ -274,6 +283,32 @@ export const handlers = [
   http.get("/api/v1/monitors", () => {
     return HttpResponse.json({ data: mockApiState.monitors });
   }),
+  http.get("/api/public/status", () => {
+    if (!mockApiState.publicStatus.enabled) {
+      return HttpResponse.json({ error: { code: "public_status_unavailable", message: "Public Status is not available" } }, { status: 404 });
+    }
+    return HttpResponse.json({
+      status: "online",
+      message: "All public systems are operational.",
+      updated_at: Math.floor(Date.now() / 1000),
+      monitors: mockApiState.monitors
+        .filter((monitor) => monitor.public_visible)
+        .map((monitor) => ({
+          backend_id: monitor.backend_id,
+          backend_label: monitor.backend_label,
+          backend_type: monitor.backend_type,
+          id: monitor.id,
+          name: monitor.name,
+          ...(mockApiState.publicStatus.show_monitor_type ? { type: monitor.type } : {}),
+          status: monitor.status,
+          target_label: monitor.type === "agent" ? "Agent probe" : monitor.type === "tcp" ? "TCP endpoint" : "example.com",
+          ...(mockApiState.publicStatus.show_latency ? { latency_ms: monitor.latest.latency_ms } : {}),
+          ...(mockApiState.publicStatus.show_uptime ? { uptime_ratio: monitor.latest.uptime_ratio } : {}),
+          updated_at: monitor.updated_at,
+        })),
+      incidents: mockApiState.publicStatus.show_incidents ? [] : [],
+    });
+  }),
   http.post("/api/v1/monitors", async ({ request }) => {
     const body = (await request.json()) as { name?: string; type?: MonitorType; interval_sec?: number; timeout_sec?: number; config?: Record<string, unknown> };
     const type = body.type ?? "http";
@@ -398,6 +433,7 @@ export const handlers = [
     return HttpResponse.json({
       data: {
         is_ui_lock_enabled: mockApiState.auth.isUiLockEnabled,
+        public_status: mockApiState.publicStatus,
       },
     });
   }),
@@ -422,5 +458,24 @@ export const handlers = [
     };
 
     return HttpResponse.json({ success: true });
+  }),
+  http.post("/api/settings/public-status", async ({ request }) => {
+    const body = (await request.json()) as PublicStatusSettings & { monitors?: ReadonlyArray<{ id: string; public_visible: boolean }> };
+    mockApiState = {
+      ...mockApiState,
+      publicStatus: {
+        enabled: body.enabled,
+        private_slug: body.private_slug,
+        show_uptime: body.show_uptime,
+        show_latency: body.show_latency,
+        show_incidents: body.show_incidents,
+        show_monitor_type: body.show_monitor_type,
+      },
+      monitors: mockApiState.monitors.map((monitor) => {
+        const visibility = body.monitors?.find((item) => item.id === monitor.id);
+        return visibility ? { ...monitor, public_visible: visibility.public_visible } : monitor;
+      }),
+    };
+    return HttpResponse.json({ data: { public_status: mockApiState.publicStatus } });
   }),
 ];

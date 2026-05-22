@@ -1,21 +1,37 @@
 import { useState, useEffect } from 'react';
+import type { FormEvent } from 'react';
 import { useForm } from 'react-hook-form';
+import type { UseFormRegisterReturn } from 'react-hook-form';
 import { api } from '../api/client';
+import type { Monitor, PublicStatusSettings } from '../api/types';
 import { useAuth } from '../hooks/useAuth';
 import { ProbeSetup } from './ProbeSetup';
-import { Shield, ShieldAlert, KeyRound, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, KeyRound, Loader2, Shield, ShieldAlert } from 'lucide-react';
 
 type SettingsFormData = {
   uiLockEnabled: boolean;
   password: string;
 };
 
+const defaultPublicStatus: PublicStatusSettings = {
+  enabled: false,
+  private_slug: null,
+  show_uptime: true,
+  show_latency: true,
+  show_incidents: true,
+  show_monitor_type: true,
+};
+
 export function Settings() {
   const { logout } = useAuth();
   const [loadingInitial, setLoadingInitial] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [savingSecurity, setSavingSecurity] = useState(false);
+  const [savingPublic, setSavingPublic] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
+  const [securitySuccess, setSecuritySuccess] = useState(false);
+  const [publicSuccess, setPublicSuccess] = useState(false);
+  const [publicStatus, setPublicStatus] = useState<PublicStatusSettings>(defaultPublicStatus);
+  const [monitors, setMonitors] = useState<ReadonlyArray<Monitor>>([]);
 
   const {
     register,
@@ -33,51 +49,84 @@ export function Settings() {
   const uiLockEnabled = watch('uiLockEnabled');
 
   useEffect(() => {
-    api.getAuthStatus()
-      .then((res) => {
-        setValue('uiLockEnabled', res.is_ui_lock_enabled);
-        setLoadingInitial(false);
+    Promise.all([api.getSettings(), api.getMonitors()])
+      .then(([settings, monitorResponse]) => {
+        setValue('uiLockEnabled', settings.data.is_ui_lock_enabled);
+        setPublicStatus(settings.data.public_status);
+        setMonitors(monitorResponse.data);
       })
       .catch((err) => {
-        setError(err.message || 'Failed to load settings');
-        setLoadingInitial(false);
-      });
+        setError(err instanceof Error ? err.message : 'Failed to load settings');
+      })
+      .finally(() => setLoadingInitial(false));
   }, [setValue]);
 
   const generateRandom = () => {
     const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
-    const length = 12;
-    const values = new Uint32Array(length);
+    const values = new Uint32Array(12);
     crypto.getRandomValues(values);
     const randomPass = Array.from(values, v => charset[v % charset.length]).join('');
     setValue('password', randomPass, { shouldValidate: true, shouldDirty: true });
   };
 
-  const onSubmit = async (data: SettingsFormData) => {
-    setSaving(true);
+  const onSecuritySubmit = async (data: SettingsFormData) => {
+    setSavingSecurity(true);
     setError(null);
-    setSuccess(false);
+    setSecuritySuccess(false);
 
     try {
       await api.updateSecuritySettings({
         enabled: data.uiLockEnabled,
         password: data.uiLockEnabled ? data.password : '',
       });
-      setSuccess(true);
+      setSecuritySuccess(true);
       setTimeout(async () => {
         await logout();
       }, 1500);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to save settings';
-      setError(message);
+      setError(err instanceof Error ? err.message : 'Failed to save settings');
     } finally {
-      setSaving(false);
+      setSavingSecurity(false);
+    }
+  };
+
+  const onPublicSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    const nextPublicStatus: PublicStatusSettings = {
+      enabled: data.get('enabled') === 'on',
+      private_slug: String(data.get('private_slug') ?? '').trim() || null,
+      show_uptime: data.get('show_uptime') === 'on',
+      show_latency: data.get('show_latency') === 'on',
+      show_incidents: data.get('show_incidents') === 'on',
+      show_monitor_type: data.get('show_monitor_type') === 'on',
+    };
+    const monitorVisibility = monitors.map((monitor) => ({
+      id: monitor.id,
+      public_visible: data.get(`monitor:${monitor.id}`) === 'on',
+    }));
+
+    setSavingPublic(true);
+    setError(null);
+    setPublicSuccess(false);
+    try {
+      const response = await api.updatePublicStatusSettings({ ...nextPublicStatus, monitors: monitorVisibility });
+      setPublicStatus(response.data.public_status);
+      setMonitors((current) => current.map((monitor) => {
+        const visible = monitorVisibility.find((item) => item.id === monitor.id)?.public_visible;
+        return typeof visible === 'boolean' ? { ...monitor, public_visible: visible } : monitor;
+      }));
+      setPublicSuccess(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save Public Status settings');
+    } finally {
+      setSavingPublic(false);
     }
   };
 
   if (loadingInitial) {
     return (
-      <div className="card" style={{ padding: '2rem', display: 'flex', justifyContent: 'center' }}>
+      <div className="card settings-loading">
         <Loader2 className="spin-icon" size={24} />
       </div>
     );
@@ -85,121 +134,147 @@ export function Settings() {
 
   return (
     <div className="settings-page">
-      <div className="card animate-in">
-        <h2 className="section-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.5rem' }}>
-        <Shield size={20} />
-        Dashboard Security
-        </h2>
-
-      <p style={{ color: 'var(--text-muted)', marginBottom: '2rem', fontSize: '0.9rem', lineHeight: 1.5 }}>
-        By default, the dashboard is protected by the Master API Secret Key. You can enable a custom UI Access Key below to use a simpler password for daily logins while keeping the Master Key secret.
-      </p>
-
-        <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-        {/* Toggle Switch Row */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <section className="card settings-panel animate-in" aria-labelledby="settings-security-title">
+        <div className="settings-panel__heading">
+          <Shield size={20} />
           <div>
-            <label htmlFor="settings-ui-lock" style={{ fontWeight: 600, display: 'block', marginBottom: '0.25rem', cursor: 'pointer' }}>UI Access Lock</label>
-            <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Require a custom password to view the dashboard</span>
+            <h2 id="settings-security-title" className="section-title">Dashboard Security</h2>
+            <p>Use a dashboard password for daily access while keeping the master key server-side.</p>
           </div>
-          <label className="toggle-switch" style={{ position: 'relative', display: 'inline-block', width: '40px', height: '24px' }}>
-            <input
-              id="settings-ui-lock"
-              aria-label="UI Access Lock"
-              type="checkbox"
-              {...register('uiLockEnabled')}
-              style={{ opacity: 0, width: 0, height: 0 }}
-            />
-            <span className="slider round" style={{
-              position: 'absolute', cursor: 'pointer', top: 0, left: 0, right: 0, bottom: 0,
-              backgroundColor: uiLockEnabled ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
-              transition: '.4s', borderRadius: '24px'
-            }}>
-              <span style={{
-                position: 'absolute', content: '""', height: '18px', width: '18px', left: '3px', bottom: '3px',
-                backgroundColor: 'white', transition: '.4s', borderRadius: '50%',
-                transform: uiLockEnabled ? 'translateX(16px)' : 'translateX(0)'
-              }} />
-            </span>
-          </label>
         </div>
 
-        {/* Custom Password Input */}
-        {uiLockEnabled && (
-          <div className="animate-in delay-1" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
-              <label htmlFor="settings-password" style={{ fontSize: '0.9rem', fontWeight: 500 }}>Custom Password</label>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <div style={{ position: 'relative', flex: 1 }}>
-                  <KeyRound size={16} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                  <input
-                    id="settings-password"
-                    type="text"
-                    {...register('password', {
-                      validate: (value) => {
-                        if (!uiLockEnabled) return true;
-                        return value.trim().length >= 8 || 'Password must be at least 8 characters';
-                      },
-                    })}
-                    placeholder="Enter a secure password..."
+        <form onSubmit={handleSubmit(onSecuritySubmit)} className="settings-form">
+          <div className="settings-toggle-row">
+            <div>
+              <label htmlFor="settings-ui-lock">UI Access Lock</label>
+              <span>Require a custom password to view the dashboard</span>
+            </div>
+            <ToggleInput id="settings-ui-lock" label="UI Access Lock" register={register('uiLockEnabled')} checked={uiLockEnabled} />
+          </div>
+
+          {uiLockEnabled && (
+            <div className="settings-password-field animate-in delay-1">
+              <label htmlFor="settings-password">Custom Password</label>
+              <div className="settings-password-field__input">
+                <KeyRound size={16} aria-hidden="true" />
+                <input
+                  id="settings-password"
+                  type="text"
+                  {...register('password', {
+                    validate: (value) => {
+                      if (!uiLockEnabled) return true;
+                      return value.trim().length >= 8 || 'Password must be at least 8 characters';
+                    },
+                  })}
+                  placeholder="Enter a secure password..."
                   aria-invalid={!!errors.password}
                   aria-describedby={errors.password ? 'password-error' : 'password-hint'}
-                  style={{
-                    width: '100%', padding: '0.75rem 1rem 0.75rem 2.5rem',
-                    background: 'var(--bg-secondary)',
-                    border: errors.password ? '1px solid var(--status-danger)' : '1px solid var(--border-color)',
-                    borderRadius: '8px', color: 'var(--text-primary)', outline: 'none'
-                  }}
                 />
+                <button type="button" className="node-action" onClick={generateRandom}>Generate</button>
               </div>
-              <button
-                type="button"
-                onClick={generateRandom}
-                style={{
-                  padding: '0 1rem', background: 'var(--bg-tertiary)', color: 'var(--text-primary)',
-                  border: '1px solid var(--border-color)', borderRadius: '8px', cursor: 'pointer', fontWeight: 500
-                }}
-              >
-                Generate
-              </button>
+              {errors.password ? (
+                <div id="password-error" className="settings-form__error">
+                  <ShieldAlert size={14} /> {errors.password.message}
+                </div>
+              ) : (
+                <div id="password-hint" className="settings-form__hint">
+                  Minimum 8 characters. Use letters, numbers, and symbols for best security.
+                </div>
+              )}
             </div>
-            {errors.password ? (
-              <div id="password-error" style={{ color: 'var(--status-danger)', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.25rem', marginTop: '0.25rem' }}>
-                <ShieldAlert size={14} /> {errors.password.message}
-              </div>
-            ) : (
-              <div id="password-hint" style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '0.25rem' }}>
-                Minimum 8 characters. Use letters, numbers, and symbols for best security.
-              </div>
-            )}
+          )}
+
+          {error && <div className="settings-form__error" role="alert">{error}</div>}
+          {securitySuccess && <div className="settings-form__success">Settings saved successfully! Reloading...</div>}
+
+          <div className="settings-form__actions">
+            <button type="submit" className="page-header__primary" disabled={savingSecurity}>
+              {savingSecurity ? <Loader2 className="spin-icon" size={16} /> : null}
+              Save Changes
+            </button>
           </div>
-        )}
-
-        <hr style={{ border: 0, borderTop: '1px solid var(--border-color)', margin: '0.5rem 0' }} />
-
-        {error && <div style={{ color: 'var(--status-danger)', fontSize: '0.9rem', background: 'var(--status-danger-bg)', padding: '0.75rem', borderRadius: '6px' }}>{error}</div>}
-        {success && <div style={{ color: 'var(--status-online)', fontSize: '0.9rem', background: 'var(--status-online-bg)', padding: '0.75rem', borderRadius: '6px' }}>Settings saved successfully! Reloading...</div>}
-
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
-          <button
-            type="submit"
-            disabled={saving}
-            style={{
-              padding: '0.75rem 2rem', background: 'var(--accent-primary)', color: 'var(--accent-text)',
-              border: 'none', borderRadius: '8px', fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer',
-              display: 'flex', alignItems: 'center', gap: '0.5rem',
-              opacity: saving ? 0.6 : 1
-            }}
-          >
-            {saving ? <Loader2 className="spin-icon" size={16} /> : 'Save Changes'}
-          </button>
-        </div>
         </form>
-      </div>
+      </section>
 
-      <div className="card animate-in delay-1">
+      <section className="card settings-panel animate-in delay-1" aria-labelledby="settings-public-title">
+        <div className="settings-panel__heading">
+          {publicStatus.enabled ? <Eye size={20} /> : <EyeOff size={20} />}
+          <div>
+            <h2 id="settings-public-title" className="section-title">Public Status</h2>
+            <p>Control the unauthenticated status page, visible monitors, and exposed fields.</p>
+          </div>
+        </div>
+
+        <form className="settings-form public-status-form" onSubmit={onPublicSubmit}>
+          <div className="settings-toggle-row">
+            <div>
+              <label htmlFor="public-status-enabled">Public Status enabled</label>
+              <span>Allow unauthenticated reads through the safe public API.</span>
+            </div>
+            <input id="public-status-enabled" name="enabled" type="checkbox" defaultChecked={publicStatus.enabled} />
+          </div>
+
+          <label className="settings-field">
+            Private slug
+            <input name="private_slug" defaultValue={publicStatus.private_slug ?? ''} placeholder="optional-private-slug" />
+          </label>
+
+          <fieldset className="settings-fieldset">
+            <legend>Visible fields</legend>
+            <label><input name="show_uptime" type="checkbox" defaultChecked={publicStatus.show_uptime} /> Uptime</label>
+            <label><input name="show_latency" type="checkbox" defaultChecked={publicStatus.show_latency} /> Latency</label>
+            <label><input name="show_incidents" type="checkbox" defaultChecked={publicStatus.show_incidents} /> Incidents</label>
+            <label><input name="show_monitor_type" type="checkbox" defaultChecked={publicStatus.show_monitor_type} /> Monitor type</label>
+          </fieldset>
+
+          <fieldset className="settings-fieldset public-monitor-settings">
+            <legend>Public monitors</legend>
+            {monitors.length === 0 ? (
+              <p>No monitors are available yet.</p>
+            ) : monitors.map((monitor) => (
+              <label key={monitor.id}>
+                <input name={`monitor:${monitor.id}`} type="checkbox" defaultChecked={monitor.public_visible} />
+                <span>{monitor.name}</span>
+                <small>{monitor.type.toUpperCase()} - {monitor.target.label}</small>
+              </label>
+            ))}
+          </fieldset>
+
+          {publicSuccess && <div className="settings-form__success">Public Status settings saved.</div>}
+          <div className="settings-form__actions">
+            <button type="submit" className="page-header__primary" disabled={savingPublic}>
+              {savingPublic ? <Loader2 className="spin-icon" size={16} /> : null}
+              Save Public Status
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <section className="card animate-in delay-2">
         <h2 className="section-title">Probe Installation</h2>
         <ProbeSetup />
-      </div>
+      </section>
     </div>
+  );
+}
+
+function ToggleInput({ id, label, checked, register }: {
+  readonly id: string;
+  readonly label: string;
+  readonly checked: boolean;
+  readonly register: UseFormRegisterReturn<'uiLockEnabled'>;
+}) {
+  return (
+    <label className="toggle-switch" aria-label={label}>
+      <input
+        id={id}
+        aria-label={label}
+        type="checkbox"
+        {...register}
+      />
+      <span className={`toggle-switch__track ${checked ? 'toggle-switch__track--checked' : ''}`}>
+        <span />
+      </span>
+    </label>
   );
 }

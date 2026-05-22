@@ -7,6 +7,7 @@ import { authApi } from "./auth";
 import { settingsApi } from "./settings";
 import { agentlessApi } from "./agentless";
 import { internalApi } from "./internal";
+import { publicStatusApi } from "./publicStatus";
 
 // Rate-limiting: apply before authentication on selected routes
 
@@ -46,6 +47,7 @@ api.use("/nodes", standardRateLimit);
 api.use("/agentless", standardRateLimit);
 api.use("/stats", standardRateLimit);
 api.use("/internal/*", standardRateLimit);
+api.use("/public/*", standardRateLimit);
 
 // Note: /push route moved to dedicated probe Worker (probe-wrangler.toml)
 
@@ -55,7 +57,10 @@ api.route("/auth", authApi);
 // 2. Internal v2 endpoints for Pages Functions only
 api.route("/internal/v1", internalApi);
 
-// 3. Protected Dashboard endpoints
+// 3. Public read-only v2 endpoints
+api.route("/public", publicStatusApi);
+
+// 4. Protected Dashboard endpoints
 const dashboard = new Hono<{ Bindings: Bindings }>();
 dashboard.use("*", dashboardAuthMiddleware);
 dashboard.route("/nodes", nodesApi);

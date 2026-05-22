@@ -74,7 +74,7 @@ export interface UpdateMonitorRequest {
 export interface PublicMonitor extends BackendSource {
   readonly id: string;
   readonly name: string;
-  readonly type: MonitorType;
+  readonly type?: MonitorType;
   readonly status: MonitorStatus;
   readonly target_label?: string;
   readonly latency_ms?: number | null;
@@ -96,6 +96,20 @@ export interface PublicStatusResponse {
   readonly updated_at: number;
   readonly monitors: ReadonlyArray<PublicMonitor>;
   readonly incidents: ReadonlyArray<PublicIncident>;
+}
+
+export interface PublicStatusSettings {
+  readonly enabled: boolean;
+  readonly private_slug: string | null;
+  readonly show_uptime: boolean;
+  readonly show_latency: boolean;
+  readonly show_incidents: boolean;
+  readonly show_monitor_type: boolean;
+}
+
+export interface SettingsResponse {
+  readonly is_ui_lock_enabled: boolean;
+  readonly public_status: PublicStatusSettings;
 }
 
 export interface AlertRule extends BackendSource {

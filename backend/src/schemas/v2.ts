@@ -81,7 +81,7 @@ export const updateMonitorSchema = z.object({
 export const publicMonitorSchema = backendSourceSchema.extend({
   id: z.string().trim().min(1),
   name: z.string().trim().min(1),
-  type: monitorTypeSchema,
+  type: monitorTypeSchema.optional(),
   status: monitorStatusSchema,
   target_label: z.string().trim().min(1).optional(),
   latency_ms: z.number().nonnegative().nullable().optional(),
