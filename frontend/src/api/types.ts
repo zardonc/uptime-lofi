@@ -6,6 +6,119 @@ export type NodeStatus = 'online' | 'degraded' | 'offline' | 'paused';
 
 export type NodeType = 'agent_push' | 'agentless_http' | 'agentless_tcp';
 
+export interface BackendSource {
+  readonly backend_id: string;
+  readonly backend_label: string;
+  readonly backend_type?: 'cloudflare_worker' | 'custom';
+}
+
+export type MonitorType = 'agent' | 'http' | 'tcp';
+
+export type MonitorStatus = 'online' | 'degraded' | 'offline' | 'paused' | 'unknown';
+
+export interface MonitorTargetSummary {
+  readonly label: string;
+  readonly host?: string;
+  readonly port?: number;
+  readonly url?: string;
+}
+
+export interface MonitorLatestMetrics {
+  readonly checked_at: number | null;
+  readonly latency_ms: number | null;
+  readonly uptime_ratio: number | null;
+  readonly cpu_percent: number | null;
+  readonly mem_percent: number | null;
+  readonly error_text: string | null;
+}
+
+export interface MonitorVisibility {
+  readonly public: boolean;
+  readonly show_uptime: boolean;
+  readonly show_latency: boolean;
+  readonly show_incidents: boolean;
+}
+
+export interface Monitor extends BackendSource {
+  readonly id: string;
+  readonly name: string;
+  readonly type: MonitorType;
+  readonly status: MonitorStatus;
+  readonly target: MonitorTargetSummary;
+  readonly latest: MonitorLatestMetrics;
+  readonly visibility: MonitorVisibility;
+  readonly created_at: number;
+  readonly updated_at: number;
+}
+
+export interface PublicMonitor extends BackendSource {
+  readonly id: string;
+  readonly name: string;
+  readonly type: MonitorType;
+  readonly status: MonitorStatus;
+  readonly target_label?: string;
+  readonly latency_ms?: number | null;
+  readonly uptime_ratio?: number | null;
+  readonly updated_at: number;
+}
+
+export interface PublicIncident {
+  readonly id: string;
+  readonly title: string;
+  readonly status: 'investigating' | 'identified' | 'monitoring' | 'resolved';
+  readonly started_at: number;
+  readonly resolved_at: number | null;
+}
+
+export interface PublicStatusResponse {
+  readonly status: MonitorStatus;
+  readonly message: string;
+  readonly updated_at: number;
+  readonly monitors: ReadonlyArray<PublicMonitor>;
+  readonly incidents: ReadonlyArray<PublicIncident>;
+}
+
+export interface AlertRule extends BackendSource {
+  readonly id: string;
+  readonly name: string;
+  readonly monitor_id: string | null;
+  readonly condition: 'offline' | 'latency' | 'http_status' | 'tcp_timeout' | 'cpu' | 'memory';
+  readonly params: Readonly<Record<string, unknown>>;
+  readonly channel_ids: ReadonlyArray<string>;
+  readonly enabled: boolean;
+  readonly severity: 'info' | 'warning' | 'critical';
+  readonly updated_at: number;
+}
+
+export interface NotificationChannel extends BackendSource {
+  readonly id: string;
+  readonly name: string;
+  readonly type: 'webhook' | 'telegram' | 'email';
+  readonly enabled: boolean;
+  readonly has_secret: boolean;
+  readonly redacted_label: string | null;
+  readonly delivery_status: 'untested' | 'ok' | 'failing' | 'disabled';
+  readonly updated_at: number;
+}
+
+export interface StatisticsSummary extends BackendSource {
+  readonly range: '24h' | '7d' | '30d' | 'custom';
+  readonly generated_at: number;
+  readonly total_monitors: number;
+  readonly online_monitors: number;
+  readonly incident_count: number;
+  readonly avg_latency_ms: number | null;
+  readonly uptime_ratio: number | null;
+}
+
+export interface StructuredApiError {
+  readonly error: {
+    readonly code: string;
+    readonly message: string;
+    readonly request_id?: string;
+  };
+}
+
 export interface AgentlessHttpConfig {
   readonly url: string;
   readonly interval: number;
