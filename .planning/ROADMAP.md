@@ -39,7 +39,7 @@
 - `.planning/milestones/v1.2-phases/10-next-development/10-CONTEXT.md`
 - `.planning/milestones/v1.2-phases/10-next-development/10-UI-SPEC.md`
 
-**Plans:** 9 plans
+**Plans:** 5/9 plans executed
 
 Plans:
 **Wave 1**
@@ -60,7 +60,7 @@ Plans:
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 11-05: Public Status API, Settings visibility controls, and public page
+- [x] 11-05: Public Status API, Settings visibility controls, and public page
 - [ ] 11-06: Alerts rules, state machine, and history
 
 **Wave 6** *(blocked on Wave 5 completion)*
@@ -78,7 +78,7 @@ Plans:
 | --- | --- | ---: | --- | --- |
 | 09. Deployment and Production Validation | v1.2 MVP | 8/8 | Complete | 2026-04-30 |
 | 10. Next Development | v1.2 MVP | 9/9 | Complete | 2026-05-06 |
-| 11. Page and Functionality Refactor | Next | 4/9 | In Progress | - |
+| 11. Page and Functionality Refactor | Next | 5/9 | In Progress|  |
 
 ## Notes
 
