@@ -17,10 +17,14 @@ import type {
   CreateHttpCheckRequest,
   CreateTcpCheckRequest,
   CreateMonitorRequest,
+  AlertEvent,
+  AlertRule,
+  CreateAlertRuleRequest,
   Monitor,
   PublicStatusResponse,
   PublicStatusSettings,
   SettingsResponse,
+  UpdateAlertRuleRequest,
   UpdateMonitorRequest,
 } from './types';
 
@@ -213,6 +217,30 @@ export const api = {
     apiFetch<ApiResponse<Monitor>>(`/v1/monitors/${id}`, {
       method: 'DELETE',
     }),
+  getAlertRules: () => apiFetch<ApiResponse<AlertRule[]>>('/v1/alerts/rules'),
+  createAlertRule: (payload: CreateAlertRuleRequest) =>
+    apiFetch<ApiResponse<AlertRule>>('/v1/alerts/rules', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  updateAlertRule: (id: string, payload: UpdateAlertRuleRequest) =>
+    apiFetch<ApiResponse<AlertRule>>(`/v1/alerts/rules/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }),
+  enableAlertRule: (id: string) =>
+    apiFetch<ApiResponse<AlertRule>>(`/v1/alerts/rules/${id}/enable`, {
+      method: 'POST',
+    }),
+  disableAlertRule: (id: string) =>
+    apiFetch<ApiResponse<AlertRule>>(`/v1/alerts/rules/${id}/disable`, {
+      method: 'POST',
+    }),
+  deleteAlertRule: (id: string) =>
+    apiFetch<ApiResponse<AlertRule>>(`/v1/alerts/rules/${id}`, {
+      method: 'DELETE',
+    }),
+  getAlertHistory: () => apiFetch<ApiResponse<AlertEvent[]>>('/v1/alerts/history'),
   createHttpCheck: (payload: CreateHttpCheckRequest) =>
     apiFetch<ApiResponse<AgentlessCheck>>('/agentless/http', {
       method: 'POST',

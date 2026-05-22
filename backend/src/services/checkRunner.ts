@@ -1,6 +1,7 @@
 import type { ConnectFunction } from "../agentless/checks";
 import { runHttpCheck, runTcpCheck } from "../agentless/checks";
 import type { Bindings } from "../routes/api";
+import { evaluateAlerts } from "./alertEngine";
 import { updateMonitorLatestFromCheckResult } from "./monitorLatest";
 
 const V2_CHECK_LIMIT = 25;
@@ -42,11 +43,13 @@ export async function runDueMonitorChecks(
       const result = await runMonitorCheck(monitor, options);
       const status = checkResultStatus(result.isUp, result.errorText);
       await recordCheckResult(env.DB, monitor.id, nowSeconds, status, result.latencyMs, result.errorText);
+      await evaluateAlerts(env.DB, monitor.id, nowSeconds);
       checked += 1;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error(`V2 monitor check failed for ${monitor.id}:`, message);
       await recordCheckResult(env.DB, monitor.id, nowSeconds, "down", null, `Internal monitor check error: ${message}`);
+      await evaluateAlerts(env.DB, monitor.id, nowSeconds);
       checked += 1;
     }
   }

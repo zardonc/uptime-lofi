@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { compress } from "../utils/compression";
+import { evaluateAlerts } from "../services/alertEngine";
 import { updateMonitorLatestFromAgentMetric } from "../services/monitorLatest";
 
 const pushApi = new Hono<{ Bindings: { DB: D1Database } }>();
@@ -136,6 +137,7 @@ async function writeV2AgentMetrics(db: D1Database, payload: CompressedMetric[]) 
         containers_json: metric.containers_json,
       }),
     });
+    await evaluateAlerts(db, monitorId, metric.timestamp);
   }
 }
 

@@ -116,12 +116,48 @@ export interface AlertRule extends BackendSource {
   readonly id: string;
   readonly name: string;
   readonly monitor_id: string | null;
-  readonly condition: 'offline' | 'latency' | 'http_status' | 'tcp_timeout' | 'cpu' | 'memory';
+  readonly condition: AlertCondition;
   readonly params: Readonly<Record<string, unknown>>;
   readonly channel_ids: ReadonlyArray<string>;
   readonly enabled: boolean;
   readonly severity: 'info' | 'warning' | 'critical';
+  readonly confirm_for_sec: number;
+  readonly repeat_interval_sec: number;
+  readonly silent_hours: { readonly start: string; readonly end: string } | null;
+  readonly timezone: string;
+  readonly created_at: number;
   readonly updated_at: number;
+}
+
+export type AlertCondition = 'offline' | 'latency' | 'http_status' | 'cpu' | 'memory';
+
+export interface CreateAlertRuleRequest {
+  readonly name: string;
+  readonly monitor_id: string;
+  readonly condition: AlertCondition;
+  readonly params?: Record<string, unknown>;
+  readonly channel_ids?: ReadonlyArray<string>;
+  readonly enabled?: boolean;
+  readonly severity?: 'info' | 'warning' | 'critical';
+  readonly confirm_for_sec?: number;
+  readonly repeat_interval_sec?: number;
+  readonly silent_hours?: { readonly start: string; readonly end: string } | null;
+  readonly timezone?: string;
+}
+
+export type UpdateAlertRuleRequest = Partial<CreateAlertRuleRequest>;
+
+export interface AlertEvent extends BackendSource {
+  readonly id: string;
+  readonly rule_id: string;
+  readonly monitor_id: string;
+  readonly monitor_name: string;
+  readonly rule_name: string;
+  readonly event_type: 'pending' | 'firing' | 'suppressed' | 'recovered';
+  readonly severity: 'info' | 'warning' | 'critical';
+  readonly message: string;
+  readonly notification_status: 'pending' | 'suppressed' | 'not_required';
+  readonly created_at: number;
 }
 
 export interface NotificationChannel extends BackendSource {

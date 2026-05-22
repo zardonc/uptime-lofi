@@ -1,5 +1,5 @@
 import { http, HttpResponse } from "msw";
-import type { AgentlessCheck, ApiMetric, ApiNode, Monitor, MonitorType, OverviewStats, PublicStatusSettings } from "../../src/api/types";
+import type { AgentlessCheck, AlertEvent, AlertRule, ApiMetric, ApiNode, Monitor, MonitorType, OverviewStats, PublicStatusSettings } from "../../src/api/types";
 
 interface MockAuthState {
   readonly authenticated: boolean;
@@ -13,6 +13,8 @@ interface MockApiState {
   readonly auth: MockAuthState;
   readonly nodes: ReadonlyArray<ApiNode>;
   readonly monitors: ReadonlyArray<Monitor>;
+  readonly alertRules: ReadonlyArray<AlertRule>;
+  readonly alertEvents: ReadonlyArray<AlertEvent>;
   readonly agentlessChecks: ReadonlyArray<AgentlessCheck>;
   readonly overview: OverviewStats;
   readonly metricsByNode: Readonly<Record<string, ReadonlyArray<ApiMetric>>>;
@@ -92,6 +94,48 @@ function createMockMonitors(): ReadonlyArray<Monitor> {
   ];
 }
 
+function createMockAlertRules(): ReadonlyArray<AlertRule> {
+  const now = Math.floor(Date.now() / 1000);
+  return [{
+    id: "alert-rule-1",
+    backend_id: "default",
+    backend_label: "Default backend",
+    backend_type: "cloudflare_worker",
+    name: "Homepage offline",
+    monitor_id: "monitor-http-1",
+    condition: "offline",
+    params: {},
+    channel_ids: ["plan-07-placeholder"],
+    enabled: true,
+    severity: "critical",
+    confirm_for_sec: 60,
+    repeat_interval_sec: 3600,
+    silent_hours: null,
+    timezone: "UTC",
+    created_at: now - 600,
+    updated_at: now - 120,
+  }];
+}
+
+function createMockAlertEvents(): ReadonlyArray<AlertEvent> {
+  const now = Math.floor(Date.now() / 1000);
+  return [{
+    id: "alert-event-1",
+    backend_id: "default",
+    backend_label: "Default backend",
+    backend_type: "cloudflare_worker",
+    rule_id: "alert-rule-1",
+    monitor_id: "monitor-http-1",
+    monitor_name: "Homepage",
+    rule_name: "Homepage offline",
+    event_type: "firing",
+    severity: "critical",
+    message: "Homepage is offline",
+    notification_status: "pending",
+    created_at: now - 60,
+  }];
+}
+
 function createOverview(): OverviewStats {
   return {
     totalNodes: 2,
@@ -140,6 +184,8 @@ function createMockState(): MockApiState {
     },
     nodes: createMockNodes(),
     monitors: createMockMonitors(),
+    alertRules: createMockAlertRules(),
+    alertEvents: createMockAlertEvents(),
     agentlessChecks: [],
     overview: createOverview(),
     metricsByNode: createMetricsByNode(),
@@ -182,6 +228,13 @@ export function setMockMonitors(monitors: ReadonlyArray<Monitor>): void {
   mockApiState = {
     ...mockApiState,
     monitors,
+  };
+}
+
+export function setMockAlertRules(alertRules: ReadonlyArray<AlertRule>): void {
+  mockApiState = {
+    ...mockApiState,
+    alertRules,
   };
 }
 
@@ -282,6 +335,65 @@ export const handlers = [
   }),
   http.get("/api/v1/monitors", () => {
     return HttpResponse.json({ data: mockApiState.monitors });
+  }),
+  http.get("/api/v1/alerts/rules", () => {
+    return HttpResponse.json({ data: mockApiState.alertRules });
+  }),
+  http.post("/api/v1/alerts/rules", async ({ request }) => {
+    const body = (await request.json()) as Partial<AlertRule>;
+    const now = Math.floor(Date.now() / 1000);
+    const rule: AlertRule = {
+      id: `alert-rule-${mockApiState.alertRules.length + 1}`,
+      backend_id: "default",
+      backend_label: "Default backend",
+      backend_type: "cloudflare_worker",
+      name: body.name ?? "Alert rule",
+      monitor_id: body.monitor_id ?? "monitor-http-1",
+      condition: body.condition ?? "offline",
+      params: body.params ?? {},
+      channel_ids: body.channel_ids ?? ["plan-07-placeholder"],
+      enabled: body.enabled ?? true,
+      severity: body.severity ?? "warning",
+      confirm_for_sec: body.confirm_for_sec ?? 0,
+      repeat_interval_sec: body.repeat_interval_sec ?? 3600,
+      silent_hours: body.silent_hours ?? null,
+      timezone: body.timezone ?? "UTC",
+      created_at: now,
+      updated_at: now,
+    };
+    mockApiState = { ...mockApiState, alertRules: [rule, ...mockApiState.alertRules] };
+    return HttpResponse.json({ data: rule });
+  }),
+  http.put("/api/v1/alerts/rules/:ruleId", async ({ params, request }) => {
+    const ruleId = typeof params.ruleId === "string" ? params.ruleId : "";
+    const body = (await request.json()) as Partial<AlertRule>;
+    const rules = mockApiState.alertRules.map((rule) => rule.id === ruleId ? { ...rule, ...body } : rule);
+    const updated = rules.find((rule) => rule.id === ruleId);
+    mockApiState = { ...mockApiState, alertRules: rules };
+    return updated ? HttpResponse.json({ data: updated }) : HttpResponse.json({ error: "Rule not found" }, { status: 404 });
+  }),
+  http.post("/api/v1/alerts/rules/:ruleId/enable", ({ params }) => {
+    const ruleId = typeof params.ruleId === "string" ? params.ruleId : "";
+    const rules = mockApiState.alertRules.map((rule) => rule.id === ruleId ? { ...rule, enabled: true } : rule);
+    const updated = rules.find((rule) => rule.id === ruleId);
+    mockApiState = { ...mockApiState, alertRules: rules };
+    return updated ? HttpResponse.json({ data: updated }) : HttpResponse.json({ error: "Rule not found" }, { status: 404 });
+  }),
+  http.post("/api/v1/alerts/rules/:ruleId/disable", ({ params }) => {
+    const ruleId = typeof params.ruleId === "string" ? params.ruleId : "";
+    const rules = mockApiState.alertRules.map((rule) => rule.id === ruleId ? { ...rule, enabled: false } : rule);
+    const updated = rules.find((rule) => rule.id === ruleId);
+    mockApiState = { ...mockApiState, alertRules: rules };
+    return updated ? HttpResponse.json({ data: updated }) : HttpResponse.json({ error: "Rule not found" }, { status: 404 });
+  }),
+  http.delete("/api/v1/alerts/rules/:ruleId", ({ params }) => {
+    const ruleId = typeof params.ruleId === "string" ? params.ruleId : "";
+    const deleted = mockApiState.alertRules.find((rule) => rule.id === ruleId);
+    mockApiState = { ...mockApiState, alertRules: mockApiState.alertRules.filter((rule) => rule.id !== ruleId) };
+    return deleted ? HttpResponse.json({ data: deleted }) : HttpResponse.json({ error: "Rule not found" }, { status: 404 });
+  }),
+  http.get("/api/v1/alerts/history", () => {
+    return HttpResponse.json({ data: mockApiState.alertEvents });
   }),
   http.get("/api/public/status", () => {
     if (!mockApiState.publicStatus.enabled) {

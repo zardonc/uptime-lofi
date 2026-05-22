@@ -103,17 +103,61 @@ export const publicStatusResponseSchema = z.object({
   }).strict()),
 }).strict();
 
+export const alertConditionSchema = z.enum(["offline", "latency", "http_status", "cpu", "memory"]);
+
+export const silentHoursSchema = z.object({
+  start: z.string().regex(/^\d{2}:\d{2}$/),
+  end: z.string().regex(/^\d{2}:\d{2}$/),
+}).strict();
+
 export const alertRuleSchema = backendSourceSchema.extend({
   id: z.string().trim().min(1),
   name: z.string().trim().min(1),
   monitor_id: z.string().trim().min(1).nullable(),
-  condition: z.enum(["offline", "latency", "http_status", "tcp_timeout", "cpu", "memory"]),
+  condition: alertConditionSchema,
   params: z.record(z.string(), z.unknown()),
   channel_ids: z.array(z.string().trim().min(1)),
   enabled: z.boolean(),
   severity: z.enum(["info", "warning", "critical"]),
+  confirm_for_sec: z.number().int().min(0),
+  repeat_interval_sec: z.number().int().min(0),
+  silent_hours: silentHoursSchema.nullable(),
+  timezone: z.string().trim().min(1),
+  created_at: z.number().int().nonnegative(),
   updated_at: z.number().int().nonnegative(),
 }).strict();
+
+export const alertEventSchema = backendSourceSchema.extend({
+  id: z.string().trim().min(1),
+  rule_id: z.string().trim().min(1),
+  monitor_id: z.string().trim().min(1),
+  monitor_name: z.string().trim().min(1),
+  rule_name: z.string().trim().min(1),
+  event_type: z.enum(["pending", "firing", "suppressed", "recovered"]),
+  severity: z.enum(["info", "warning", "critical"]),
+  message: z.string().trim().min(1),
+  notification_status: z.enum(["pending", "suppressed", "not_required"]),
+  created_at: z.number().int().nonnegative(),
+}).strict();
+
+export const createAlertRuleSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  monitor_id: z.string().trim().min(1),
+  condition: alertConditionSchema,
+  params: z.record(z.string(), z.unknown()).optional().default({}),
+  channel_ids: z.array(z.string().trim().min(1)).optional().default([]),
+  enabled: z.boolean().optional().default(true),
+  severity: z.enum(["info", "warning", "critical"]).optional().default("warning"),
+  confirm_for_sec: z.number().int().min(0).max(86400).optional().default(0),
+  repeat_interval_sec: z.number().int().min(0).max(604800).optional().default(3600),
+  silent_hours: silentHoursSchema.nullable().optional().default(null),
+  timezone: z.string().trim().min(1).max(64).optional().default("UTC"),
+}).strict();
+
+export const updateAlertRuleSchema = createAlertRuleSchema.partial().refine(
+  (value) => Object.keys(value).length > 0,
+  "At least one field is required",
+);
 
 export const notificationChannelSchema = backendSourceSchema.extend({
   id: z.string().trim().min(1),
@@ -162,7 +206,11 @@ export type CreateMonitorInput = z.infer<typeof createMonitorSchema>;
 export type UpdateMonitorInput = z.infer<typeof updateMonitorSchema>;
 export type PublicMonitor = z.infer<typeof publicMonitorSchema>;
 export type PublicStatusResponse = z.infer<typeof publicStatusResponseSchema>;
+export type AlertCondition = z.infer<typeof alertConditionSchema>;
 export type AlertRule = z.infer<typeof alertRuleSchema>;
+export type AlertEvent = z.infer<typeof alertEventSchema>;
+export type CreateAlertRuleInput = z.infer<typeof createAlertRuleSchema>;
+export type UpdateAlertRuleInput = z.infer<typeof updateAlertRuleSchema>;
 export type NotificationChannel = z.infer<typeof notificationChannelSchema>;
 export type StatisticsSummary = z.infer<typeof statisticsSummarySchema>;
 export type StructuredError = z.infer<typeof structuredErrorSchema>;

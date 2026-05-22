@@ -1,7 +1,7 @@
 import './index.css';
 import { useEffect, useState, useMemo } from 'react';
 import type { FormEvent, ReactNode } from 'react';
-import { Server, Wifi, Activity, Clock, Bell, Plus, RefreshCw } from 'lucide-react';
+import { Server, Wifi, Activity, Clock, Plus, RefreshCw } from 'lucide-react';
 import { Sidebar } from './components/Sidebar';
 import { MetricCard } from './components/MetricCard';
 import { TrendChart } from './components/TrendChart';
@@ -16,6 +16,7 @@ import { LoginGate } from './components/LoginGate';
 import { Settings } from './components/Settings';
 import { ProbeSetup } from './components/ProbeSetup';
 import { MonitorsPage } from './components/MonitorsPage';
+import { AlertsPage } from './components/AlertsPage';
 import { PublicStatus } from './components/PublicStatus';
 import { useNodes } from './hooks/useNodes';
 import { useOverview } from './hooks/useOverview';
@@ -467,19 +468,6 @@ function StatisticsContent() {
   );
 }
 
-function PlaceholderContent({ title, subtitle, icon }: { readonly title: string; readonly subtitle: string; readonly icon: ReactNode }) {
-  return (
-    <div className="dashboard">
-      <PageHeader title={title} subtitle={subtitle} />
-      <div className="card empty-page" role="region" aria-label={`${title} page`}>
-        <div className="empty-page__icon">{icon}</div>
-        <h2>{title} is not configured yet</h2>
-        <p>This section is ready for future setup. Use Dashboard, Nodes, or Settings for the current self-host flow.</p>
-      </div>
-    </div>
-  );
-}
-
 function PageHeader({ title, subtitle, actions }: { readonly title: string; readonly subtitle: string; readonly actions?: ReactNode }) {
   return (
     <header className="dashboard-header animate-in" role="banner">
@@ -503,7 +491,7 @@ function ActivePage({ activeNav, onNavigate }: { readonly activeNav: PageId; rea
     case 'statistics':
       return <StatisticsContent />;
     case 'alerts':
-      return <PlaceholderContent title="Alerts" subtitle="Notification routing and incident rules" icon={<Bell size={30} />} />;
+      return <AlertsPage />;
     case 'settings':
       return <Settings />;
     case 'dashboard':
