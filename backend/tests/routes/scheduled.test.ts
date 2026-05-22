@@ -12,6 +12,10 @@ describe("Scheduled Tasks (Cron)", () => {
     await db.prepare("DELETE FROM refresh_tokens").run();
     await db.prepare("DELETE FROM login_attempts").run();
     await db.prepare("DELETE FROM audit_log").run();
+    await db.prepare("DELETE FROM monitor_latest").run();
+    await db.prepare("DELETE FROM agent_metrics").run();
+    await db.prepare("DELETE FROM check_results").run();
+    await db.prepare("DELETE FROM monitors").run();
     await db.prepare("DELETE FROM raw_metrics").run();
     await db.prepare("DELETE FROM nodes").run();
 
@@ -37,6 +41,21 @@ describe("Scheduled Tasks (Cron)", () => {
       "agentless_http",
       "offline",
       JSON.stringify({ url: "https://example.invalid/health", interval: 300, timeout: 1, expected_status: 200 }),
+      now - 600,
+    ).run();
+
+    await db.prepare(
+      `INSERT INTO monitors (
+         id, backend_id, name, type, target, interval_sec, timeout_sec,
+         expected_json, config_json, paused, public_visible, created_at, updated_at
+       ) VALUES (?, 'default', ?, 'http', ?, 60, 1, ?, ?, 0, 1, ?, ?)`,
+    ).bind(
+      "due_v2_http",
+      "Due V2 HTTP",
+      "http://127.0.0.1/health",
+      JSON.stringify({ status_code: 200 }),
+      JSON.stringify({ url: "http://127.0.0.1/health", expected_status: 200 }),
+      now - 600,
       now - 600,
     ).run();
   });
@@ -83,6 +102,21 @@ describe("Scheduled Tasks (Cron)", () => {
     const node = await db.prepare("SELECT status, last_heartbeat FROM nodes WHERE id = ?").bind("due_agentless_http").first();
     expect(node.status).toBe("offline");
     expect(node.last_heartbeat).toEqual(expect.any(Number));
+
+    const v2Result = await db.prepare("SELECT * FROM check_results WHERE monitor_id = ?").bind("due_v2_http").first();
+    expect(v2Result).toMatchObject({
+      monitor_id: "due_v2_http",
+      status: "down",
+      latency_ms: null,
+    });
+
+    const v2Latest = await db.prepare("SELECT * FROM monitor_latest WHERE monitor_id = ?").bind("due_v2_http").first();
+    expect(v2Latest).toMatchObject({
+      monitor_id: "due_v2_http",
+      status: "offline",
+      latency_ms: null,
+    });
+    expect(v2Latest.error_text).toContain("private network");
   });
 
   it("2. Does not fail the cron when cleanup tables are unavailable", async () => {
