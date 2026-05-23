@@ -31,6 +31,8 @@ export type Bindings = {
   PROBE_RELEASE_TAG?: string;
   // KV namespace for instant session blacklist (logout revocation)
   SESSION_BLACKLIST: KVNamespace;
+  // Rebuildable cache for v2 statistics read models.
+  STATISTICS_CACHE?: KVNamespace;
   // Server-side key used by Pages Functions to call Worker internal v2 APIs.
   INTERNAL_API_KEY?: string;
 };

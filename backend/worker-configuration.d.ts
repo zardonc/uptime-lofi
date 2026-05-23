@@ -6,5 +6,6 @@ interface Env {
   EMERGENCY_UNLOCK_KEY?: string;
   CORS_ORIGINS?: string;
   SESSION_BLACKLIST: KVNamespace;
+  STATISTICS_CACHE?: KVNamespace;
   TEST_MIGRATIONS?: unknown;
 }
