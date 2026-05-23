@@ -17,6 +17,7 @@ import { Settings } from './components/Settings';
 import { ProbeSetup } from './components/ProbeSetup';
 import { MonitorsPage } from './components/MonitorsPage';
 import { AlertsPage } from './components/AlertsPage';
+import { StatisticsPage } from './components/StatisticsPage';
 import { PublicStatus } from './components/PublicStatus';
 import { useNodes } from './hooks/useNodes';
 import { useOverview } from './hooks/useOverview';
@@ -453,21 +454,6 @@ function RecentAgentlessResults({ checks }: { readonly checks: ReadonlyArray<Age
   );
 }
 
-function StatisticsContent() {
-  const { isAuthenticated } = useAuth();
-  const { nodes } = useNodes(isAuthenticated);
-  const firstNodeId = nodes.length > 0 ? nodes[0].id : null;
-  const { trendData, loading } = useMetrics(firstNodeId, 24, isAuthenticated);
-  const chartData = trendData.length > 0 ? trendData : generateMockTrend();
-
-  return (
-    <div className="dashboard">
-      <PageHeader title="Statistics" subtitle="Telemetry trends for the first reporting node" />
-      {loading ? <TrendChartSkeleton /> : <TrendChart data={chartData as TrendPoint[]} />}
-    </div>
-  );
-}
-
 function PageHeader({ title, subtitle, actions }: { readonly title: string; readonly subtitle: string; readonly actions?: ReactNode }) {
   return (
     <header className="dashboard-header animate-in" role="banner">
@@ -489,7 +475,7 @@ function ActivePage({ activeNav, onNavigate }: { readonly activeNav: PageId; rea
     case 'agentless':
       return <AgentlessContent />;
     case 'statistics':
-      return <StatisticsContent />;
+      return <StatisticsPage />;
     case 'alerts':
       return <AlertsPage />;
     case 'settings':

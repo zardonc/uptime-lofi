@@ -26,6 +26,10 @@ import type {
   PublicStatusResponse,
   PublicStatusSettings,
   SettingsResponse,
+  StatisticsLeaderboards,
+  StatisticsRange,
+  StatisticsSummary,
+  StatisticsTrends,
   UpdateAlertRuleRequest,
   UpdateMonitorRequest,
   UpdateNotificationChannelRequest,
@@ -244,6 +248,12 @@ export const api = {
       method: 'DELETE',
     }),
   getAlertHistory: () => apiFetch<ApiResponse<AlertEvent[]>>('/v1/alerts/history'),
+  getStatisticsSummary: (range: StatisticsRange) =>
+    apiFetch<ApiResponse<StatisticsSummary>>(`/v1/statistics/summary?range=${encodeURIComponent(range)}`),
+  getStatisticsLeaderboards: (range: StatisticsRange) =>
+    apiFetch<ApiResponse<StatisticsLeaderboards>>(`/v1/statistics/leaderboards?range=${encodeURIComponent(range)}`),
+  getStatisticsTrends: (range: StatisticsRange) =>
+    apiFetch<ApiResponse<StatisticsTrends>>(`/v1/statistics/trends?range=${encodeURIComponent(range)}`),
   getNotificationChannels: () => apiFetch<ApiResponse<NotificationChannel[]>>('/v1/notifications/channels'),
   createNotificationChannel: (payload: CreateNotificationChannelRequest) =>
     apiFetch<ApiResponse<NotificationChannel>>('/v1/notifications/channels', {

@@ -1,5 +1,19 @@
 import { http, HttpResponse } from "msw";
-import type { AgentlessCheck, AlertEvent, AlertRule, ApiMetric, ApiNode, Monitor, MonitorType, NotificationChannel, OverviewStats, PublicStatusSettings } from "../../src/api/types";
+import type {
+  AgentlessCheck,
+  AlertEvent,
+  AlertRule,
+  ApiMetric,
+  ApiNode,
+  Monitor,
+  MonitorType,
+  NotificationChannel,
+  OverviewStats,
+  PublicStatusSettings,
+  StatisticsLeaderboards,
+  StatisticsSummary,
+  StatisticsTrends,
+} from "../../src/api/types";
 
 interface MockAuthState {
   readonly authenticated: boolean;
@@ -18,6 +32,11 @@ interface MockApiState {
   readonly alertEvents: ReadonlyArray<AlertEvent>;
   readonly agentlessChecks: ReadonlyArray<AgentlessCheck>;
   readonly overview: OverviewStats;
+  readonly statistics: {
+    readonly summary: StatisticsSummary;
+    readonly leaderboards: StatisticsLeaderboards;
+    readonly trends: StatisticsTrends;
+  };
   readonly metricsByNode: Readonly<Record<string, ReadonlyArray<ApiMetric>>>;
   readonly publicStatus: PublicStatusSettings;
   readonly failSettingsUpdate: boolean;
@@ -178,6 +197,71 @@ function createOverview(): OverviewStats {
   };
 }
 
+function createStatistics(): MockApiState["statistics"] {
+  const now = Math.floor(Date.now() / 1000);
+  const source = {
+    backend_id: "default",
+    backend_label: "Default backend",
+    backend_type: "cloudflare_worker" as const,
+  };
+
+  return {
+    summary: {
+      ...source,
+      range: "7d",
+      generated_at: now,
+      total_monitors: 2,
+      online_monitors: 1,
+      incident_count: 3,
+      total_downtime_sec: 5400,
+      avg_latency_ms: 181,
+      uptime_ratio: 98.75,
+    },
+    leaderboards: {
+      ...source,
+      range: "7d",
+      generated_at: now,
+      downtime: [{
+        monitor_id: "monitor-http-1",
+        monitor_name: "Homepage",
+        monitor_type: "http",
+        value: 5400,
+        label: "1h 30m",
+        sample_count: 24,
+      }],
+      slowest: [{
+        monitor_id: "monitor-http-1",
+        monitor_name: "Homepage",
+        monitor_type: "http",
+        value: 640,
+        label: "640ms",
+        sample_count: 24,
+      }],
+      resource_heavy: [{
+        monitor_id: "monitor-agent-1",
+        monitor_name: "edge-sfo-1",
+        monitor_type: "agent",
+        value: 78,
+        label: "78%",
+        sample_count: 12,
+      }],
+    },
+    trends: {
+      ...source,
+      range: "7d",
+      generated_at: now,
+      availability: [
+        { date: "2026-05-20", uptime_ratio: 100, down_count: 0, check_count: 24 },
+        { date: "2026-05-21", uptime_ratio: 95.83, down_count: 1, check_count: 24 },
+      ],
+      system_load: [
+        { time: new Date((now - 3600) * 1000).toISOString(), cpu_percent: 24, mem_percent: 58, sample_count: 1 },
+        { time: new Date(now * 1000).toISOString(), cpu_percent: 31, mem_percent: 62, sample_count: 1 },
+      ],
+    },
+  };
+}
+
 function createMetricsByNode(): Readonly<Record<string, ReadonlyArray<ApiMetric>>> {
   const now = Math.floor(Date.now() / 1000);
 
@@ -222,6 +306,7 @@ function createMockState(): MockApiState {
     alertEvents: createMockAlertEvents(),
     agentlessChecks: [],
     overview: createOverview(),
+    statistics: createStatistics(),
     metricsByNode: createMetricsByNode(),
     publicStatus: {
       enabled: true,
@@ -283,6 +368,16 @@ export function setMockOverview(overview: OverviewStats): void {
   mockApiState = {
     ...mockApiState,
     overview,
+  };
+}
+
+export function setMockStatistics(statistics: Partial<MockApiState["statistics"]>): void {
+  mockApiState = {
+    ...mockApiState,
+    statistics: {
+      ...mockApiState.statistics,
+      ...statistics,
+    },
   };
 }
 
@@ -435,6 +530,15 @@ export const handlers = [
   }),
   http.get("/api/v1/alerts/history", () => {
     return HttpResponse.json({ data: mockApiState.alertEvents });
+  }),
+  http.get("/api/v1/statistics/summary", () => {
+    return HttpResponse.json({ data: mockApiState.statistics.summary });
+  }),
+  http.get("/api/v1/statistics/leaderboards", () => {
+    return HttpResponse.json({ data: mockApiState.statistics.leaderboards });
+  }),
+  http.get("/api/v1/statistics/trends", () => {
+    return HttpResponse.json({ data: mockApiState.statistics.trends });
   }),
   http.get("/api/v1/notifications/channels", () => {
     return HttpResponse.json({ data: mockApiState.notificationChannels });

@@ -181,13 +181,54 @@ export interface CreateNotificationChannelRequest {
 export type UpdateNotificationChannelRequest = Partial<Omit<CreateNotificationChannelRequest, 'type'>>;
 
 export interface StatisticsSummary extends BackendSource {
-  readonly range: '24h' | '7d' | '30d' | 'custom';
+  readonly range: StatisticsRange;
   readonly generated_at: number;
   readonly total_monitors: number;
   readonly online_monitors: number;
   readonly incident_count: number;
+  readonly total_downtime_sec: number;
   readonly avg_latency_ms: number | null;
   readonly uptime_ratio: number | null;
+}
+
+export type StatisticsRange = '24h' | '7d' | '30d';
+
+export interface StatisticsLeaderboardEntry {
+  readonly monitor_id: string;
+  readonly monitor_name: string;
+  readonly monitor_type: MonitorType;
+  readonly value: number;
+  readonly label: string;
+  readonly sample_count: number;
+}
+
+export interface StatisticsLeaderboards extends BackendSource {
+  readonly range: StatisticsRange;
+  readonly generated_at: number;
+  readonly downtime: ReadonlyArray<StatisticsLeaderboardEntry>;
+  readonly slowest: ReadonlyArray<StatisticsLeaderboardEntry>;
+  readonly resource_heavy: ReadonlyArray<StatisticsLeaderboardEntry>;
+}
+
+export interface AvailabilityTrendPoint {
+  readonly date: string;
+  readonly uptime_ratio: number | null;
+  readonly down_count: number;
+  readonly check_count: number;
+}
+
+export interface SystemLoadTrendPoint {
+  readonly time: string;
+  readonly cpu_percent: number | null;
+  readonly mem_percent: number | null;
+  readonly sample_count: number;
+}
+
+export interface StatisticsTrends extends BackendSource {
+  readonly range: StatisticsRange;
+  readonly generated_at: number;
+  readonly availability: ReadonlyArray<AvailabilityTrendPoint>;
+  readonly system_load: ReadonlyArray<SystemLoadTrendPoint>;
 }
 
 export interface StructuredApiError {
