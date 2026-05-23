@@ -170,6 +170,24 @@ export const notificationChannelSchema = backendSourceSchema.extend({
   updated_at: z.number().int().nonnegative(),
 }).strict();
 
+export const notificationChannelTypeSchema = z.enum(["webhook", "telegram", "email"]);
+
+export const createNotificationChannelSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  type: notificationChannelTypeSchema,
+  enabled: z.boolean().optional().default(true),
+  config: z.record(z.string(), z.unknown()).optional().default({}),
+}).strict();
+
+export const updateNotificationChannelSchema = z.object({
+  name: z.string().trim().min(1).max(120).optional(),
+  enabled: z.boolean().optional(),
+  config: z.record(z.string(), z.unknown()).optional(),
+}).strict().refine(
+  (value) => Object.keys(value).length > 0,
+  "At least one field is required",
+);
+
 export const statisticsSummarySchema = backendSourceSchema.extend({
   range: z.enum(["24h", "7d", "30d", "custom"]),
   generated_at: z.number().int().nonnegative(),
@@ -212,5 +230,8 @@ export type AlertEvent = z.infer<typeof alertEventSchema>;
 export type CreateAlertRuleInput = z.infer<typeof createAlertRuleSchema>;
 export type UpdateAlertRuleInput = z.infer<typeof updateAlertRuleSchema>;
 export type NotificationChannel = z.infer<typeof notificationChannelSchema>;
+export type NotificationChannelType = z.infer<typeof notificationChannelTypeSchema>;
+export type CreateNotificationChannelInput = z.infer<typeof createNotificationChannelSchema>;
+export type UpdateNotificationChannelInput = z.infer<typeof updateNotificationChannelSchema>;
 export type StatisticsSummary = z.infer<typeof statisticsSummarySchema>;
 export type StructuredError = z.infer<typeof structuredErrorSchema>;

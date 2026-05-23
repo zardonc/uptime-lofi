@@ -1,4 +1,5 @@
 import type { MonitorStatus } from "../schemas/v2";
+import { dispatchAlertEvent } from "./notificationDispatcher";
 
 export type AlertCondition = "offline" | "latency" | "http_status" | "cpu" | "memory";
 type AlertSeverity = "info" | "warning" | "critical";
@@ -11,6 +12,7 @@ type AlertRuleRow = {
   monitor_id: string;
   condition: AlertCondition;
   params_json: string;
+  channel_ids_json: string;
   severity: AlertSeverity;
   confirm_for_sec: number;
   repeat_interval_sec: number;
@@ -42,12 +44,17 @@ type LatestRow = {
   last_detail_json: string | null;
 };
 
-export async function evaluateAlerts(db: D1Database, monitorId: string, nowSeconds: number): Promise<number> {
+export async function evaluateAlerts(
+  db: D1Database,
+  monitorId: string,
+  nowSeconds: number,
+  options: { readonly fetchImpl?: typeof fetch } = {},
+): Promise<number> {
   const latest = await getLatest(db, monitorId);
   if (!latest) return 0;
 
   const { results } = await db.prepare(
-    `SELECT id, name, monitor_id, condition, params_json, severity, confirm_for_sec,
+    `SELECT id, name, monitor_id, condition, params_json, channel_ids_json, severity, confirm_for_sec,
             repeat_interval_sec, silent_hours_json, timezone
      FROM alert_rules
      WHERE archived_at IS NULL AND enabled = 1 AND monitor_id = ?
@@ -56,19 +63,25 @@ export async function evaluateAlerts(db: D1Database, monitorId: string, nowSecon
 
   let events = 0;
   for (const rule of results) {
-    events += await evaluateRule(db, rule, latest, nowSeconds);
+    events += await evaluateRule(db, rule, latest, nowSeconds, options);
   }
   return events;
 }
 
-async function evaluateRule(db: D1Database, rule: AlertRuleRow, latest: LatestRow, nowSeconds: number): Promise<number> {
+async function evaluateRule(
+  db: D1Database,
+  rule: AlertRuleRow,
+  latest: LatestRow,
+  nowSeconds: number,
+  options: { readonly fetchImpl?: typeof fetch },
+): Promise<number> {
   const state = await getState(db, rule.id);
   const active = isConditionActive(rule, latest);
   const incidentKey = `${rule.id}:${rule.monitor_id}:${rule.condition}`;
 
   if (!active.matched) {
     if (state && ["pending", "firing", "suppressed"].includes(state.state)) {
-      await writeEvent(db, rule, latest, "recovered", incidentKey, nowSeconds, "not_required", active.message);
+      await writeEvent(db, rule, latest, "recovered", incidentKey, nowSeconds, "pending", active.message, options);
       await upsertState(db, {
         rule_id: rule.id,
         monitor_id: rule.monitor_id,
@@ -102,7 +115,7 @@ async function evaluateRule(db: D1Database, rule: AlertRuleRow, latest: LatestRo
 
   if (!confirmed) {
     if (state?.state !== "pending") {
-      await writeEvent(db, rule, latest, "pending", incidentKey, nowSeconds, "not_required", active.message);
+      await writeEvent(db, rule, latest, "pending", incidentKey, nowSeconds, "not_required", active.message, options);
     }
     await upsertState(db, {
       rule_id: rule.id,
@@ -135,7 +148,7 @@ async function evaluateRule(db: D1Database, rule: AlertRuleRow, latest: LatestRo
 
   const suppressed = isInSilentHours(rule, nowSeconds);
   const eventType: AlertEventType = suppressed ? "suppressed" : "firing";
-  await writeEvent(db, rule, latest, eventType, incidentKey, nowSeconds, suppressed ? "suppressed" : "pending", active.message);
+  await writeEvent(db, rule, latest, eventType, incidentKey, nowSeconds, suppressed ? "suppressed" : "pending", active.message, options);
   await upsertState(db, {
     rule_id: rule.id,
     monitor_id: rule.monitor_id,
@@ -254,14 +267,16 @@ async function writeEvent(
   nowSeconds: number,
   notificationStatus: "pending" | "suppressed" | "not_required",
   message: string,
+  options: { readonly fetchImpl?: typeof fetch },
 ) {
+  const eventId = `alert_evt_${nowSeconds}_${crypto.randomUUID()}`;
   await db.prepare(
     `INSERT INTO alert_events (
        id, rule_id, monitor_id, event_type, severity, message, dedupe_key,
        notification_status, created_at, detail_json
      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).bind(
-    `alert_evt_${nowSeconds}_${crypto.randomUUID()}`,
+    eventId,
     rule.id,
     rule.monitor_id,
     eventType,
@@ -275,6 +290,14 @@ async function writeEvent(
       condition: rule.condition,
     }),
   ).run();
+
+  if (notificationStatus === "pending") {
+    try {
+      await dispatchAlertEvent(db, eventId, options);
+    } catch (error) {
+      console.error("Alert notification dispatch failed:", error instanceof Error ? error.message : String(error));
+    }
+  }
 }
 
 async function upsertState(db: D1Database, state: AlertStateRow, nowSeconds: number) {

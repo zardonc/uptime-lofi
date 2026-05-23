@@ -20,12 +20,15 @@ import type {
   AlertEvent,
   AlertRule,
   CreateAlertRuleRequest,
+  CreateNotificationChannelRequest,
   Monitor,
+  NotificationChannel,
   PublicStatusResponse,
   PublicStatusSettings,
   SettingsResponse,
   UpdateAlertRuleRequest,
   UpdateMonitorRequest,
+  UpdateNotificationChannelRequest,
 } from './types';
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
@@ -241,6 +244,25 @@ export const api = {
       method: 'DELETE',
     }),
   getAlertHistory: () => apiFetch<ApiResponse<AlertEvent[]>>('/v1/alerts/history'),
+  getNotificationChannels: () => apiFetch<ApiResponse<NotificationChannel[]>>('/v1/notifications/channels'),
+  createNotificationChannel: (payload: CreateNotificationChannelRequest) =>
+    apiFetch<ApiResponse<NotificationChannel>>('/v1/notifications/channels', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  updateNotificationChannel: (id: string, payload: UpdateNotificationChannelRequest) =>
+    apiFetch<ApiResponse<NotificationChannel>>(`/v1/notifications/channels/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }),
+  deleteNotificationChannel: (id: string) =>
+    apiFetch<ApiResponse<NotificationChannel>>(`/v1/notifications/channels/${id}`, {
+      method: 'DELETE',
+    }),
+  testNotificationChannel: (id: string) =>
+    apiFetch<ApiResponse<NotificationChannel>>(`/v1/notifications/channels/${id}/test`, {
+      method: 'POST',
+    }),
   createHttpCheck: (payload: CreateHttpCheckRequest) =>
     apiFetch<ApiResponse<AgentlessCheck>>('/agentless/http', {
       method: 'POST',

@@ -45,6 +45,7 @@ describe("Alerts page", () => {
     expect(screen.getByRole("tab", { name: /Rules/ })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /History/ })).toBeInTheDocument();
     expect(await screen.findByRole("article", { name: "Homepage offline alert rule" })).toBeInTheDocument();
+    expect(screen.getByText("Ops webhook")).toBeInTheDocument();
 
     await user.click(screen.getByRole("tab", { name: /History/ }));
     expect(await screen.findByRole("table")).toHaveTextContent("Homepage");
@@ -72,5 +73,18 @@ describe("Alerts page", () => {
     const advanced = within(form).getByText("Advanced options").closest("details");
 
     expect(advanced).not.toHaveAttribute("open");
+  });
+
+  it("offers enabled Webhook and Telegram channels and keeps Email unavailable", async () => {
+    const user = await openAlertsPage();
+
+    await user.click(screen.getByRole("button", { name: "New Rule" }));
+    const form = await screen.findByRole("form", { name: "Alert rule form" });
+
+    expect(within(form).getByLabelText(/ops webhook/i)).toBeInTheDocument();
+    expect(within(form).getByLabelText(/sre telegram/i)).toBeInTheDocument();
+    expect(within(form).getByText(/email/i)).toBeInTheDocument();
+    expect(within(form).getByText(/coming soon/i)).toBeInTheDocument();
+    expect(within(form).getByLabelText(/email/i)).toBeDisabled();
   });
 });

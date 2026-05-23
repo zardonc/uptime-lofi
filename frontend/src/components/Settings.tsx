@@ -3,10 +3,10 @@ import type { FormEvent } from 'react';
 import { useForm } from 'react-hook-form';
 import type { UseFormRegisterReturn } from 'react-hook-form';
 import { api } from '../api/client';
-import type { Monitor, PublicStatusSettings } from '../api/types';
+import type { CreateNotificationChannelRequest, Monitor, NotificationChannel, PublicStatusSettings } from '../api/types';
 import { useAuth } from '../hooks/useAuth';
 import { ProbeSetup } from './ProbeSetup';
-import { Eye, EyeOff, KeyRound, Loader2, Shield, ShieldAlert } from 'lucide-react';
+import { Bell, Eye, EyeOff, KeyRound, Link, Loader2, Mail, Send, Shield, ShieldAlert, Trash2 } from 'lucide-react';
 
 type SettingsFormData = {
   uiLockEnabled: boolean;
@@ -30,8 +30,12 @@ export function Settings() {
   const [error, setError] = useState<string | null>(null);
   const [securitySuccess, setSecuritySuccess] = useState(false);
   const [publicSuccess, setPublicSuccess] = useState(false);
+  const [channelSuccess, setChannelSuccess] = useState(false);
   const [publicStatus, setPublicStatus] = useState<PublicStatusSettings>(defaultPublicStatus);
   const [monitors, setMonitors] = useState<ReadonlyArray<Monitor>>([]);
+  const [notificationChannels, setNotificationChannels] = useState<ReadonlyArray<NotificationChannel>>([]);
+  const [savingChannel, setSavingChannel] = useState(false);
+  const [channelType, setChannelType] = useState<NotificationChannel['type']>('webhook');
 
   const {
     register,
@@ -49,11 +53,12 @@ export function Settings() {
   const uiLockEnabled = watch('uiLockEnabled');
 
   useEffect(() => {
-    Promise.all([api.getSettings(), api.getMonitors()])
-      .then(([settings, monitorResponse]) => {
+    Promise.all([api.getSettings(), api.getMonitors(), api.getNotificationChannels()])
+      .then(([settings, monitorResponse, channelResponse]) => {
         setValue('uiLockEnabled', settings.data.is_ui_lock_enabled);
         setPublicStatus(settings.data.public_status);
         setMonitors(monitorResponse.data);
+        setNotificationChannels(channelResponse.data);
       })
       .catch((err) => {
         setError(err instanceof Error ? err.message : 'Failed to load settings');
@@ -122,6 +127,41 @@ export function Settings() {
     } finally {
       setSavingPublic(false);
     }
+  };
+
+  const onChannelSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const data = new FormData(form);
+    const submittedType = String(data.get('type') ?? channelType) as NotificationChannel['type'];
+    const payload = buildChannelPayload(submittedType, data);
+
+    setSavingChannel(true);
+    setError(null);
+    setChannelSuccess(false);
+    try {
+      const response = await api.createNotificationChannel(payload);
+      setNotificationChannels((current) => [response.data, ...current]);
+      setChannelSuccess(true);
+      form.reset();
+      setChannelType('webhook');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save notification channel');
+    } finally {
+      setSavingChannel(false);
+    }
+  };
+
+  const testChannel = async (channel: NotificationChannel) => {
+    setError(null);
+    const response = await api.testNotificationChannel(channel.id);
+    setNotificationChannels((current) => current.map((item) => item.id === channel.id ? response.data : item));
+  };
+
+  const deleteChannel = async (channel: NotificationChannel) => {
+    setError(null);
+    await api.deleteNotificationChannel(channel.id);
+    setNotificationChannels((current) => current.filter((item) => item.id !== channel.id));
   };
 
   if (loadingInitial) {
@@ -250,12 +290,115 @@ export function Settings() {
         </form>
       </section>
 
+      <section className="card settings-panel animate-in delay-2" aria-labelledby="settings-notifications-title">
+        <div className="settings-panel__heading">
+          <Bell size={20} />
+          <div>
+            <h2 id="settings-notifications-title" className="section-title">Notification Channels</h2>
+            <p>Configure server-side delivery targets for alert rules.</p>
+          </div>
+        </div>
+
+        <div className="settings-form notification-settings">
+          <div className="notification-channel-list" aria-label="Notification channels">
+            {notificationChannels.length === 0 ? (
+              <p className="settings-form__hint">No notification channels yet.</p>
+            ) : notificationChannels.map((channel) => (
+              <div className="notification-channel-row" key={channel.id}>
+                <span className="notification-channel-row__icon">{channelIcon(channel.type)}</span>
+                <div>
+                  <strong>{channel.name}</strong>
+                  <span>{channel.type} · {channel.redacted_label ?? 'No endpoint summary'} · {channel.delivery_status}</span>
+                </div>
+                <div className="notification-channel-row__actions">
+                  <button type="button" className="node-action" onClick={() => void testChannel(channel)} disabled={channel.type === 'email' || !channel.enabled}>Test</button>
+                  <button type="button" className="node-action" disabled>Edit</button>
+                  <button type="button" className="node-action node-action--icon node-action--danger" aria-label={`Delete ${channel.name}`} onClick={() => void deleteChannel(channel)}>
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </div>
+            ))}
+
+            <div className="notification-channel-row notification-channel-row--reserved">
+              <span className="notification-channel-row__icon"><Mail size={16} /></span>
+              <div>
+                <strong>Email</strong>
+                <span>Coming soon · reserved for a future phase</span>
+              </div>
+              <button type="button" className="node-action" disabled>Configure</button>
+            </div>
+          </div>
+
+          <form className="notification-channel-form" aria-label="Notification channel form" onSubmit={onChannelSubmit}>
+            <label>Type
+              <select name="type" value={channelType} onChange={(event) => setChannelType(event.target.value as NotificationChannel['type'])}>
+                <option value="webhook">Webhook</option>
+                <option value="telegram">Telegram</option>
+                <option value="email" disabled>Email (coming soon)</option>
+              </select>
+            </label>
+            <label>Name<input name="name" placeholder={channelType === 'telegram' ? 'SRE Telegram' : 'Ops webhook'} required /></label>
+            {channelType === 'webhook' ? (
+              <>
+                <label>Webhook URL<input name="url" type="url" placeholder="https://hooks.example.com/alerts" required /></label>
+                <label>Secret header name<input name="header_name" placeholder="x-alert-secret" /></label>
+                <label>Secret header value<input name="header_value" type="password" placeholder="Stored server-side" /></label>
+              </>
+            ) : (
+              <>
+                <label>Telegram bot token<input name="bot_token" type="password" placeholder="123456:token" required /></label>
+                <label>Telegram chat ID<input name="chat_id" placeholder="-1001234567890" required /></label>
+              </>
+            )}
+            {channelSuccess && <div className="settings-form__success">Notification channel saved.</div>}
+            <div className="settings-form__actions">
+              <button type="submit" className="page-header__primary" disabled={savingChannel}>
+                {savingChannel ? <Loader2 className="spin-icon" size={16} /> : null}
+                Add Channel
+              </button>
+            </div>
+          </form>
+        </div>
+      </section>
+
       <section className="card animate-in delay-2">
         <h2 className="section-title">Probe Installation</h2>
         <ProbeSetup />
       </section>
     </div>
   );
+}
+
+function buildChannelPayload(type: NotificationChannel['type'], data: FormData): CreateNotificationChannelRequest {
+  const name = String(data.get('name') ?? '').trim();
+  if (type === 'webhook') {
+    const headerName = String(data.get('header_name') ?? '').trim();
+    const headerValue = String(data.get('header_value') ?? '').trim();
+    return {
+      name,
+      type,
+      config: {
+        url: String(data.get('url') ?? '').trim(),
+        headers: headerName && headerValue ? { [headerName]: headerValue } : {},
+      },
+    };
+  }
+
+  return {
+    name,
+    type: 'telegram',
+    config: {
+      bot_token: String(data.get('bot_token') ?? '').trim(),
+      chat_id: String(data.get('chat_id') ?? '').trim(),
+    },
+  };
+}
+
+function channelIcon(type: NotificationChannel['type']) {
+  if (type === 'telegram') return <Send size={16} />;
+  if (type === 'webhook') return <Link size={16} />;
+  return <Mail size={16} />;
 }
 
 function ToggleInput({ id, label, checked, register }: {

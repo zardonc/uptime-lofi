@@ -171,6 +171,15 @@ export interface NotificationChannel extends BackendSource {
   readonly updated_at: number;
 }
 
+export interface CreateNotificationChannelRequest {
+  readonly name: string;
+  readonly type: NotificationChannel['type'];
+  readonly enabled?: boolean;
+  readonly config: Record<string, unknown>;
+}
+
+export type UpdateNotificationChannelRequest = Partial<Omit<CreateNotificationChannelRequest, 'type'>>;
+
 export interface StatisticsSummary extends BackendSource {
   readonly range: '24h' | '7d' | '30d' | 'custom';
   readonly generated_at: number;

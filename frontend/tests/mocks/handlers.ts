@@ -1,5 +1,5 @@
 import { http, HttpResponse } from "msw";
-import type { AgentlessCheck, AlertEvent, AlertRule, ApiMetric, ApiNode, Monitor, MonitorType, OverviewStats, PublicStatusSettings } from "../../src/api/types";
+import type { AgentlessCheck, AlertEvent, AlertRule, ApiMetric, ApiNode, Monitor, MonitorType, NotificationChannel, OverviewStats, PublicStatusSettings } from "../../src/api/types";
 
 interface MockAuthState {
   readonly authenticated: boolean;
@@ -13,6 +13,7 @@ interface MockApiState {
   readonly auth: MockAuthState;
   readonly nodes: ReadonlyArray<ApiNode>;
   readonly monitors: ReadonlyArray<Monitor>;
+  readonly notificationChannels: ReadonlyArray<NotificationChannel>;
   readonly alertRules: ReadonlyArray<AlertRule>;
   readonly alertEvents: ReadonlyArray<AlertEvent>;
   readonly agentlessChecks: ReadonlyArray<AgentlessCheck>;
@@ -105,7 +106,7 @@ function createMockAlertRules(): ReadonlyArray<AlertRule> {
     monitor_id: "monitor-http-1",
     condition: "offline",
     params: {},
-    channel_ids: ["plan-07-placeholder"],
+    channel_ids: ["channel-webhook-1"],
     enabled: true,
     severity: "critical",
     confirm_for_sec: 60,
@@ -115,6 +116,38 @@ function createMockAlertRules(): ReadonlyArray<AlertRule> {
     created_at: now - 600,
     updated_at: now - 120,
   }];
+}
+
+function createMockNotificationChannels(): ReadonlyArray<NotificationChannel> {
+  const now = Math.floor(Date.now() / 1000);
+  return [
+    {
+      id: "channel-webhook-1",
+      backend_id: "default",
+      backend_label: "Default backend",
+      backend_type: "cloudflare_worker",
+      name: "Ops webhook",
+      type: "webhook",
+      enabled: true,
+      has_secret: true,
+      redacted_label: "https://hooks.example.test/alerts",
+      delivery_status: "ok",
+      updated_at: now - 120,
+    },
+    {
+      id: "channel-telegram-1",
+      backend_id: "default",
+      backend_label: "Default backend",
+      backend_type: "cloudflare_worker",
+      name: "SRE Telegram",
+      type: "telegram",
+      enabled: true,
+      has_secret: true,
+      redacted_label: "chat ****7890",
+      delivery_status: "untested",
+      updated_at: now - 60,
+    },
+  ];
 }
 
 function createMockAlertEvents(): ReadonlyArray<AlertEvent> {
@@ -184,6 +217,7 @@ function createMockState(): MockApiState {
     },
     nodes: createMockNodes(),
     monitors: createMockMonitors(),
+    notificationChannels: createMockNotificationChannels(),
     alertRules: createMockAlertRules(),
     alertEvents: createMockAlertEvents(),
     agentlessChecks: [],
@@ -235,6 +269,13 @@ export function setMockAlertRules(alertRules: ReadonlyArray<AlertRule>): void {
   mockApiState = {
     ...mockApiState,
     alertRules,
+  };
+}
+
+export function setMockNotificationChannels(notificationChannels: ReadonlyArray<NotificationChannel>): void {
+  mockApiState = {
+    ...mockApiState,
+    notificationChannels,
   };
 }
 
@@ -351,7 +392,7 @@ export const handlers = [
       monitor_id: body.monitor_id ?? "monitor-http-1",
       condition: body.condition ?? "offline",
       params: body.params ?? {},
-      channel_ids: body.channel_ids ?? ["plan-07-placeholder"],
+      channel_ids: body.channel_ids ?? ["channel-webhook-1"],
       enabled: body.enabled ?? true,
       severity: body.severity ?? "warning",
       confirm_for_sec: body.confirm_for_sec ?? 0,
@@ -394,6 +435,58 @@ export const handlers = [
   }),
   http.get("/api/v1/alerts/history", () => {
     return HttpResponse.json({ data: mockApiState.alertEvents });
+  }),
+  http.get("/api/v1/notifications/channels", () => {
+    return HttpResponse.json({ data: mockApiState.notificationChannels });
+  }),
+  http.post("/api/v1/notifications/channels", async ({ request }) => {
+    const body = (await request.json()) as {
+      name?: string;
+      type?: NotificationChannel["type"];
+      enabled?: boolean;
+      config?: Record<string, unknown>;
+    };
+    const now = Math.floor(Date.now() / 1000);
+    const channel: NotificationChannel = {
+      id: `channel-${body.type ?? "webhook"}-${mockApiState.notificationChannels.length + 1}`,
+      backend_id: "default",
+      backend_label: "Default backend",
+      backend_type: "cloudflare_worker",
+      name: body.name ?? "Notification channel",
+      type: body.type ?? "webhook",
+      enabled: body.type === "email" ? false : body.enabled ?? true,
+      has_secret: body.type === "telegram" || Object.keys((body.config?.headers as Record<string, string> | undefined) ?? {}).length > 0,
+      redacted_label: body.type === "telegram"
+        ? "chat ****7890"
+        : body.type === "email"
+          ? "Coming soon"
+          : String(body.config?.url ?? "https://hooks.example.test/alerts"),
+      delivery_status: body.type === "email" ? "disabled" : "untested",
+      updated_at: now,
+    };
+    mockApiState = { ...mockApiState, notificationChannels: [channel, ...mockApiState.notificationChannels] };
+    return HttpResponse.json({ data: channel });
+  }),
+  http.put("/api/v1/notifications/channels/:channelId", async ({ params, request }) => {
+    const channelId = typeof params.channelId === "string" ? params.channelId : "";
+    const body = (await request.json()) as Partial<NotificationChannel>;
+    const channels = mockApiState.notificationChannels.map((channel) => channel.id === channelId ? { ...channel, ...body } : channel);
+    const updated = channels.find((channel) => channel.id === channelId);
+    mockApiState = { ...mockApiState, notificationChannels: channels };
+    return updated ? HttpResponse.json({ data: updated }) : HttpResponse.json({ error: "Channel not found" }, { status: 404 });
+  }),
+  http.post("/api/v1/notifications/channels/:channelId/test", ({ params }) => {
+    const channelId = typeof params.channelId === "string" ? params.channelId : "";
+    const channels = mockApiState.notificationChannels.map((channel) => channel.id === channelId ? { ...channel, delivery_status: "ok" as const } : channel);
+    const updated = channels.find((channel) => channel.id === channelId);
+    mockApiState = { ...mockApiState, notificationChannels: channels };
+    return updated ? HttpResponse.json({ data: updated }) : HttpResponse.json({ error: "Channel not found" }, { status: 404 });
+  }),
+  http.delete("/api/v1/notifications/channels/:channelId", ({ params }) => {
+    const channelId = typeof params.channelId === "string" ? params.channelId : "";
+    const channel = mockApiState.notificationChannels.find((item) => item.id === channelId);
+    mockApiState = { ...mockApiState, notificationChannels: mockApiState.notificationChannels.filter((item) => item.id !== channelId) };
+    return channel ? HttpResponse.json({ data: { ...channel, enabled: false, delivery_status: "disabled" } }) : HttpResponse.json({ error: "Channel not found" }, { status: 404 });
   }),
   http.get("/api/public/status", () => {
     if (!mockApiState.publicStatus.enabled) {

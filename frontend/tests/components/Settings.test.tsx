@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -89,6 +89,46 @@ describe("Settings", () => {
     expect(screen.getByLabelText(/latency/i)).toBeInTheDocument();
     expect(screen.getByText("edge-sfo-1")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /save public status/i })).toBeInTheDocument();
+  });
+
+  it("adds Webhook channels without displaying saved secret headers", async () => {
+    const user = userEvent.setup();
+    setMockAuthState({ isUiLockEnabled: false, authenticated: true });
+    renderWithAuth(<Settings />);
+
+    expect(await screen.findByRole("heading", { name: /notification channels/i })).toBeInTheDocument();
+    const form = screen.getByRole("form", { name: /notification channel form/i });
+
+    await user.type(within(form).getByLabelText("Name"), "Pager webhook");
+    await user.type(within(form).getByLabelText(/webhook url/i), "https://hooks.example.test/pager");
+    await user.type(within(form).getByLabelText(/secret header name/i), "x-alert-secret");
+    await user.type(within(form).getByLabelText(/secret header value/i), "super-secret-header");
+    await user.click(within(form).getByRole("button", { name: /add channel/i }));
+
+    expect(await screen.findByText("Pager webhook")).toBeInTheDocument();
+    expect(screen.getByText(/https:\/\/hooks\.example\.test\/pager/i)).toBeInTheDocument();
+    expect(screen.queryByText("super-secret-header")).not.toBeInTheDocument();
+    expect(screen.getAllByText(/email/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/coming soon/i).length).toBeGreaterThan(0);
+  });
+
+  it("adds Telegram channels without displaying saved bot tokens", async () => {
+    const user = userEvent.setup();
+    setMockAuthState({ isUiLockEnabled: false, authenticated: true });
+    renderWithAuth(<Settings />);
+
+    expect(await screen.findByRole("heading", { name: /notification channels/i })).toBeInTheDocument();
+    const form = screen.getByRole("form", { name: /notification channel form/i });
+
+    await user.selectOptions(within(form).getByLabelText("Type"), "telegram");
+    await user.type(within(form).getByLabelText("Name"), "Pager Telegram");
+    await user.type(within(form).getByLabelText(/telegram bot token/i), "123456:telegram-secret");
+    await user.type(within(form).getByLabelText(/telegram chat id/i), "-1001234567890");
+    await user.click(within(form).getByRole("button", { name: /add channel/i }));
+
+    expect(await screen.findByText("Pager Telegram")).toBeInTheDocument();
+    expect(screen.getAllByText(/chat \*\*\*\*7890/i).length).toBeGreaterThan(0);
+    expect(screen.queryByText("telegram-secret")).not.toBeInTheDocument();
   });
 
   it("generates probe installation config", async () => {

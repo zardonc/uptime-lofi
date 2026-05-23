@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Bell, History, Plus, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { api, ApiClientError } from '../api/client';
-import type { AlertCondition, AlertEvent, AlertRule, Monitor } from '../api/types';
+import type { AlertCondition, AlertEvent, AlertRule, Monitor, NotificationChannel } from '../api/types';
 import { ErrorBanner } from './ErrorBanner';
 
 type AlertsTab = 'rules' | 'history';
@@ -20,6 +20,7 @@ export function AlertsPage() {
   const [rules, setRules] = useState<ReadonlyArray<AlertRule>>([]);
   const [history, setHistory] = useState<ReadonlyArray<AlertEvent>>([]);
   const [monitors, setMonitors] = useState<ReadonlyArray<Monitor>>([]);
+  const [channels, setChannels] = useState<ReadonlyArray<NotificationChannel>>([]);
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -27,14 +28,16 @@ export function AlertsPage() {
   const loadAlerts = async () => {
     try {
       setError(null);
-      const [rulesResponse, historyResponse, monitorsResponse] = await Promise.all([
+      const [rulesResponse, historyResponse, monitorsResponse, channelsResponse] = await Promise.all([
         api.getAlertRules(),
         api.getAlertHistory(),
         api.getMonitors(),
+        api.getNotificationChannels(),
       ]);
       setRules(rulesResponse.data);
       setHistory(historyResponse.data);
       setMonitors(monitorsResponse.data);
+      setChannels(channelsResponse.data);
     } catch (loadError) {
       setError(loadError instanceof ApiClientError ? loadError.message : 'Could not load alerts.');
     }
@@ -59,7 +62,7 @@ export function AlertsPage() {
         condition,
         severity: String(formData.get('severity') ?? 'warning') as AlertRule['severity'],
         params: paramsForCondition(condition, formData),
-        channel_ids: ['plan-07-placeholder'],
+        channel_ids: formData.getAll('channel_ids').map(String).filter(Boolean),
         confirm_for_sec: Number(formData.get('confirm_for_sec') ?? 0),
         repeat_interval_sec: Number(formData.get('repeat_interval_sec') ?? 3600),
         timezone: String(formData.get('timezone') ?? 'UTC'),
@@ -109,8 +112,8 @@ export function AlertsPage() {
 
       {activeTab === 'rules' ? (
         <>
-          {showForm && <AlertRuleForm monitors={monitors} disabled={saving} onSubmit={handleCreate} />}
-          <AlertRulesList rules={rules} monitors={monitors} onToggle={toggleRule} onDelete={deleteRule} />
+          {showForm && <AlertRuleForm monitors={monitors} channels={channels} disabled={saving} onSubmit={handleCreate} />}
+          <AlertRulesList rules={rules} monitors={monitors} channels={channels} onToggle={toggleRule} onDelete={deleteRule} />
         </>
       ) : (
         <AlertHistory events={history} />
@@ -121,10 +124,12 @@ export function AlertsPage() {
 
 function AlertRuleForm({
   monitors,
+  channels,
   disabled,
   onSubmit,
 }: {
   readonly monitors: ReadonlyArray<Monitor>;
+  readonly channels: ReadonlyArray<NotificationChannel>;
   readonly disabled: boolean;
   readonly onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
@@ -132,6 +137,7 @@ function AlertRuleForm({
   const selectedMonitor = monitors.find((monitor) => monitor.id === monitorId) ?? monitors[0] ?? null;
   const conditions = useMemo(() => selectedMonitor ? conditionsForMonitor(selectedMonitor) : [], [selectedMonitor]);
   const [condition, setCondition] = useState<AlertCondition>(conditions[0] ?? 'offline');
+  const enabledDeliveryChannels = channels.filter((channel) => channel.enabled && (channel.type === 'webhook' || channel.type === 'telegram'));
 
   useEffect(() => {
     const nextMonitorId = monitors[0]?.id ?? '';
@@ -149,7 +155,7 @@ function AlertRuleForm({
       <div className="alerts-rule-form__header">
         <div>
           <h2>Create alert rule</h2>
-          <p>Notification channels are reserved here and wired in the next plan.</p>
+          <p>Choose enabled Webhook or Telegram channels for delivery.</p>
         </div>
       </div>
 
@@ -172,11 +178,23 @@ function AlertRuleForm({
           <option value="critical">Critical</option>
         </select>
       </label>
-      <label>Channel
-        <select name="channel" defaultValue="plan-07-placeholder">
-          <option value="plan-07-placeholder">Notification channel placeholder</option>
-        </select>
-      </label>
+      <fieldset className="alerts-channel-picker">
+        <legend>Notification channels</legend>
+        {enabledDeliveryChannels.length === 0 ? (
+          <p>No enabled Webhook or Telegram channels are configured.</p>
+        ) : enabledDeliveryChannels.map((channel) => (
+          <label key={channel.id}>
+            <input name="channel_ids" type="checkbox" value={channel.id} defaultChecked={enabledDeliveryChannels.length === 1} />
+            <span>{channel.name}</span>
+            <small>{channel.type} · {channel.redacted_label ?? 'redacted'}</small>
+          </label>
+        ))}
+        <label className="alerts-channel-picker__disabled">
+          <input type="checkbox" disabled />
+          <span>Email</span>
+          <small>Coming soon</small>
+        </label>
+      </fieldset>
       <details className="alerts-advanced">
         <summary><SlidersHorizontal size={16} /> Advanced options</summary>
         <div className="alerts-advanced__grid">
@@ -206,11 +224,13 @@ function ConditionFields({ condition }: { readonly condition: AlertCondition }) 
 function AlertRulesList({
   rules,
   monitors,
+  channels,
   onToggle,
   onDelete,
 }: {
   readonly rules: ReadonlyArray<AlertRule>;
   readonly monitors: ReadonlyArray<Monitor>;
+  readonly channels: ReadonlyArray<NotificationChannel>;
   readonly onToggle: (rule: AlertRule) => void;
   readonly onDelete: (rule: AlertRule) => void;
 }) {
@@ -222,6 +242,9 @@ function AlertRulesList({
     <section className="alerts-rules-list" aria-label="Alert rules">
       {rules.map((rule) => {
         const monitor = monitors.find((item) => item.id === rule.monitor_id);
+        const channelNames = rule.channel_ids
+          .map((id) => channels.find((channel) => channel.id === id)?.name ?? id)
+          .join(', ');
         return (
           <article className="alert-rule-card" key={rule.id} aria-label={`${rule.name} alert rule`}>
             <div>
@@ -230,6 +253,7 @@ function AlertRulesList({
             </div>
             <dl>
               <div><dt>Severity</dt><dd>{rule.severity}</dd></div>
+              <div><dt>Channels</dt><dd>{channelNames || 'None'}</dd></div>
               <div><dt>Confirm</dt><dd>{rule.confirm_for_sec}s</dd></div>
               <div><dt>Repeat</dt><dd>{rule.repeat_interval_sec}s</dd></div>
             </dl>
