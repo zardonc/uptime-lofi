@@ -2,7 +2,6 @@ import { useState } from 'react';
 import {
   LayoutDashboard,
   Server,
-  Globe,
   BarChart3,
   Bell,
   Settings,
@@ -20,8 +19,6 @@ export interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { id: 'dashboard',  label: 'Dashboard',  icon: LayoutDashboard },
   { id: 'monitors',   label: 'Monitors',   icon: Server },
-  { id: 'nodes',      label: 'Nodes',      icon: Server },
-  { id: 'agentless',  label: 'Agentless',  icon: Globe },
   { id: 'statistics', label: 'Statistics', icon: BarChart3 },
   { id: 'alerts',     label: 'Alerts',     icon: Bell },
 ];
