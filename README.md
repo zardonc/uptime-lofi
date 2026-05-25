@@ -47,9 +47,11 @@ Add these secrets:
 | `CLOUDFLARE_API_TOKEN` | Yes | The Cloudflare API token from step 2 |
 | `CLOUDFLARE_ACCOUNT_ID` | Yes | Your Cloudflare Account ID |
 | `API_SECRET_KEY` | Yes | A long random master secret for backend/probe auth |
+| `INTERNAL_API_KEY` | Yes | A separate long random secret used only between Pages Functions and the Worker internal API |
+| `PAGES_SESSION_SECRET` | Yes | A long random secret used to sign admin session cookies in Pages Functions |
 | `INITIAL_UI_PASSWORD` | Optional | Initial dashboard password |
 
-Generate `API_SECRET_KEY` with a password manager or another cryptographically random source. Treat it as a production secret.
+Generate `API_SECRET_KEY`, `INTERNAL_API_KEY`, and `PAGES_SESSION_SECRET` with a password manager or another cryptographically random source. Treat all three as production secrets. The deployment summary names these secrets when they are missing, but never prints their values.
 
 ### 4. Run Deploy Self-Hosted
 
@@ -61,16 +63,17 @@ In your forked repo:
 4. Leave the optional inputs blank.
 5. Wait for the workflow to finish.
 
-The workflow creates or reuses Cloudflare resources, runs D1 migrations, deploys the dashboard Worker, deploys the probe Worker, builds the frontend with the deployed API URL, deploys Cloudflare Pages, publishes probe binaries to the current fork's `probe-latest` GitHub Release, then runs smoke validation.
+The workflow creates or reuses Cloudflare resources, runs D1 v2 migrations, deploys the Worker internal backend, deploys the probe Worker, configures Pages Functions secrets, builds the frontend for same-origin Pages APIs, deploys Cloudflare Pages with the `functions/` directory, publishes probe binaries to the current fork's `probe-latest` GitHub Release, then runs smoke validation.
 
-The workflow chooses safe default resource names for you. The KV namespace remains `SESSION_BLACKLIST` and is reused if it already exists.
+The workflow chooses safe default resource names for you. It creates separate KV namespaces for session revocation and rebuildable statistics snapshots.
 
 When it completes, open the workflow run summary. It shows:
 
 | Output | Purpose |
 |--------|---------|
 | Dashboard URL | The Cloudflare Pages URL you open in the browser |
-| API URL | Dashboard Worker API endpoint |
+| Public Status URL | The shareable public `/status` page, controlled by Settings |
+| Worker API URL | Worker internal API endpoint used by Pages Functions |
 | Probe URL | Probe Worker push endpoint |
 
 ### 5. Open The Dashboard URL
@@ -81,8 +84,8 @@ Open the Dashboard URL from the workflow summary. Complete the initial setup/log
 
 From the dashboard:
 
-1. Open `Nodes`.
-2. Click `Add Node`.
+1. Open `Monitors`.
+2. Click `Add Monitor`.
 3. Choose `Agent Probe`.
 4. Click `Generate Install Command`.
 5. Copy the command under `Run this on your server`.
@@ -99,7 +102,11 @@ The dashboard provides:
 
 Probe binary links point to your fork's `probe-latest` release. The deployment workflow publishes or refreshes those assets automatically.
 
-Once the probe pushes metrics successfully, the node appears online in `Nodes`. Open `View Details` on the node to see current metrics and Docker container data when your server reports it.
+Once the probe pushes metrics successfully, the monitor appears online in `Monitors`. HTTP Check and TCP Check monitors are created from the same page.
+
+### Optional Public Status And Alerts
+
+Open `Settings` after deployment to enable Public Status, choose which monitors are visible, and configure Webhook or Telegram notification channels. The Public Status URL in the deployment summary stays safe to share only after you enable it and select public fields.
 
 ### Advanced troubleshooting options
 
@@ -116,7 +123,7 @@ Normal users should leave these `Deploy Self-Hosted` inputs blank:
 
 ### Deploy Self-Hosted stops during preflight
 
-Open the workflow run summary. The preflight section names the missing or invalid setting and gives the exact fix. Common fixes are adding `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, and `API_SECRET_KEY` under `Settings -> Secrets and variables -> Actions -> New repository secret`, or correcting an advanced `resource_prefix` value.
+Open the workflow run summary. The preflight section names the missing or invalid setting and gives the exact fix. Common fixes are adding `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `API_SECRET_KEY`, `INTERNAL_API_KEY`, and `PAGES_SESSION_SECRET` under `Settings -> Secrets and variables -> Actions -> New repository secret`, or correcting an advanced `resource_prefix` value.
 
 ### Cloudflare token permission errors
 
@@ -128,11 +135,11 @@ Confirm the secret is added to the forked repository, not the upstream repositor
 
 ### Resource already exists
 
-The deployment workflow is idempotent and reuses existing resources where possible. `SESSION_BLACKLIST` is always reused as the fixed KV namespace. If D1, Worker, or Pages names conflict with another project, rerun `Deploy Self-Hosted` with a different `resource_prefix`.
+The deployment workflow is idempotent and reuses existing resources where possible. If D1, Worker, Pages, or KV names conflict with another project, rerun `Deploy Self-Hosted` with a different `resource_prefix`.
 
 ### Dashboard cannot reach the API
 
-Confirm the workflow built the frontend with the deployed Dashboard Worker URL and that CORS allows the deployed Pages URL.
+Confirm the workflow deployed Pages Functions and configured `BACKEND_URL`, `INTERNAL_API_KEY`, `API_SECRET_KEY`, and `PAGES_SESSION_SECRET` as Pages secrets. Browser admin APIs should go through the Dashboard URL under `/api/v1/*`; they should not call the Worker internal API directly.
 
 ### Probe does not appear online
 

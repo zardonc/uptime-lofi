@@ -61,6 +61,8 @@ test_missing_required_secrets() {
   assert_contains "$summary_file" "CLOUDFLARE_API_TOKEN"
   assert_contains "$summary_file" "CLOUDFLARE_ACCOUNT_ID"
   assert_contains "$summary_file" "API_SECRET_KEY"
+  assert_contains "$summary_file" "INTERNAL_API_KEY"
+  assert_contains "$summary_file" "PAGES_SESSION_SECRET"
   assert_contains "$summary_file" "Settings -> Secrets and variables -> Actions"
   assert_contains "$summary_file" "Settings -> Secrets and variables -> Actions -> New repository secret"
   assert_count "$summary_file" "## Preflight failed" 1
@@ -74,6 +76,8 @@ test_invalid_resource_prefix() {
     CLOUDFLARE_API_TOKEN=token \
     CLOUDFLARE_ACCOUNT_ID=account \
     API_SECRET_KEY=secret \
+    INTERNAL_API_KEY=internal-secret \
+    PAGES_SESSION_SECRET=pages-session-secret \
     CLOUDFLARE_ACCOUNT_SUBDOMAIN=demo \
     RESOURCE_PREFIX='Bad Prefix!'; then
     printf 'Expected invalid resource prefix preflight to fail\n' >&2
@@ -93,6 +97,8 @@ test_summary_does_not_leak_cloudflare_token() {
     CLOUDFLARE_API_TOKEN="$token_value" \
     CLOUDFLARE_ACCOUNT_ID=account \
     API_SECRET_KEY=secret \
+    INTERNAL_API_KEY=internal-secret \
+    PAGES_SESSION_SECRET=pages-session-secret \
     CLOUDFLARE_ACCOUNT_SUBDOMAIN=demo \
     RESOURCE_PREFIX='Bad Prefix!'; then
     printf 'Expected invalid resource prefix preflight to fail\n' >&2
@@ -117,6 +123,8 @@ SH
   if PATH="$fake_bin:$PATH" run_preflight "$summary_file" \
     CLOUDFLARE_API_TOKEN="$token_value" \
     CLOUDFLARE_ACCOUNT_ID=account \
+    INTERNAL_API_KEY=internal-secret \
+    PAGES_SESSION_SECRET=pages-session-secret \
     API_SECRET_KEY=secret; then
     printf 'Expected Cloudflare API preflight to fail\n' >&2
     return 1
@@ -130,9 +138,68 @@ SH
   assert_not_contains "$summary_file" "$token_value"
 }
 
+test_v2_resource_summary_and_template_rendering() {
+  local summary_file="$TMP_ROOT/v2-summary.md"
+  local output_file="$TMP_ROOT/v2-output.txt"
+  local internal_key_value="internal-key-should-not-print"
+  rm -f "$summary_file" "$output_file" "$ROOT_DIR/backend/wrangler.self-host.generated.toml" "$ROOT_DIR/backend/probe-wrangler.self-host.generated.toml"
+
+  (
+    source "$SCRIPT_PATH"
+
+    preflight_self_host_deploy() {
+      ACCOUNT_SUBDOMAIN=demo
+      validate_resource_prefix
+      export ACCOUNT_SUBDOMAIN PREFLIGHT_SELF_HOST_DONE=1
+    }
+
+    find_or_create_d1() {
+      printf 'd1-generated-id'
+    }
+
+    find_or_create_kv() {
+      case "$1" in
+        *-sessions) printf 'session-kv-id' ;;
+        *-statistics) printf 'statistics-kv-id' ;;
+        *) return 1 ;;
+      esac
+    }
+
+    ensure_pages_project() {
+      return 0
+    }
+
+    GITHUB_STEP_SUMMARY="$summary_file" \
+    GITHUB_OUTPUT="$output_file" \
+    CLOUDFLARE_API_TOKEN=token \
+    CLOUDFLARE_ACCOUNT_ID=account \
+    API_SECRET_KEY=api-secret \
+    INTERNAL_API_KEY="$internal_key_value" \
+    PAGES_SESSION_SECRET=pages-session-secret \
+    CLOUDFLARE_ACCOUNT_SUBDOMAIN=demo \
+    RESOURCE_PREFIX=uptime-lofi-demo \
+    ensure_self_host_resources
+  )
+
+  assert_contains "$summary_file" "Public Status URL"
+  assert_contains "$summary_file" "Worker API URL"
+  assert_contains "$summary_file" "Session KV namespace"
+  assert_contains "$summary_file" "Statistics KV namespace"
+  assert_contains "$summary_file" "Pages Functions must be deployed with BACKEND_URL, INTERNAL_API_KEY, API_SECRET_KEY, and PAGES_SESSION_SECRET"
+  assert_not_contains "$summary_file" "$internal_key_value"
+  assert_contains "$output_file" "public_status_url=https://uptime-lofi-demo.pages.dev/status"
+  assert_contains "$ROOT_DIR/backend/wrangler.self-host.generated.toml" 'binding = "STATISTICS_CACHE"'
+  assert_contains "$ROOT_DIR/backend/wrangler.self-host.generated.toml" 'id = "statistics-kv-id"'
+  assert_contains "$ROOT_DIR/backend/wrangler.self-host.generated.toml" 'binding = "SESSION_BLACKLIST"'
+  assert_contains "$ROOT_DIR/backend/wrangler.self-host.generated.toml" 'id = "session-kv-id"'
+  assert_not_contains "$ROOT_DIR/backend/wrangler.self-host.generated.toml" "__STATISTICS_KV_NAMESPACE_ID__"
+  rm -f "$ROOT_DIR/backend/wrangler.self-host.generated.toml" "$ROOT_DIR/backend/probe-wrangler.self-host.generated.toml"
+}
+
 test_missing_required_secrets
 test_invalid_resource_prefix
 test_summary_does_not_leak_cloudflare_token
 test_cloudflare_api_failure_summary
+test_v2_resource_summary_and_template_rendering
 
 printf 'self-host-cloudflare preflight tests passed\n'
