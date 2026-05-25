@@ -14,6 +14,14 @@ type DashboardState = {
   readonly alertEvents: ReadonlyArray<AlertEvent>;
 };
 
+type DashboardActivity = {
+  readonly id: string;
+  readonly title: string;
+  readonly detail: string;
+  readonly status: MonitorStatus;
+  readonly timestamp: number;
+};
+
 const typeLabels: Record<Monitor['type'], string> = {
   agent: 'Agent Probe',
   http: 'HTTP Check',
@@ -64,14 +72,14 @@ export function DashboardV2() {
   );
 
   const recentActivity = useMemo(() => {
-    const monitorEvents = state.monitors.map((monitor) => ({
+    const monitorEvents: DashboardActivity[] = state.monitors.map((monitor) => ({
       id: `monitor-${monitor.id}`,
       title: monitor.name,
       detail: `${typeLabels[monitor.type]} is ${statusLabel(monitor.status)}`,
       status: monitor.status,
       timestamp: monitor.latest.checked_at ?? monitor.updated_at,
     }));
-    const alertEvents = state.alertEvents.map((event) => ({
+    const alertEvents: DashboardActivity[] = state.alertEvents.map((event) => ({
       id: `alert-${event.id}`,
       title: event.rule_name,
       detail: `${event.monitor_name} ${event.event_type}`,

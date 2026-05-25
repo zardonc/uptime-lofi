@@ -133,22 +133,13 @@ function AlertRuleForm({
   readonly disabled: boolean;
   readonly onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
-  const [monitorId, setMonitorId] = useState(monitors[0]?.id ?? '');
-  const selectedMonitor = monitors.find((monitor) => monitor.id === monitorId) ?? monitors[0] ?? null;
+  const [monitorId, setMonitorId] = useState('');
+  const effectiveMonitorId = monitorId || monitors[0]?.id || '';
+  const selectedMonitor = monitors.find((monitor) => monitor.id === effectiveMonitorId) ?? monitors[0] ?? null;
   const conditions = useMemo(() => selectedMonitor ? conditionsForMonitor(selectedMonitor) : [], [selectedMonitor]);
-  const [condition, setCondition] = useState<AlertCondition>(conditions[0] ?? 'offline');
+  const [condition, setCondition] = useState<AlertCondition>('offline');
+  const effectiveCondition = conditions.includes(condition) ? condition : conditions[0] ?? 'offline';
   const enabledDeliveryChannels = channels.filter((channel) => channel.enabled && (channel.type === 'webhook' || channel.type === 'telegram'));
-
-  useEffect(() => {
-    const nextMonitorId = monitors[0]?.id ?? '';
-    setMonitorId((current) => current || nextMonitorId);
-  }, [monitors]);
-
-  useEffect(() => {
-    if (selectedMonitor && !conditionsForMonitor(selectedMonitor).includes(condition)) {
-      setCondition(conditionsForMonitor(selectedMonitor)[0] ?? 'offline');
-    }
-  }, [condition, selectedMonitor]);
 
   return (
     <form className="alerts-rule-form card" aria-label="Alert rule form" onSubmit={onSubmit}>
@@ -161,16 +152,26 @@ function AlertRuleForm({
 
       <label>Name<input name="name" placeholder="Homepage offline" required /></label>
       <label>Monitor
-        <select name="monitor_id" value={monitorId} onChange={(event) => setMonitorId(event.target.value)} required>
+        <select
+          name="monitor_id"
+          value={effectiveMonitorId}
+          onChange={(event) => {
+            const nextMonitorId = event.target.value;
+            setMonitorId(nextMonitorId);
+            const nextMonitor = monitors.find((monitor) => monitor.id === nextMonitorId);
+            setCondition(nextMonitor ? conditionsForMonitor(nextMonitor)[0] ?? 'offline' : 'offline');
+          }}
+          required
+        >
           {monitors.map((monitor) => <option key={monitor.id} value={monitor.id}>{monitor.name} ({monitor.type})</option>)}
         </select>
       </label>
       <label>Condition
-        <select name="condition" value={condition} onChange={(event) => setCondition(event.target.value as AlertCondition)} required>
+        <select name="condition" value={effectiveCondition} onChange={(event) => setCondition(event.target.value as AlertCondition)} required>
           {conditions.map((item) => <option key={item} value={item}>{CONDITION_LABELS[item]}</option>)}
         </select>
       </label>
-      <ConditionFields condition={condition} />
+      <ConditionFields condition={effectiveCondition} />
       <label>Severity
         <select name="severity" defaultValue="warning">
           <option value="info">Info</option>
