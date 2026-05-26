@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { ReactNode } from 'react';
-import { Activity, AlertTriangle, Clock, RefreshCw, Server, ShieldCheck, Wifi } from 'lucide-react';
+import type { CSSProperties, ReactNode } from 'react';
+import { Activity, AlertTriangle, Clock, RefreshCw, Server, ShieldCheck, TrendingUp, Wifi } from 'lucide-react';
 import { api, ApiClientError } from '../api/client';
 import type { AlertEvent, Monitor, MonitorStatus, StatisticsSummary } from '../api/types';
 import { ErrorBanner } from './ErrorBanner';
@@ -93,6 +93,7 @@ export function DashboardV2() {
 
   const onlineMonitors = state.monitors.filter((monitor) => monitor.status === 'online').length;
   const lastRefreshText = loading ? 'Loading...' : `Last refresh: ${formatRelative(Math.floor(lastRefreshAt / 1000))}`;
+  const averageUptime = normalizePercent(state.summary?.uptime_ratio ?? null);
 
   return (
     <div className="dashboard dashboard-v2">
@@ -129,28 +130,46 @@ export function DashboardV2() {
         )}
       </section>
 
-      <section className="dashboard-v2__grid">
-        <article className="card dashboard-v2__issues" aria-label="Active issues">
-          <SectionHeading icon={<AlertTriangle size={18} />} title="Active Issues" meta={`${issueMonitors.length + activeIncidents.length} open`} />
+      <article className="card dashboard-v2__issues" aria-label="Active issues">
+        <SectionHeading icon={<AlertTriangle size={18} />} title="Active Issues" meta={`${issueMonitors.length + activeIncidents.length} open`} />
+        {loading ? (
+          <p className="dashboard-v2__muted">Loading issue state...</p>
+        ) : issueMonitors.length === 0 && activeIncidents.length === 0 ? (
+          <div className="dashboard-v2__empty">
+            <strong>No active issues</strong>
+            <p>All monitors are either online, paused, or waiting for their first result.</p>
+          </div>
+        ) : (
+          <div className="dashboard-v2__issue-list">
+            {issueMonitors.map((monitor) => (
+              <IssueItem key={monitor.id} title={monitor.name} detail={monitor.latest.error_text ?? `${typeLabels[monitor.type]} is ${statusLabel(monitor.status)}`} status={monitor.status} />
+            ))}
+            {activeIncidents.map((event) => (
+              <IssueItem key={event.id} title={event.rule_name} detail={`${event.monitor_name}: ${event.message}`} status="offline" />
+            ))}
+          </div>
+        )}
+      </article>
+
+      <section className="dashboard-v2__overview-row" aria-label="Uptime and recent activity">
+        <article className="card dashboard-v2__uptime" aria-label="Average uptime">
+          <SectionHeading icon={<TrendingUp size={18} />} title="Avg Uptime" meta="24h" />
           {loading ? (
-            <p className="dashboard-v2__muted">Loading issue state...</p>
-          ) : issueMonitors.length === 0 && activeIncidents.length === 0 ? (
+            <p className="dashboard-v2__muted">Loading uptime...</p>
+          ) : averageUptime === null ? (
             <div className="dashboard-v2__empty">
-              <strong>No active issues</strong>
-              <p>All monitors are either online, paused, or waiting for their first result.</p>
+              <strong>No uptime yet</strong>
+              <p>Rollups appear after checks have been recorded.</p>
             </div>
           ) : (
-            <div className="dashboard-v2__issue-list">
-              {issueMonitors.map((monitor) => (
-                <IssueItem key={monitor.id} title={monitor.name} detail={monitor.latest.error_text ?? `${typeLabels[monitor.type]} is ${statusLabel(monitor.status)}`} status={monitor.status} />
-              ))}
-              {activeIncidents.map((event) => (
-                <IssueItem key={event.id} title={event.rule_name} detail={`${event.monitor_name}: ${event.message}`} status="offline" />
-              ))}
+            <div className="dashboard-v2__uptime-body">
+              <div className="dashboard-v2__uptime-ring" style={{ '--uptime': `${averageUptime * 3.6}deg` } as CSSProperties}>
+                <strong>{averageUptime.toFixed(1)}%</strong>
+              </div>
+              <p>{onlineMonitors} of {state.monitors.length} monitors online</p>
             </div>
           )}
         </article>
-
         <article className="card dashboard-v2__activity" aria-label="Recent activity">
           <SectionHeading icon={<Activity size={18} />} title="Recent Activity" meta="v2 latest state" />
           {loading ? (
@@ -241,11 +260,18 @@ function statusLabel(status: MonitorStatus): string {
 }
 
 function formatPercent(value: number | null): string {
-  return value === null ? '--' : value.toFixed(2);
+  const percent = normalizePercent(value);
+  return percent === null ? '--' : percent.toFixed(2);
 }
 
 function formatNumber(value: number | null): string {
   return value === null ? '--' : String(Math.round(value));
+}
+
+function normalizePercent(value: number | null): number | null {
+  if (value === null) return null;
+  const percent = value <= 1 ? value * 100 : value;
+  return Math.max(0, Math.min(100, percent));
 }
 
 function formatRelative(timestamp: number): string {

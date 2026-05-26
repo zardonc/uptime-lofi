@@ -39,13 +39,14 @@ describe("Monitors page", () => {
   });
 
   it("renders unified monitor management controls", async () => {
-    await openMonitorsPage();
+    const user = await openMonitorsPage();
 
     expect(await screen.findByRole("heading", { name: "Monitors" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Add Monitor" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Agent Probe" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "HTTP Check" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "TCP Check" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Add Monitor" }));
+    const menu = screen.getByRole("menu", { name: "Add monitor options" });
+    expect(within(menu).getByRole("menuitem", { name: "Agent Probe" })).toBeInTheDocument();
+    expect(within(menu).getByRole("menuitem", { name: "HTTP Check" })).toBeInTheDocument();
+    expect(within(menu).getByRole("menuitem", { name: "TCP Check" })).toBeInTheDocument();
     expect(screen.getByLabelText("Search monitors")).toBeInTheDocument();
     expect(screen.getByLabelText("Type")).toBeInTheDocument();
     expect(screen.getByLabelText("Status")).toBeInTheDocument();
@@ -83,14 +84,16 @@ describe("Monitors page", () => {
     setMockMonitors([]);
     const user = await openMonitorsPage();
 
-    await user.click(screen.getByRole("button", { name: "HTTP Check" }));
+    await user.click(screen.getByRole("button", { name: "Add Monitor" }));
+    await user.click(screen.getByRole("menuitem", { name: "HTTP Check" }));
     let form = await screen.findByRole("form", { name: "Monitor form" });
     await user.type(within(form).getByLabelText("Name"), "Homepage");
     await user.type(within(form).getByLabelText("URL"), "https://example.com/health");
     await user.click(within(form).getByRole("button", { name: "Create Monitor" }));
     expect((await screen.findAllByText("Homepage")).length).toBeGreaterThanOrEqual(1);
 
-    await user.click(screen.getByRole("button", { name: "TCP Check" }));
+    await user.click(screen.getByRole("button", { name: "Add Monitor" }));
+    await user.click(screen.getByRole("menuitem", { name: "TCP Check" }));
     form = await screen.findByRole("form", { name: "Monitor form" });
     await user.type(within(form).getByLabelText("Name"), "Postgres");
     await user.type(within(form).getByLabelText("Host"), "db.example.com");
@@ -109,5 +112,32 @@ describe("Monitors page", () => {
     expect(screen.getByText("Historical results stay available for reports. The monitor leaves active management.")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Keep Monitor" }));
     expect(screen.queryByRole("dialog", { name: "Delete edge-sfo-1?" })).not.toBeInTheDocument();
+  });
+
+  it("opens a compact edit dialog for monitor settings", async () => {
+    const user = await openMonitorsPage();
+
+    await user.click((await screen.findAllByRole("button", { name: "Edit" }))[0]);
+
+    const dialog = await screen.findByRole("dialog", { name: "Edit edge-sfo-1" });
+    expect(within(dialog).getByLabelText("Name")).toHaveValue("edge-sfo-1");
+    expect(within(dialog).getByLabelText("Interval")).toHaveValue(60);
+    expect(within(dialog).getByLabelText("Timeout")).toHaveValue(10);
+    expect(within(dialog).getByText("Target and secret-like fields are not edited here.")).toBeInTheDocument();
+  });
+
+  it("shows a mock monitor detail page from the Details action", async () => {
+    const user = await openMonitorsPage();
+
+    await user.click((await screen.findAllByRole("button", { name: "Details" }))[0]);
+
+    const detail = await screen.findByRole("region", { name: "edge-sfo-1 detail" });
+    expect(within(detail).getByRole("heading", { name: "edge-sfo-1" })).toBeInTheDocument();
+    expect(within(detail).getByText("Uptime history")).toBeInTheDocument();
+    expect(within(detail).getByText("Docker containers")).toBeInTheDocument();
+    expect(within(detail).getByText("Recent check results")).toBeInTheDocument();
+
+    await user.click(within(detail).getByRole("button", { name: "Monitors" }));
+    expect(await screen.findByRole("article", { name: "edge-sfo-1 monitor" })).toBeInTheDocument();
   });
 });

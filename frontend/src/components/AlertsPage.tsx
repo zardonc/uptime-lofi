@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
-import { Bell, History, Plus, SlidersHorizontal, Trash2 } from 'lucide-react';
+import { Bell, History, Plus, SlidersHorizontal, Trash2, X } from 'lucide-react';
 import { api, ApiClientError } from '../api/client';
 import type { AlertCondition, AlertEvent, AlertRule, Monitor, NotificationChannel } from '../api/types';
 import { ErrorBanner } from './ErrorBanner';
@@ -112,7 +112,19 @@ export function AlertsPage() {
 
       {activeTab === 'rules' ? (
         <>
-          {showForm && <AlertRuleForm monitors={monitors} channels={channels} disabled={saving} onSubmit={handleCreate} />}
+          {showForm && (
+            <div className="node-dialog alerts-rule-dialog-shell" role="presentation">
+              <div className="node-dialog__panel alerts-rule-dialog" role="dialog" aria-modal="true" aria-labelledby="alert-rule-dialog-title">
+                <AlertRuleForm
+                  monitors={monitors}
+                  channels={channels}
+                  disabled={saving}
+                  onCancel={() => setShowForm(false)}
+                  onSubmit={handleCreate}
+                />
+              </div>
+            </div>
+          )}
           <AlertRulesList rules={rules} monitors={monitors} channels={channels} onToggle={toggleRule} onDelete={deleteRule} />
         </>
       ) : (
@@ -126,11 +138,13 @@ function AlertRuleForm({
   monitors,
   channels,
   disabled,
+  onCancel,
   onSubmit,
 }: {
   readonly monitors: ReadonlyArray<Monitor>;
   readonly channels: ReadonlyArray<NotificationChannel>;
   readonly disabled: boolean;
+  readonly onCancel: () => void;
   readonly onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
   const [monitorId, setMonitorId] = useState('');
@@ -145,9 +159,12 @@ function AlertRuleForm({
     <form className="alerts-rule-form card" aria-label="Alert rule form" onSubmit={onSubmit}>
       <div className="alerts-rule-form__header">
         <div>
-          <h2>Create alert rule</h2>
+          <h2 id="alert-rule-dialog-title">Create alert rule</h2>
           <p>Choose enabled Webhook or Telegram channels for delivery.</p>
         </div>
+        <button type="button" className="node-action node-action--icon" aria-label="Close alert rule form" onClick={onCancel}>
+          <X size={16} />
+        </button>
       </div>
 
       <label>Name<input name="name" placeholder="Homepage offline" required /></label>
@@ -204,7 +221,10 @@ function AlertRuleForm({
           <label>Timezone<input name="timezone" defaultValue="UTC" /></label>
         </div>
       </details>
-      <button type="submit" className="page-header__primary" disabled={disabled || monitors.length === 0}>Create Rule</button>
+      <div className="alerts-rule-form__actions">
+        <button type="button" className="node-action" onClick={onCancel}>Cancel</button>
+        <button type="submit" className="page-header__primary" disabled={disabled || monitors.length === 0}>Create Rule</button>
+      </div>
     </form>
   );
 }

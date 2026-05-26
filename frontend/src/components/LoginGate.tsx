@@ -92,6 +92,8 @@ export function LoginGate({ children }: { readonly children: React.ReactNode }) 
         >
           {submitting ? <Loader2 className="spin-icon" size={16} /> : 'Unlock'}
         </button>
+
+        <a className="login-card__public-link" href="/status">View public status</a>
       </form>
     </div>
   );

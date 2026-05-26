@@ -8,6 +8,10 @@ import { settingsApi } from "./settings";
 import { agentlessApi } from "./agentless";
 import { internalApi } from "./internal";
 import { publicStatusApi } from "./publicStatus";
+import { monitorsApi } from "./monitors";
+import { alertsApi } from "./alerts";
+import { notificationsApi } from "./notifications";
+import { statisticsApi } from "./statistics";
 
 // Rate-limiting: apply before authentication on selected routes
 
@@ -49,6 +53,7 @@ api.use("/nodes", standardRateLimit);
 api.use("/agentless", standardRateLimit);
 api.use("/stats", standardRateLimit);
 api.use("/internal/*", standardRateLimit);
+api.use("/v1/*", standardRateLimit);
 api.use("/public/*", standardRateLimit);
 
 // Note: /push route moved to dedicated probe Worker (probe-wrangler.toml)
@@ -69,6 +74,10 @@ dashboard.route("/nodes", nodesApi);
 dashboard.route("/agentless", agentlessApi);
 dashboard.route("/stats", statsApi);
 dashboard.route("/settings", settingsApi);
+dashboard.route("/v1/monitors", monitorsApi);
+dashboard.route("/v1/alerts", alertsApi);
+dashboard.route("/v1/notifications", notificationsApi);
+dashboard.route("/v1/statistics", statisticsApi);
 api.route("/", dashboard);
 
 export { api };

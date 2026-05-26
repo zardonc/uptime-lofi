@@ -174,6 +174,14 @@ export function Settings() {
 
   return (
     <div className="settings-page">
+      <header className="dashboard-header settings-page__header" role="banner">
+        <div>
+          <h1>Settings</h1>
+          <p className="subtitle">Backend connection, security, public status, and notification channels</p>
+        </div>
+      </header>
+
+      <div className="settings-page__body">
       <section className="card settings-panel animate-in" aria-labelledby="settings-security-title">
         <div className="settings-panel__heading">
           <Shield size={20} />
@@ -366,6 +374,7 @@ export function Settings() {
         <h2 className="section-title">Probe Installation</h2>
         <ProbeSetup />
       </section>
+      </div>
     </div>
   );
 }

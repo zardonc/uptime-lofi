@@ -56,6 +56,7 @@ describe("Alerts page", () => {
     const user = await openAlertsPage();
 
     await user.click(screen.getByRole("button", { name: "New Rule" }));
+    expect(await screen.findByRole("dialog", { name: "Create alert rule" })).toBeInTheDocument();
     const form = await screen.findByRole("form", { name: "Alert rule form" });
     const monitor = within(form).getByLabelText("Monitor");
     await user.selectOptions(monitor, "monitor-http-1");
@@ -69,6 +70,7 @@ describe("Alerts page", () => {
     const user = await openAlertsPage();
 
     await user.click(screen.getByRole("button", { name: "New Rule" }));
+    expect(await screen.findByRole("dialog", { name: "Create alert rule" })).toBeInTheDocument();
     const form = await screen.findByRole("form", { name: "Alert rule form" });
     const advanced = within(form).getByText("Advanced options").closest("details");
 
@@ -79,6 +81,7 @@ describe("Alerts page", () => {
     const user = await openAlertsPage();
 
     await user.click(screen.getByRole("button", { name: "New Rule" }));
+    expect(await screen.findByRole("dialog", { name: "Create alert rule" })).toBeInTheDocument();
     const form = await screen.findByRole("form", { name: "Alert rule form" });
 
     expect(within(form).getByLabelText(/ops webhook/i)).toBeInTheDocument();

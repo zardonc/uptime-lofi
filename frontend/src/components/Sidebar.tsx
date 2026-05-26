@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import {
+  Activity,
   LayoutDashboard,
   Server,
   BarChart3,
@@ -40,7 +41,7 @@ export function Sidebar({ activeId, onNavigate }: SidebarProps) {
     <aside className={`sidebar ${collapsed ? 'sidebar--collapsed' : ''}`} role="navigation" aria-label="Main navigation">
       {/* Brand */}
       <div className="sidebar__brand">
-        <span className="sidebar__logo">⬡</span>
+        <span className="sidebar__logo"><Activity size={16} aria-hidden="true" /></span>
         {!collapsed && <span className="sidebar__title">Uptime LoFi</span>}
       </div>
 

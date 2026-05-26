@@ -51,15 +51,19 @@ describe("Agentless legacy shell removal", () => {
     const user = await openMonitorsPage();
 
     expect(await screen.findByRole("heading", { name: "Monitors" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "HTTP Check" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "TCP Check" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Add Monitor" }));
+    let menu = screen.getByRole("menu", { name: "Add monitor options" });
+    expect(within(menu).getByRole("menuitem", { name: "HTTP Check" })).toBeInTheDocument();
+    expect(within(menu).getByRole("menuitem", { name: "TCP Check" })).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "HTTP Check" }));
+    await user.click(within(menu).getByRole("menuitem", { name: "HTTP Check" }));
     let form = await screen.findByRole("form", { name: "Monitor form" });
     expect(within(form).getByLabelText("URL")).toHaveAttribute("placeholder", "https://example.com/health");
     expect(within(form).getByLabelText("Expected status")).toHaveValue(200);
 
-    await user.click(screen.getByRole("button", { name: "TCP Check" }));
+    await user.click(screen.getByRole("button", { name: "Add Monitor" }));
+    menu = screen.getByRole("menu", { name: "Add monitor options" });
+    await user.click(within(menu).getByRole("menuitem", { name: "TCP Check" }));
     form = await screen.findByRole("form", { name: "Monitor form" });
     expect(within(form).getByLabelText("Host")).toHaveAttribute("placeholder", "db.example.com");
     expect(within(form).getByLabelText("Port")).toHaveAttribute("placeholder", "5432");

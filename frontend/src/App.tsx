@@ -1,5 +1,5 @@
 import './index.css';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { LoginGate } from './components/LoginGate';
@@ -12,6 +12,12 @@ import { DashboardV2 } from './components/DashboardV2';
 import { useAuth } from './hooks/useAuth';
 
 type PageId = 'dashboard' | 'monitors' | 'statistics' | 'alerts' | 'settings';
+const pageIds: ReadonlyArray<PageId> = ['dashboard', 'monitors', 'statistics', 'alerts', 'settings'];
+
+function pageFromPath(pathname: string): PageId {
+  const page = pathname.replace(/^\/+/, '').split('/')[0];
+  return pageIds.includes(page as PageId) ? page as PageId : 'dashboard';
+}
 
 function ActivePage({ activeNav }: { readonly activeNav: PageId }) {
   switch (activeNav) {
@@ -38,8 +44,14 @@ export default function App() {
 }
 
 function AdminApp() {
-  const [activeNav, setActiveNav] = useState<PageId>('dashboard');
+  const [activeNav, setActiveNav] = useState<PageId>(() => pageFromPath(window.location.pathname));
   const { logout } = useAuth();
+
+  useEffect(() => {
+    const handlePopState = () => setActiveNav(pageFromPath(window.location.pathname));
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   return (
     <LoginGate>
@@ -51,7 +63,12 @@ function AdminApp() {
               logout();
               return;
             }
-            setActiveNav(id as PageId);
+            const nextPage = id as PageId;
+            const nextPath = nextPage === 'dashboard' ? '/' : `/${nextPage}`;
+            setActiveNav(nextPage);
+            if (window.location.pathname !== nextPath) {
+              window.history.pushState({}, '', nextPath);
+            }
           }}
         />
 
