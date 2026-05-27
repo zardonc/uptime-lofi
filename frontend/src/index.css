@@ -1943,6 +1943,11 @@ h1, h2, h3, h4, h5, h6 {
   background: var(--color-paused-bg);
 }
 
+.badge-unknown {
+  color: var(--color-paused);
+  background: var(--color-paused-bg);
+}
+
 /* ── Metric Card ── */
 .metric-card {
   display: flex;
@@ -3221,6 +3226,11 @@ select:disabled {
   color: var(--s-gray);
 }
 
+.badge-unknown {
+  background: #eef1f4;
+  color: #596575;
+}
+
 .dashboard-v2 {
   gap: 16px;
 }
@@ -3857,6 +3867,28 @@ select:disabled {
 
 .monitor-detail-card {
   padding: 14px 16px;
+}
+
+.monitor-detail-empty {
+  display: grid;
+  gap: 4px;
+  min-height: 72px;
+  align-content: center;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--page-bg);
+  padding: 14px;
+}
+
+.monitor-detail-empty strong {
+  color: var(--text-1);
+  font-size: 13px;
+}
+
+.monitor-detail-empty p {
+  margin: 0;
+  color: var(--text-3);
+  font-size: 12px;
 }
 
 .monitor-detail-card__heading {

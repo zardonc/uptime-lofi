@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Gauge } from 'lucide-react';
 import { api, ApiClientError } from '../api/client';
-import type { MonitorStatus, PublicMonitor, PublicStatusResponse } from '../api/types';
+import type { PublicMonitor, PublicStatusResponse } from '../api/types';
 import { StatusBadge } from './StatusBadge';
 
 const typeLabels = {
@@ -62,7 +62,7 @@ export function PublicStatus() {
           <p>{data.message}</p>
         </div>
         <div className="public-status-hero__state">
-          <StatusBadge status={badgeStatus(data.status)} />
+          <StatusBadge status={data.status} />
           <span>Updated {formatRelative(data.updated_at)}</span>
         </div>
       </section>
@@ -130,13 +130,9 @@ function PublicMonitorCard({ monitor }: { readonly monitor: PublicMonitor }) {
           <dd>{formatRelative(monitor.updated_at)}</dd>
         </div>
       </dl>
-      <StatusBadge status={badgeStatus(monitor.status)} />
+      <StatusBadge status={monitor.status} />
     </article>
   );
-}
-
-function badgeStatus(status: MonitorStatus) {
-  return status === 'unknown' ? 'paused' : status;
 }
 
 function formatRelative(timestamp: number): string {

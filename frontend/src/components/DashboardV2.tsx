@@ -122,7 +122,7 @@ export function DashboardV2() {
           </>
         ) : (
           <>
-            <MetricCard icon={<Server size={18} />} label="Monitors" value={state.summary.total_monitors} />
+            <MetricCard icon={<Server size={18} />} label="Monitors" value={state.monitors.length} />
             <MetricCard icon={<Wifi size={18} />} label="Online" value={onlineMonitors} suffix={` / ${state.monitors.length}`} />
             <MetricCard icon={<ShieldCheck size={18} />} label="Availability" value={formatPercent(state.summary.uptime_ratio)} suffix={state.summary.uptime_ratio === null ? '' : '%'} />
             <MetricCard icon={<Clock size={18} />} label="Avg Latency" value={formatNumber(state.summary.avg_latency_ms)} suffix={state.summary.avg_latency_ms === null ? '' : 'ms'} />
@@ -183,7 +183,7 @@ export function DashboardV2() {
             <ol className="dashboard-v2__activity-list">
               {recentActivity.map((event) => (
                 <li key={event.id}>
-                  <StatusBadge status={badgeStatus(event.status)} />
+                  <StatusBadge status={event.status} />
                   <div>
                     <strong>{event.title}</strong>
                     <p>{event.detail}</p>
@@ -213,7 +213,7 @@ export function DashboardV2() {
                   <h2>{monitor.name}</h2>
                   <p>{typeLabels[monitor.type]} · {monitor.target.label}</p>
                 </div>
-                <StatusBadge status={badgeStatus(monitor.status)} />
+                <StatusBadge status={monitor.status} />
                 <dl>
                   <div><dt>Latency</dt><dd>{formatNumber(monitor.latest.latency_ms)}{monitor.latest.latency_ms === null ? '' : 'ms'}</dd></div>
                   <div><dt>Uptime</dt><dd>{formatPercent(monitor.latest.uptime_ratio)}{monitor.latest.uptime_ratio === null ? '' : '%'}</dd></div>
@@ -241,17 +241,13 @@ function SectionHeading({ icon, title, meta }: { readonly icon: ReactNode; reado
 function IssueItem({ title, detail, status }: { readonly title: string; readonly detail: string; readonly status: MonitorStatus }) {
   return (
     <article className="dashboard-v2__issue">
-      <StatusBadge status={badgeStatus(status)} />
+      <StatusBadge status={status} />
       <div>
         <h3>{title}</h3>
         <p>{detail}</p>
       </div>
     </article>
   );
-}
-
-function badgeStatus(status: MonitorStatus) {
-  return status === 'unknown' ? 'paused' : status;
 }
 
 function statusLabel(status: MonitorStatus): string {

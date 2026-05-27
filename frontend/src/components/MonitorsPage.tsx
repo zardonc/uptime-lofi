@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
-import { Activity, ArrowLeft, Bell, ChevronDown, Clock, Cpu, Gauge, MemoryStick, Plus, Search, ShieldCheck, Trash2, X } from 'lucide-react';
+import { Activity, ArrowLeft, ChevronDown, Clock, Cpu, Gauge, MemoryStick, Plus, Search, ShieldCheck, Trash2, X } from 'lucide-react';
 import { api, ApiClientError } from '../api/client';
 import type { CreateMonitorRequest, Monitor, MonitorStatus, MonitorType } from '../api/types';
 import { useAuth } from '../hooks/useAuth';
@@ -9,6 +9,21 @@ import { ErrorBanner } from './ErrorBanner';
 import { StatusBadge } from './StatusBadge';
 
 type FormMode = MonitorType | null;
+type MonitorDetailWorkload = {
+  readonly name: string;
+  readonly meta: string;
+  readonly state: 'running' | 'paused' | 'exited';
+  readonly stats: string;
+};
+type MonitorDetailRule = {
+  readonly name: string;
+  readonly channel: string;
+};
+type MonitorDetailCheck = {
+  readonly status: 'UP' | 'DOWN';
+  readonly time: string;
+  readonly message: string;
+};
 
 const typeLabels: Record<MonitorType, string> = {
   agent: 'Agent Probe',
@@ -55,6 +70,13 @@ export function MonitorsPage() {
       return matchesQuery && matchesType && matchesStatus;
     });
   }, [monitors, query, statusFilter, typeFilter]);
+  const hasActiveFilters = query.trim().length > 0 || typeFilter !== 'all' || statusFilter !== 'all';
+
+  const clearFilters = () => {
+    setQuery('');
+    setTypeFilter('all');
+    setStatusFilter('all');
+  };
 
   const upsertMonitor = (monitor: Monitor) => {
     setMonitors((current) => [monitor, ...current.filter((item) => item.id !== monitor.id)]);
@@ -174,8 +196,14 @@ export function MonitorsPage() {
 
           {loading ? (
             <section className="card monitors-empty">Loading monitors...</section>
-          ) : filtered.length === 0 ? (
+          ) : monitors.length === 0 ? (
             <section className="card monitors-empty"><h2>No monitors yet</h2><p>Create an agent probe, HTTP check, or TCP check to start building the v2 monitor domain.</p></section>
+          ) : filtered.length === 0 ? (
+            <section className="card monitors-empty">
+              <h2>No monitors match</h2>
+              <p>Adjust the current search or filters to see existing monitors.</p>
+              {hasActiveFilters && <button type="button" className="node-action" onClick={clearFilters}>Clear Filters</button>}
+            </section>
           ) : (
             <section className="monitors-list" aria-label="Monitor list">
               {filtered.map((monitor) => (
@@ -235,7 +263,7 @@ function MonitorCard({ monitor, pending, onEdit, onPauseResume, onDetails, onDel
           <h2>{monitor.name}</h2>
           <p>{typeLabels[monitor.type]} · {monitor.target.label}</p>
         </div>
-        <StatusBadge status={monitor.status === 'unknown' ? 'paused' : monitor.status} />
+        <StatusBadge status={monitor.status} />
       </div>
       <div className="monitor-card__metrics">
         <Metric icon={<Activity size={17} />} label="Status" value={monitor.status === 'unknown' ? 'No result yet' : monitor.status} />
@@ -303,7 +331,7 @@ function MonitorDetailPage({ monitor, pending, onBack, onEdit, onPauseResume }: 
           <div className="monitor-detail-header__title">
             <h2>{monitor.name}</h2>
             <span className="monitor-detail-badge monitor-detail-badge--brand">{typeLabels[monitor.type]}</span>
-            <StatusBadge status={monitor.status === 'unknown' ? 'paused' : monitor.status} />
+            <StatusBadge status={monitor.status} />
             <span className="monitor-detail-header__seen"><Clock size={13} /> {formatRelativeTime(monitor.latest.checked_at)}</span>
           </div>
         </div>
@@ -327,15 +355,21 @@ function MonitorDetailPage({ monitor, pending, onBack, onEdit, onPauseResume }: 
               <h3>Uptime history</h3>
               <select aria-label="Uptime range" defaultValue="90d"><option value="90d">90 days</option><option value="30d">30 days</option><option value="7d">7 days</option></select>
             </div>
-            <div className="monitor-detail-uptime" aria-label="Mock uptime history">
-              {detail.uptimeSegments.map((segment, index) => <span key={`${segment}-${index}`} className={`monitor-detail-uptime__bar monitor-detail-uptime__bar--${segment}`} />)}
-            </div>
-            <div className="monitor-detail-legend">
-              <span className="monitor-detail-legend__up">Up</span>
-              <span className="monitor-detail-legend__down">Down</span>
-              <span className="monitor-detail-legend__no">No data</span>
-              <strong>{formatUptime(monitor.latest.uptime_ratio)}</strong>
-            </div>
+            {detail.hasCheckData ? (
+              <>
+                <div className="monitor-detail-uptime" aria-label="Latest uptime state">
+                  {detail.uptimeSegments.map((segment, index) => <span key={`${segment}-${index}`} className={`monitor-detail-uptime__bar monitor-detail-uptime__bar--${segment}`} />)}
+                </div>
+                <div className="monitor-detail-legend">
+                  <span className="monitor-detail-legend__up">Up</span>
+                  <span className="monitor-detail-legend__down">Down</span>
+                  <span className="monitor-detail-legend__no">No data</span>
+                  <strong>{formatUptime(monitor.latest.uptime_ratio)}</strong>
+                </div>
+              </>
+            ) : (
+              <EmptyDetailState title="No uptime history yet" detail="History appears after this monitor records checks." />
+            )}
           </article>
 
           <article className="card monitor-detail-card">
@@ -343,25 +377,10 @@ function MonitorDetailPage({ monitor, pending, onBack, onEdit, onPauseResume }: 
               <h3>Response time</h3>
               <span>Avg {detail.avgLatency} · P95 {detail.p95Latency} · Max {detail.maxLatency}</span>
             </div>
-            <div className="monitor-detail-chart" role="img" aria-label="Mock response time trend">
-              <svg viewBox="0 0 320 96" preserveAspectRatio="none" focusable="false" aria-hidden="true">
-                <defs>
-                  <linearGradient id={`response-area-${monitor.id}`} x1="0" x2="0" y1="0" y2="1">
-                    <stop offset="0%" stopColor="#4f72b8" stopOpacity="0.28" />
-                    <stop offset="100%" stopColor="#4f72b8" stopOpacity="0.02" />
-                  </linearGradient>
-                </defs>
-                <path className="monitor-detail-chart__area" d={detail.responseChart.areaPath} fill={`url(#response-area-${monitor.id})`} />
-                <polyline className="monitor-detail-chart__line" points={detail.responseChart.linePoints} />
-                {detail.responseChart.points.map((point, index) => (
-                  <circle key={`${point.x}-${point.y}-${index}`} className="monitor-detail-chart__point" cx={point.x} cy={point.y} r="2.6" />
-                ))}
-              </svg>
-              <div className="monitor-detail-chart__axis">
-                <span>24h ago</span>
-                <span>now</span>
-              </div>
-            </div>
+            <EmptyDetailState
+              title={detail.hasCheckData ? 'Historical trend unavailable' : 'No response samples yet'}
+              detail={detail.hasCheckData ? 'Only the latest sample is available locally.' : 'Response time appears after checks have been recorded.'}
+            />
           </article>
 
           <article className="card monitor-detail-card">
@@ -382,10 +401,13 @@ function MonitorDetailPage({ monitor, pending, onBack, onEdit, onPauseResume }: 
         <div className="monitor-detail-column">
           <article className="card monitor-detail-card">
             <div className="monitor-detail-card__heading">
-              <h3>{monitor.type === 'agent' ? 'Docker containers' : 'Synthetic profile'}</h3>
+              <h3>{monitor.type === 'agent' ? 'Docker containers' : 'Runtime data'}</h3>
             </div>
-            <div className="monitor-detail-container-list">
-              {detail.workloads.map((item) => (
+            {detail.workloads.length === 0 ? (
+              <EmptyDetailState title="No runtime data yet" detail="Runtime details appear after an agent report or scheduled check stores data." />
+            ) : (
+              <div className="monitor-detail-container-list">
+                {detail.workloads.map((item) => (
                 <div key={item.name} className="monitor-detail-container">
                   <div>
                     <strong>{item.name}</strong>
@@ -394,42 +416,50 @@ function MonitorDetailPage({ monitor, pending, onBack, onEdit, onPauseResume }: 
                   <span className={`monitor-detail-badge monitor-detail-badge--${item.state === 'running' ? 'green' : 'gray'}`}>{item.state}</span>
                   <small>{item.stats}</small>
                 </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </article>
 
           <article className="card monitor-detail-card">
             <div className="monitor-detail-card__heading">
               <h3>Alert rules</h3>
-              <span>{detail.alertRules.length} active</span>
+              <span>{detail.alertRules.length} linked</span>
             </div>
-            <div className="monitor-detail-rule-list">
-              {detail.alertRules.map((rule) => (
+            {detail.alertRules.length === 0 ? (
+              <EmptyDetailState title="No linked alert rules" detail="Rules created for this monitor will appear here when the detail API exposes them." />
+            ) : (
+              <div className="monitor-detail-rule-list">
+                {detail.alertRules.map((rule) => (
                 <div key={rule.name} className="monitor-detail-rule">
-                  <Bell size={15} />
                   <div>
                     <strong>{rule.name}</strong>
                     <span>{rule.channel}</span>
                   </div>
                   <span className="monitor-detail-toggle" aria-hidden="true" />
                 </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </article>
 
           <article className="card monitor-detail-card">
             <div className="monitor-detail-card__heading">
               <h3>Recent check results</h3>
             </div>
-            <div className="monitor-detail-checks">
-              {detail.checks.map((check) => (
+            {detail.checks.length === 0 ? (
+              <EmptyDetailState title="No check results yet" detail="The latest check result will appear after the scheduler or probe writes data." />
+            ) : (
+              <div className="monitor-detail-checks">
+                {detail.checks.map((check) => (
                 <div key={`${check.time}-${check.message}`} className="monitor-detail-check">
                   <span className={`monitor-detail-badge monitor-detail-badge--${check.status === 'UP' ? 'green' : 'red'}`}>{check.status}</span>
                   <time>{check.time}</time>
                   <span>{check.message}</span>
                 </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </article>
         </div>
       </div>
@@ -459,6 +489,15 @@ function Metric({ icon, label, value, empty = false }: { readonly icon: ReactNod
       <span aria-hidden="true">{icon}</span>
       <span>{label}</span>
       <strong>{value}</strong>
+    </div>
+  );
+}
+
+function EmptyDetailState({ title, detail }: { readonly title: string; readonly detail: string }) {
+  return (
+    <div className="monitor-detail-empty">
+      <strong>{title}</strong>
+      <p>{detail}</p>
     </div>
   );
 }
@@ -546,29 +585,30 @@ function formatRelativeTime(timestamp: number | null) {
   return `Last seen ${Math.floor(diff / 86400)} d ago`;
 }
 
-function formatTimeOffset(offsetSeconds: number) {
-  return new Date((Date.now() - offsetSeconds * 1000)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-}
-
 function buildMonitorDetail(monitor: Monitor) {
   const latency = monitor.latest.latency_ms;
-  const isDown = monitor.status === 'offline';
-  const isUnknown = monitor.status === 'unknown';
+  const hasCheckData = monitor.latest.checked_at !== null;
+  const latestState = monitor.status === 'online' ? 'up' : monitor.status === 'offline' || monitor.status === 'degraded' ? 'down' : 'no';
+  const workloads: MonitorDetailWorkload[] = [];
+  const alertRules: MonitorDetailRule[] = [];
+  const checks: MonitorDetailCheck[] = hasCheckData ? [{
+    status: monitor.status === 'online' ? 'UP' : 'DOWN',
+    time: 'Latest',
+    message: monitor.latest.error_text ?? formatMetric(latency, 'ms'),
+  }] : [];
   const uptimeSegments: Array<'up' | 'down' | 'no'> = [
-    'up', 'up', 'up', isDown ? 'down' : 'up', 'up', 'up', 'up', isUnknown ? 'no' : 'up', 'up', 'up',
-    'up', 'up', monitor.status === 'degraded' ? 'down' : 'up', 'up', 'up', 'up', 'up', 'up', 'up', isUnknown ? 'no' : 'up',
-    'up', 'up', 'up', 'up', 'up', 'up', 'up', 'up',
+    'no', 'no', 'no', 'no', 'no', 'no', 'no', 'no', 'no', 'no',
+    'no', 'no', 'no', 'no', 'no', 'no', 'no', 'no', 'no', 'no',
+    'no', 'no', 'no', 'no', 'no', 'no', 'no', latestState,
   ];
 
   return {
+    hasCheckData,
     status: formatStatus(monitor.status),
     avgLatency: latency == null ? noData : `${Math.round(latency)}ms`,
-    p95Latency: latency == null ? noData : `${Math.round(latency * 1.45)}ms`,
-    maxLatency: latency == null ? noData : `${Math.max(Math.round(latency * 3.8), Math.round(latency + 20))}ms`,
+    p95Latency: noData,
+    maxLatency: noData,
     uptimeSegments,
-    responseChart: buildResponseChart(latency == null
-      ? [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-      : [latency - 3, latency - 2, latency + 4, latency - 1, latency + 7, latency + 2, latency - 4, latency + 5, latency + 1, latency + 9, latency + 3, latency + 6]),
     config: [
       { label: 'Monitor ID', value: monitor.id },
       { label: 'Backend', value: monitor.backend_label },
@@ -577,49 +617,8 @@ function buildMonitorDetail(monitor: Monitor) {
       { label: 'Timeout', value: `${monitor.timeout_sec}s` },
       { label: 'Public status', value: monitor.public_visible ? 'Visible' : 'Hidden' },
     ],
-    workloads: monitor.type === 'agent' ? [
-      { name: '/nginx', meta: 'peytonyip/nginx-brotli:latest', state: 'running', stats: 'CPU 2.6% · Mem 0.6%' },
-      { name: '/dpanel', meta: 'dpanel/dpanel:latest', state: 'running', stats: 'CPU 0.1% · Mem 1.6%' },
-      { name: '/certbot-dns', meta: 'certbot/dns-cloudflare:latest', state: 'running', stats: 'CPU 0% · Mem 0.1%' },
-      { name: '/tm', meta: 'traffmonetizer/cli_v2:latest', state: 'exited', stats: noData },
-    ] : [
-      { name: monitor.type === 'http' ? 'HTTP scheduler' : 'TCP scheduler', meta: monitor.target.label, state: 'running', stats: `Every ${monitor.interval_sec}s` },
-      { name: 'Regional probe', meta: 'Default backend', state: 'running', stats: `${monitor.timeout_sec}s timeout` },
-      { name: 'Public status', meta: monitor.visibility.public ? 'Published' : 'Private', state: monitor.public_visible ? 'running' : 'paused', stats: monitor.visibility.show_latency ? 'Latency visible' : 'Latency hidden' },
-    ],
-    alertRules: [
-      { name: monitor.status === 'offline' ? 'Monitor recovery' : 'Monitor offline', channel: 'Telegram + Webhook' },
-      { name: monitor.type === 'agent' ? 'CPU > 80%' : 'Latency > 2000ms', channel: 'Webhook' },
-    ],
-    checks: isUnknown ? [
-      { status: 'DOWN', time: formatTimeOffset(600), message: 'no result yet' },
-      { status: 'DOWN', time: formatTimeOffset(900), message: 'waiting for first check' },
-    ] : [
-      { status: isDown ? 'DOWN' : 'UP', time: formatTimeOffset(60), message: isDown ? 'timeout · connection refused' : formatMetric(latency, 'ms') },
-      { status: 'UP', time: formatTimeOffset(120), message: latency == null ? noData : `${Math.max(1, Math.round(latency - 2))}ms` },
-      { status: monitor.status === 'degraded' ? 'DOWN' : 'UP', time: formatTimeOffset(180), message: monitor.status === 'degraded' ? 'slow response' : latency == null ? noData : `${Math.round(latency + 1)}ms` },
-      { status: 'UP', time: formatTimeOffset(240), message: latency == null ? noData : `${Math.round(latency + 3)}ms` },
-    ],
+    workloads,
+    alertRules,
+    checks,
   };
-}
-
-function buildResponseChart(values: ReadonlyArray<number>) {
-  const width = 320;
-  const height = 96;
-  const paddingX = 6;
-  const paddingY = 12;
-  const sanitized = values.map((value) => Math.max(0, value));
-  const max = Math.max(...sanitized, 1);
-  const min = Math.min(...sanitized, 0);
-  const range = Math.max(max - min, 1);
-  const points = sanitized.map((value, index) => {
-    const x = paddingX + (index * (width - paddingX * 2)) / Math.max(sanitized.length - 1, 1);
-    const y = height - paddingY - ((value - min) / range) * (height - paddingY * 2);
-    return { x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10 };
-  });
-  const linePoints = points.map((point) => `${point.x},${point.y}`).join(' ');
-  const areaPath = points.length
-    ? `M ${points[0].x} ${height - paddingY} L ${points.map((point) => `${point.x} ${point.y}`).join(' L ')} L ${points[points.length - 1].x} ${height - paddingY} Z`
-    : '';
-  return { areaPath, linePoints, points };
 }

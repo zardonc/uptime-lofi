@@ -4,17 +4,12 @@ import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import App from "../../src/App";
-import { AuthProvider } from "../../src/hooks/useAuth";
-import { handlers, resetMockApiState, setMockAuthState } from "../mocks/handlers";
+import { handlers, resetMockApiState, setMockAuthState, setMockStatistics } from "../mocks/handlers";
 
 const server = setupServer(...handlers);
 
 function renderApp() {
-  return render(
-    <AuthProvider>
-      <App />
-    </AuthProvider>,
-  );
+  return render(<App />);
 }
 
 describe("App navigation", () => {
@@ -100,6 +95,30 @@ describe("App navigation", () => {
     await user.click(screen.getByRole("button", { name: "Logout" }));
 
     expect(await screen.findByRole("button", { name: "Unlock" })).toBeInTheDocument();
+  });
+
+  it("uses the v2 monitor list for dashboard monitor count when rollups are empty", async () => {
+    setMockAuthState({ authenticated: true });
+    setMockStatistics({
+      summary: {
+        backend_id: "default",
+        backend_label: "Default backend",
+        backend_type: "cloudflare_worker",
+        range: "24h",
+        generated_at: Math.floor(Date.now() / 1000),
+        total_monitors: 0,
+        online_monitors: 0,
+        incident_count: 0,
+        total_downtime_sec: 0,
+        avg_latency_ms: null,
+        uptime_ratio: null,
+      },
+    });
+
+    renderApp();
+
+    expect(await screen.findByRole("region", { name: "Monitors: 2" })).toBeInTheDocument();
+    expect(await screen.findByText("2 configured")).toBeInTheDocument();
   });
 
   it("renders public status without the admin sidebar", async () => {

@@ -9,7 +9,7 @@ import { AlertsPage } from './components/AlertsPage';
 import { StatisticsPage } from './components/StatisticsPage';
 import { PublicStatus } from './components/PublicStatus';
 import { DashboardV2 } from './components/DashboardV2';
-import { useAuth } from './hooks/useAuth';
+import { AuthProvider, useAuth } from './hooks/useAuth';
 
 type PageId = 'dashboard' | 'monitors' | 'statistics' | 'alerts' | 'settings';
 const pageIds: ReadonlyArray<PageId> = ['dashboard', 'monitors', 'statistics', 'alerts', 'settings'];
@@ -40,7 +40,11 @@ export default function App() {
     return <PublicStatus />;
   }
 
-  return <AdminApp />;
+  return (
+    <AuthProvider>
+      <AdminApp />
+    </AuthProvider>
+  );
 }
 
 function AdminApp() {
