@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import {
+  Activity,
   LayoutDashboard,
   Server,
-  Globe,
   BarChart3,
   Bell,
   Settings,
@@ -19,8 +19,7 @@ export interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { id: 'dashboard',  label: 'Dashboard',  icon: LayoutDashboard },
-  { id: 'nodes',      label: 'Nodes',      icon: Server },
-  { id: 'agentless',  label: 'Agentless',  icon: Globe },
+  { id: 'monitors',   label: 'Monitors',   icon: Server },
   { id: 'statistics', label: 'Statistics', icon: BarChart3 },
   { id: 'alerts',     label: 'Alerts',     icon: Bell },
 ];
@@ -42,7 +41,7 @@ export function Sidebar({ activeId, onNavigate }: SidebarProps) {
     <aside className={`sidebar ${collapsed ? 'sidebar--collapsed' : ''}`} role="navigation" aria-label="Main navigation">
       {/* Brand */}
       <div className="sidebar__brand">
-        <span className="sidebar__logo">⬡</span>
+        <span className="sidebar__logo"><Activity size={16} aria-hidden="true" /></span>
         {!collapsed && <span className="sidebar__title">Uptime LoFi</span>}
       </div>
 
@@ -56,6 +55,7 @@ export function Sidebar({ activeId, onNavigate }: SidebarProps) {
               key={item.id}
               className={`sidebar__item ${isActive ? 'sidebar__item--active' : ''}`}
               onClick={() => onNavigate(item.id)}
+              aria-label={item.label}
               title={collapsed ? item.label : undefined}
               aria-current={isActive ? 'page' : undefined}
             >
@@ -78,6 +78,7 @@ export function Sidebar({ activeId, onNavigate }: SidebarProps) {
               key={item.id}
               className={`sidebar__item ${activeId === item.id ? 'sidebar__item--active' : ''}`}
               onClick={() => onNavigate(item.id)}
+              aria-label={item.label}
               title={collapsed ? item.label : undefined}
               aria-current={activeId === item.id ? 'page' : undefined}
             >
@@ -91,6 +92,7 @@ export function Sidebar({ activeId, onNavigate }: SidebarProps) {
         <button
           className="sidebar__item sidebar__toggle"
           onClick={() => setCollapsed(!collapsed)}
+          aria-label={collapsed ? 'Expand' : 'Collapse'}
           title={collapsed ? 'Expand' : 'Collapse'}
         >
           {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}

@@ -2,6 +2,8 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { compress } from "../utils/compression";
+import { evaluateAlerts } from "../services/alertEngine";
+import { updateMonitorLatestFromAgentMetric } from "../services/monitorLatest";
 
 const pushApi = new Hono<{ Bindings: { DB: D1Database } }>();
 
@@ -33,6 +35,7 @@ const metricSchema = z.object({
 })
 
 const batchPayloadSchema = z.array(metricSchema).max(MAX_BATCH_SIZE, { message: 'Batch size must be <= 100' })
+type CompressedMetric = Omit<z.infer<typeof metricSchema>, "containers_json"> & { containers_json: string | null };
 
 pushApi.post(
   "/",
@@ -101,6 +104,12 @@ pushApi.post(
       return c.json({ error: "Failed executing database batch" }, 500);
     }
 
+    try {
+      await writeV2AgentMetrics(db, compressedPayload);
+    } catch (err: any) {
+      console.error("V2 agent metric bridge failed:", err?.message ?? String(err));
+    }
+
     // Return OTA Zero-Cost Trigger schema
     return c.json({ 
       status: "success", 
@@ -110,5 +119,42 @@ pushApi.post(
     });
   }
 );
+
+async function writeV2AgentMetrics(db: D1Database, payload: CompressedMetric[]) {
+  for (const metric of payload) {
+    const monitorId = await findAgentMonitorId(db, metric.node_id);
+    if (!monitorId) continue;
+
+    await updateMonitorLatestFromAgentMetric(db, {
+      monitorId,
+      timestamp: metric.timestamp,
+      isUp: metric.is_up,
+      latencyMs: metric.ping ?? null,
+      cpuPercent: metric.cpu,
+      memPercent: metric.mem,
+      payloadJson: JSON.stringify({
+        node_id: metric.node_id,
+        containers_json: metric.containers_json,
+      }),
+    });
+    await evaluateAlerts(db, monitorId, metric.timestamp);
+  }
+}
+
+async function findAgentMonitorId(db: D1Database, nodeId: string): Promise<string | null> {
+  const row = await db.prepare(
+    `SELECT id
+     FROM monitors
+     WHERE archived_at IS NULL
+       AND type = 'agent'
+       AND (
+         id = ?
+         OR json_extract(config_json, '$.node_id') = ?
+         OR json_extract(config_json, '$.legacy_node_id') = ?
+       )
+     LIMIT 1`,
+  ).bind(nodeId, nodeId, nodeId).first<{ id: string }>();
+  return row?.id ?? null;
+}
 
 export { pushApi };

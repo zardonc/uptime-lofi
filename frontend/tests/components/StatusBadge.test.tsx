@@ -12,4 +12,10 @@ describe("StatusBadge", () => {
     render(<StatusBadge status="offline" />);
     expect(screen.getByText(/offline/i)).toBeInTheDocument();
   });
+
+  it("renders unknown status distinctly from paused", () => {
+    render(<StatusBadge status="unknown" />);
+    expect(screen.getByText("Unknown")).toBeInTheDocument();
+    expect(screen.queryByText("Paused")).not.toBeInTheDocument();
+  });
 });

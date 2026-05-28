@@ -5,6 +5,8 @@ import type { ExportedHandlerScheduledHandler } from '@cloudflare/workers-types'
 import { api, Bindings } from './routes/api'
 import { securityHeadersMiddleware } from './middleware/securityHeaders'
 import { runDueAgentlessChecks } from './agentless/checks'
+import { runDueMonitorChecks } from './services/checkRunner'
+import { refreshStatistics } from './services/statisticsRollup'
 
 // Payload size enforcement
 const MAX_BODY_SIZE = 1024 * 1024 // 1 MB
@@ -150,13 +152,26 @@ export const scheduled: ExportedHandlerScheduledHandler<Bindings> = async (contr
   );
 
   let agentlessChecks = 0;
+  let monitorChecks = 0;
   try {
     agentlessChecks = await runDueAgentlessChecks(env, nowSeconds);
   } catch (error) {
     console.error("Cron Agentless checks failed:", error instanceof Error ? error.message : String(error));
   }
 
-  console.log(`Cron cleanup: ${tokenChanges} tokens, ${attemptChanges} attempts, ${auditChanges} audit entries removed; ${agentlessChecks} agentless checks run`);
+  try {
+    monitorChecks = await runDueMonitorChecks(env, nowSeconds);
+  } catch (error) {
+    console.error("Cron v2 monitor checks failed:", error instanceof Error ? error.message : String(error));
+  }
+
+  try {
+    await refreshStatistics(env, nowSeconds);
+  } catch (error) {
+    console.error("Cron statistics refresh failed:", error instanceof Error ? error.message : String(error));
+  }
+
+  console.log(`Cron cleanup: ${tokenChanges} tokens, ${attemptChanges} attempts, ${auditChanges} audit entries removed; ${agentlessChecks} agentless checks run; ${monitorChecks} v2 monitor checks run; statistics refreshed`);
 };
 
 export default {

@@ -17,8 +17,13 @@ database_id = "__D1_DATABASE_ID__"
 
 [[kv_namespaces]]
 binding = "SESSION_BLACKLIST"
-id = "__KV_NAMESPACE_ID__"
-preview_id = "__KV_PREVIEW_ID__"
+id = "__SESSION_KV_NAMESPACE_ID__"
+preview_id = "__SESSION_KV_PREVIEW_ID__"
+
+[[kv_namespaces]]
+binding = "STATISTICS_CACHE"
+id = "__STATISTICS_KV_NAMESPACE_ID__"
+preview_id = "__STATISTICS_KV_PREVIEW_ID__"
 
 [triggers]
 crons = ["*/5 * * * *"]

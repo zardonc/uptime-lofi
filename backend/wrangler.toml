@@ -24,6 +24,13 @@ binding = "SESSION_BLACKLIST"
 id = "PRODUCTION_KV_ID_PLACEHOLDER"
 preview_id = "PRODUCTION_KV_PREVIEW_ID_PLACEHOLDER"
 
+# Rebuildable read-model cache for v2 statistics snapshots and leaderboards.
+# Run: wrangler kv:namespace create STATISTICS_CACHE
+[[kv_namespaces]]
+binding = "STATISTICS_CACHE"
+id = "PRODUCTION_STATS_KV_ID_PLACEHOLDER"
+preview_id = "PRODUCTION_STATS_KV_PREVIEW_ID_PLACEHOLDER"
+
 # Cron Trigger for cleanup and due Agentless checks.
 # Runs every 5 minutes; per-node SQL due filtering enforces configured intervals.
 [triggers]
@@ -45,6 +52,11 @@ database_id = "STAGING_DB_ID_PLACEHOLDER"
 binding = "SESSION_BLACKLIST"
 id = "STAGING_KV_ID_PLACEHOLDER"
 preview_id = "STAGING_KV_PREVIEW_ID_PLACEHOLDER"
+
+[[env.staging.kv_namespaces]]
+binding = "STATISTICS_CACHE"
+id = "STAGING_STATS_KV_ID_PLACEHOLDER"
+preview_id = "STAGING_STATS_KV_PREVIEW_ID_PLACEHOLDER"
 
 [env.staging.triggers]
 crons = ["*/5 * * * *"]

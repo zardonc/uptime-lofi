@@ -1,143 +1,78 @@
 # uptime-lofi
 
-Self-hosted uptime dashboard for Cloudflare Workers, Cloudflare Pages, D1, KV, and lightweight server probes.
+Self-hosted uptime monitoring for Cloudflare Workers, Cloudflare Pages, D1, KV, and lightweight server probes.
 
-## Self-Hosted Deployment
+uptime-lofi is built around a Cloudflare-native v2 architecture:
 
-The intended deployment path is GitHub Actions from your fork. You do not need to run `wrangler` locally for the happy path.
+- Cloudflare Pages serves the dashboard and public status page.
+- Pages Functions act as the browser-facing BFF and admin session boundary.
+- A Worker backend owns internal APIs, scheduled checks, alert evaluation, D1, and KV access.
+- A Probe Worker receives server probe pushes without exposing the backend master secret.
+- The dashboard manages Monitors, Statistics, Alerts, Notifications, Public Status, and Settings from one app shell.
 
-### 1. Fork The Repository
+## Deployment
 
-Open the upstream repository on GitHub and click `Fork`. All setup below happens in your forked repository.
+The supported self-host path is GitHub Actions from your fork. You do not need to run `wrangler` locally for the normal deployment path.
 
-### 2. Create A Cloudflare API Token
+Read the full guide: [Self-Hosted Deployment](./DEPLOYMENT.md).
 
-In Cloudflare:
+## Features
 
-1. Open `My Profile -> API Tokens`.
-2. Click `Create Token`.
-3. Choose `Create Custom Token`.
-4. Add these account permissions:
+| Area | Current behavior |
+| --- | --- |
+| Dashboard | v2 monitor health summary, active issue list, recent activity, and latest monitor states. |
+| Monitors | Unified Agent Probe, HTTP Check, and TCP Check management with honest no-data states. |
+| Public Status | Standalone `/status` page controlled from Settings, served without the admin shell. |
+| Alerts | Monitor-aware rules, enable/disable flow, alert state, and history. |
+| Notifications | Webhook and Telegram channels with secret redaction; Email is reserved/disabled. |
+| Statistics | D1-derived summaries, trends, leaderboards, and empty states backed by rebuildable KV cache. |
+| Probe install | Dashboard-generated install command with node-specific credentials. |
 
-| Scope | Permission |
-|-------|------------|
-| Account | `Cloudflare Workers Scripts:Edit` |
-| Account | `Workers KV Storage:Edit` |
-| Account | `D1:Edit` |
-| Account | `Cloudflare Pages:Edit` |
-| Account | `Account Settings:Read` |
+## Repository Layout
 
-5. Set the account resource to the Cloudflare account where you want to deploy uptime-lofi.
-6. Create the token and copy it once. Cloudflare will not show it again.
+| Path | Purpose |
+| --- | --- |
+| `frontend/` | React 19 + TypeScript + Vite dashboard and public status UI. |
+| `functions/` | Cloudflare Pages Functions BFF, auth/session handling, and Worker proxy routes. |
+| `backend/` | Cloudflare Worker backend, D1 migrations, internal v2 APIs, scheduler, and probe worker config. |
+| `server-probe/` | Go probe binary installed on monitored servers. |
+| `scripts/` | CI helpers, smoke tests, and probe installation scripts. |
+| `.github/workflows/deploy-production.yml` | `Deploy Self-Hosted` workflow for fork-based deployment. |
 
-Zone permissions are not required for the default `*.pages.dev` and `*.workers.dev` deployment.
+## Local Development
 
-You also need your Cloudflare Account ID. In the Cloudflare dashboard, select your account and copy the `Account ID` from the account overview/sidebar.
+Install dependencies:
 
-### 3. Add GitHub Repository Secrets
+```bash
+pnpm install
+```
 
-In your forked repo, open:
+Run the backend Worker locally:
 
-`Settings -> Secrets and variables -> Actions -> New repository secret`
+```bash
+pnpm --dir backend exec wrangler dev src/index.ts --port 8787 --local
+```
 
-Add these secrets:
+Run the frontend locally:
 
-| Secret | Required | Value |
-|--------|----------|-------|
-| `CLOUDFLARE_API_TOKEN` | Yes | The Cloudflare API token from step 2 |
-| `CLOUDFLARE_ACCOUNT_ID` | Yes | Your Cloudflare Account ID |
-| `API_SECRET_KEY` | Yes | A long random master secret for backend/probe auth |
-| `INITIAL_UI_PASSWORD` | Optional | Initial dashboard password |
+```bash
+pnpm --filter frontend dev -- --host 127.0.0.1 --port 5173
+```
 
-Generate `API_SECRET_KEY` with a password manager or another cryptographically random source. Treat it as a production secret.
+Vite proxies `/api/*` to `http://127.0.0.1:8787`. In production, the frontend is built with `VITE_API_URL=''`, so browser calls stay same-origin through Pages Functions.
 
-### 4. Run Deploy Self-Hosted
+## Verification
 
-In your forked repo:
+```bash
+pnpm --filter frontend test
+pnpm --filter frontend typecheck
+pnpm --filter frontend lint
+pnpm --filter backend test
+```
 
-1. Open `Actions`.
-2. Select `Deploy Self-Hosted`.
-3. Click `Run workflow`.
-4. Leave the optional inputs blank.
-5. Wait for the workflow to finish.
+Known local note: Wrangler tests can emit sandbox/log/static-analysis warnings on Windows while still exiting successfully.
 
-The workflow creates or reuses Cloudflare resources, runs D1 migrations, deploys the dashboard Worker, deploys the probe Worker, builds the frontend with the deployed API URL, deploys Cloudflare Pages, publishes probe binaries to the current fork's `probe-latest` GitHub Release, then runs smoke validation.
+## More Docs
 
-The workflow chooses safe default resource names for you. The KV namespace remains `SESSION_BLACKLIST` and is reused if it already exists.
-
-When it completes, open the workflow run summary. It shows:
-
-| Output | Purpose |
-|--------|---------|
-| Dashboard URL | The Cloudflare Pages URL you open in the browser |
-| API URL | Dashboard Worker API endpoint |
-| Probe URL | Probe Worker push endpoint |
-
-### 5. Open The Dashboard URL
-
-Open the Dashboard URL from the workflow summary. Complete the initial setup/login flow and confirm the panel loads normally.
-
-### 6. Add Your First Node
-
-From the dashboard:
-
-1. Open `Nodes`.
-2. Click `Add Node`.
-3. Choose `Agent Probe`.
-4. Click `Generate Install Command`.
-5. Copy the command under `Run this on your server`.
-6. Run that command on the server you want to monitor.
-
-The dashboard provides:
-
-| Item | Purpose |
-|------|---------|
-| Install command | Downloads the right probe binary, writes `config.yaml`, and prints start guidance |
-| Probe push URL | Points the probe at your deployed Probe Worker |
-| Node ID | Identifies the server in the dashboard |
-| Node-specific credential | Authenticates the probe without exposing `API_SECRET_KEY` |
-
-Probe binary links point to your fork's `probe-latest` release. The deployment workflow publishes or refreshes those assets automatically.
-
-Once the probe pushes metrics successfully, the node appears online in `Nodes`. Open `View Details` on the node to see current metrics and Docker container data when your server reports it.
-
-### Advanced troubleshooting options
-
-Use these Advanced troubleshooting options only when the default deployment path does not fit your Cloudflare account.
-
-Normal users should leave these `Deploy Self-Hosted` inputs blank:
-
-| Input | When to use it |
-|-------|----------------|
-| `resource_prefix` | Only when the default Cloudflare resource names conflict with another uptime-lofi copy in the same account. Use lowercase letters, numbers, and hyphens only. |
-| `pages_url` | Only when Cloudflare Pages reports a production URL that differs from the workflow's automatic `*.pages.dev` default. |
-
-## Troubleshooting
-
-### Deploy Self-Hosted stops during preflight
-
-Open the workflow run summary. The preflight section names the missing or invalid setting and gives the exact fix. Common fixes are adding `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, and `API_SECRET_KEY` under `Settings -> Secrets and variables -> Actions -> New repository secret`, or correcting an advanced `resource_prefix` value.
-
-### Cloudflare token permission errors
-
-Check that the token includes Workers Scripts Edit, Workers KV Storage Edit, D1 Edit, Cloudflare Pages Edit, and Account Settings Read on the correct account. Also confirm `CLOUDFLARE_ACCOUNT_ID` belongs to that same account. The happy path does not need zone permissions.
-
-### GitHub Actions cannot find a secret
-
-Confirm the secret is added to the forked repository, not the upstream repository. The path is `Settings -> Secrets and variables -> Actions`.
-
-### Resource already exists
-
-The deployment workflow is idempotent and reuses existing resources where possible. `SESSION_BLACKLIST` is always reused as the fixed KV namespace. If D1, Worker, or Pages names conflict with another project, rerun `Deploy Self-Hosted` with a different `resource_prefix`.
-
-### Dashboard cannot reach the API
-
-Confirm the workflow built the frontend with the deployed Dashboard Worker URL and that CORS allows the deployed Pages URL.
-
-### Probe does not appear online
-
-Confirm the probe is using the generated Probe Worker URL, node ID, and node-specific credential from the dashboard. Do not use `API_SECRET_KEY` directly in client-side/browser-visible config.
-
-### Docker data is empty
-
-If the node is online but Docker shows no data, make sure Docker collection is enabled for the probe and that the user running the probe can read the Docker socket. After changing probe settings, wait for the next push and reopen the node detail drawer.
+- [Frontend README](./frontend/README.md)
+- [Self-Hosted Deployment](./DEPLOYMENT.md)

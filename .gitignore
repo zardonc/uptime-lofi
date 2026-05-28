@@ -29,6 +29,7 @@ AGENT.md
 
 # Node.js and Package Managers
 node_modules/
+.pnpm-store/
 dist/
 build/
 npm-debug.log*

@@ -52,11 +52,21 @@ describe("Push Routes (/api/push)", () => {
     };
 
     const db = (env as any).DB;
+    await db.prepare("DELETE FROM monitor_latest").run();
+    await db.prepare("DELETE FROM agent_metrics").run();
+    await db.prepare("DELETE FROM check_results").run();
+    await db.prepare("DELETE FROM monitors").run();
     await db.prepare("DELETE FROM raw_metrics").run();
     await db.prepare("DELETE FROM nodes").run();
     await db.prepare("INSERT INTO nodes (id, name, type, salt, status) VALUES (?, ?, ?, ?, ?)")
       .bind(nodeId, "Push Node", "agent_push", salt, "online")
       .run();
+    await db.prepare(
+      `INSERT INTO monitors (
+         id, backend_id, name, type, target, interval_sec, timeout_sec,
+         expected_json, config_json, paused, public_visible, created_at, updated_at
+       ) VALUES (?, 'default', ?, 'agent', 'Agent probe', 60, 10, NULL, ?, 0, 1, ?, ?)`,
+    ).bind(nodeId, "Push Agent Monitor", JSON.stringify({ legacy_node_id: nodeId }), Math.floor(Date.now() / 1000), Math.floor(Date.now() / 1000)).run();
 
     psk = await derivePsk(testEnv.API_SECRET_KEY, nodeId, salt);
   });
@@ -111,6 +121,24 @@ describe("Push Routes (/api/push)", () => {
     const nodeRecord = await (env as any).DB.prepare("SELECT status, last_heartbeat FROM nodes WHERE id = ?").bind(nodeId).first();
     expect(nodeRecord.status).toBe("online");
     expect(nodeRecord.last_heartbeat).toBe(ts);
+
+    const agentMetric = await (env as any).DB.prepare("SELECT * FROM agent_metrics WHERE monitor_id = ?").bind(nodeId).first();
+    expect(agentMetric).toMatchObject({
+      monitor_id: nodeId,
+      timestamp: ts,
+      cpu_percent: 10,
+      mem_percent: 20,
+    });
+
+    const latest = await (env as any).DB.prepare("SELECT * FROM monitor_latest WHERE monitor_id = ?").bind(nodeId).first();
+    expect(latest).toMatchObject({
+      monitor_id: nodeId,
+      status: "online",
+      checked_at: ts,
+      latency_ms: 45,
+      cpu_percent: 10,
+      mem_percent: 20,
+    });
   });
 
   it("2. Invalid Zod schema missing required fields", async () => {

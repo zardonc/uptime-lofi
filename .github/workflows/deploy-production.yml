@@ -25,6 +25,8 @@ env:
   CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
   CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
   API_SECRET_KEY: ${{ secrets.API_SECRET_KEY }}
+  INTERNAL_API_KEY: ${{ secrets.INTERNAL_API_KEY }}
+  PAGES_SESSION_SECRET: ${{ secrets.PAGES_SESSION_SECRET }}
   INITIAL_UI_PASSWORD: ${{ secrets.INITIAL_UI_PASSWORD }}
   SELF_HOST_PAGES_URL: ${{ inputs.pages_url }}
   RESOURCE_PREFIX: ${{ inputs.resource_prefix }}
@@ -70,6 +72,7 @@ jobs:
         run: |
           pnpm exec wrangler deploy -c wrangler.self-host.generated.toml --minify
           printf '%s' "$API_SECRET_KEY" | pnpm exec wrangler secret put API_SECRET_KEY -c wrangler.self-host.generated.toml
+          printf '%s' "$INTERNAL_API_KEY" | pnpm exec wrangler secret put INTERNAL_API_KEY -c wrangler.self-host.generated.toml
 
       - name: Deploy Probe Worker
         working-directory: backend
@@ -80,10 +83,18 @@ jobs:
       - name: Build frontend
         run: pnpm --filter frontend build
         env:
-          VITE_API_URL: ${{ steps.cf.outputs.dashboard_worker_url }}
+          VITE_API_URL: ''
+
+      - name: Configure Pages Functions secrets
+        run: |
+          printf '%s' "${{ steps.cf.outputs.dashboard_worker_url }}" | pnpm --dir backend exec wrangler pages secret put BACKEND_URL --project-name=${{ steps.cf.outputs.pages_project_name }}
+          printf '%s' "$INTERNAL_API_KEY" | pnpm --dir backend exec wrangler pages secret put INTERNAL_API_KEY --project-name=${{ steps.cf.outputs.pages_project_name }}
+          printf '%s' "$API_SECRET_KEY" | pnpm --dir backend exec wrangler pages secret put API_SECRET_KEY --project-name=${{ steps.cf.outputs.pages_project_name }}
+          printf '%s' "$PAGES_SESSION_SECRET" | pnpm --dir backend exec wrangler pages secret put PAGES_SESSION_SECRET --project-name=${{ steps.cf.outputs.pages_project_name }}
+          printf '%s' "Default backend" | pnpm --dir backend exec wrangler pages secret put BACKEND_LABEL --project-name=${{ steps.cf.outputs.pages_project_name }}
 
       - name: Deploy Cloudflare Pages
-        run: pnpm --dir backend exec wrangler pages deploy ../frontend/dist --project-name=${{ steps.cf.outputs.pages_project_name }} --branch=main
+        run: pnpm --dir backend exec wrangler pages deploy ../frontend/dist --project-name=${{ steps.cf.outputs.pages_project_name }} --branch=main --functions=../functions
 
       - name: Build and publish probe release assets
         env:
@@ -132,5 +143,9 @@ jobs:
 
           Dashboard URL: ${{ steps.cf.outputs.pages_url }}
 
-          Open the Dashboard URL, log in, then go to Nodes -> Add Node -> Agent Probe and click Generate Install Command.
+          Public Status URL: ${{ steps.cf.outputs.public_status_url }}
+
+          Worker API URL: ${{ steps.cf.outputs.dashboard_worker_url }}
+
+          Open the Dashboard URL, log in, then go to Monitors -> Add Monitor -> Agent Probe to generate install details.
           SUMMARY
