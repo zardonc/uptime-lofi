@@ -706,6 +706,8 @@ h1, h2, h3, h4, h5, h6 {
 .monitors-page .dashboard-header {
   align-items: flex-start;
   margin-bottom: 0;
+  position: relative;
+  z-index: 70;
 }
 
 .monitors-page__add-actions {
@@ -3567,6 +3569,7 @@ select:disabled {
 
 .monitor-add-menu {
   position: relative;
+  z-index: 60;
 }
 
 .monitor-add-menu .page-header__primary svg:last-child {
@@ -3577,7 +3580,7 @@ select:disabled {
   position: absolute;
   right: 0;
   top: calc(100% + 6px);
-  z-index: 20;
+  z-index: 220;
   display: grid;
   min-width: 180px;
   padding: 6px;
@@ -4946,6 +4949,7 @@ tr:hover td {
   .dashboard-header {
     flex-direction: column;
     gap: 10px;
+    overflow: visible;
   }
 
   .dashboard-header__actions,
@@ -4971,6 +4975,11 @@ tr:hover td {
   .monitor-edit-dialog__grid,
   .monitor-detail-config {
     grid-template-columns: 1fr;
+  }
+
+  .monitor-add-menu__panel {
+    right: auto;
+    left: 0;
   }
 }
 
@@ -5005,6 +5014,57 @@ tr:hover td {
   .login-card {
     max-width: calc(100vw - 32px);
     padding: 32px 24px;
+  }
+
+  .monitor-edit-dialog-shell {
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+  }
+
+  .monitor-edit-dialog {
+    width: min(100%, calc(100vw - 24px));
+    max-width: none;
+    max-height: calc(100dvh - 24px);
+    overflow-y: auto;
+  }
+
+  .monitor-edit-dialog__header {
+    gap: 10px;
+    padding: 14px;
+  }
+
+  .monitor-edit-dialog__header > div {
+    min-width: 0;
+  }
+
+  .monitor-edit-dialog__header h3,
+  .monitor-edit-dialog__header p {
+    overflow-wrap: anywhere;
+  }
+
+  .monitor-edit-dialog__grid {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 14px;
+  }
+
+  .monitor-edit-dialog__grid label {
+    min-width: 0;
+  }
+
+  .monitor-edit-dialog__note {
+    margin: 0 14px 14px !important;
+  }
+
+  .monitor-edit-dialog__actions {
+    flex-wrap: wrap;
+    justify-content: stretch;
+    padding: 14px;
+  }
+
+  .monitor-edit-dialog__actions button {
+    flex: 1 1 140px;
   }
 
   .alerts-rule-dialog-shell {
