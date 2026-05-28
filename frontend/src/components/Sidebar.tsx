@@ -55,6 +55,7 @@ export function Sidebar({ activeId, onNavigate }: SidebarProps) {
               key={item.id}
               className={`sidebar__item ${isActive ? 'sidebar__item--active' : ''}`}
               onClick={() => onNavigate(item.id)}
+              aria-label={item.label}
               title={collapsed ? item.label : undefined}
               aria-current={isActive ? 'page' : undefined}
             >
@@ -77,6 +78,7 @@ export function Sidebar({ activeId, onNavigate }: SidebarProps) {
               key={item.id}
               className={`sidebar__item ${activeId === item.id ? 'sidebar__item--active' : ''}`}
               onClick={() => onNavigate(item.id)}
+              aria-label={item.label}
               title={collapsed ? item.label : undefined}
               aria-current={activeId === item.id ? 'page' : undefined}
             >
@@ -90,6 +92,7 @@ export function Sidebar({ activeId, onNavigate }: SidebarProps) {
         <button
           className="sidebar__item sidebar__toggle"
           onClick={() => setCollapsed(!collapsed)}
+          aria-label={collapsed ? 'Expand' : 'Collapse'}
           title={collapsed ? 'Expand' : 'Collapse'}
         >
           {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}

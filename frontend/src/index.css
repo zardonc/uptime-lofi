@@ -4514,6 +4514,7 @@ tr:hover td {
 }
 
 .settings-page__header {
+  min-width: 0;
   max-width: 780px;
   width: 100%;
 }
@@ -4521,12 +4522,15 @@ tr:hover td {
 .settings-page__body {
   display: grid;
   gap: 16px;
+  min-width: 0;
   max-width: 780px;
   width: 100%;
 }
 
 .settings-panel,
 .settings-block {
+  max-width: 100%;
+  min-width: 0;
   padding: 0;
   overflow: hidden;
 }
@@ -4549,6 +4553,7 @@ tr:hover td {
 .settings-block-body,
 .notification-settings,
 .probe-setup {
+  min-width: 0;
   padding: 18px;
 }
 
@@ -4656,6 +4661,7 @@ tr:hover td {
 .probe-setup__result {
   display: grid;
   gap: 0;
+  min-width: 0;
 }
 
 .notification-channel-row__icon {
@@ -4670,13 +4676,18 @@ tr:hover td {
 
 .probe-setup__code,
 .probe-install-box {
+  max-width: 100%;
+  min-width: 0;
   overflow-x: auto;
+  overflow-wrap: anywhere;
   border-radius: var(--radius-sm);
   background: #1a1a18;
   color: #eaf4f1;
   font-size: 11px;
   line-height: 1.5;
   padding: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .login-gate {
@@ -4857,6 +4868,7 @@ tr:hover td {
 }
 
 @media (max-width: 980px) {
+  .dashboard-v2__overview-row,
   .dashboard-v2__grid,
   .statistics-trends,
   .statistics-leaderboards,
@@ -4879,6 +4891,11 @@ tr:hover td {
     grid-template-columns: 1fr;
   }
 
+  .public-monitor-settings {
+    grid-column: auto;
+    grid-row: auto;
+  }
+
   .monitor-card__metrics {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -4896,10 +4913,29 @@ tr:hover td {
 @media (max-width: 768px) {
   .sidebar {
     width: var(--sidebar-width-collapsed);
+    padding: 0;
   }
 
   .main-content {
     margin-left: 0;
+  }
+
+  .sidebar__brand {
+    justify-content: center;
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .sidebar__title,
+  .sidebar__item span {
+    display: none;
+  }
+
+  .sidebar__item {
+    justify-content: center;
+    width: 100%;
+    padding-left: 0;
+    padding-right: 0;
   }
 
   .dashboard,
@@ -4959,5 +4995,82 @@ tr:hover td {
 
   .monitor-detail-check > span:last-child {
     grid-column: 1 / -1;
+  }
+
+  .login-gate {
+    align-items: flex-start;
+    padding-top: clamp(72px, 16dvh, 132px);
+  }
+
+  .login-card {
+    max-width: calc(100vw - 32px);
+    padding: 32px 24px;
+  }
+
+  .alerts-rule-dialog-shell {
+    z-index: 200;
+    padding: 12px;
+  }
+
+  .alerts-rule-dialog {
+    width: min(100%, calc(100vw - 24px));
+  }
+
+  .alerts-rule-dialog .alerts-rule-form {
+    grid-template-columns: minmax(0, 1fr);
+    overflow-x: hidden;
+  }
+
+  .alerts-rule-dialog .alerts-rule-form__header,
+  .alerts-rule-form__actions {
+    width: 100%;
+    max-width: 100%;
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .alerts-rule-dialog .alerts-rule-form__header {
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .alerts-rule-dialog .alerts-rule-form__header > div {
+    min-width: 0;
+  }
+
+  .alerts-rule-dialog .alerts-rule-form__header h2,
+  .alerts-rule-dialog .alerts-rule-form__header p {
+    overflow-wrap: anywhere;
+  }
+
+  .alerts-rule-dialog .alerts-rule-form > label,
+  .alerts-rule-dialog .alerts-channel-picker,
+  .alerts-rule-dialog .alerts-advanced {
+    min-width: 0;
+    margin-left: 14px;
+    margin-right: 14px;
+  }
+
+  .alerts-rule-dialog .alerts-advanced__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .alerts-rule-dialog .alerts-channel-picker label {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .alerts-rule-dialog .alerts-channel-picker small {
+    grid-column: 2;
+    overflow-wrap: anywhere;
+  }
+
+  .alerts-rule-form__actions {
+    flex-wrap: wrap;
+    justify-content: stretch;
+  }
+
+  .alerts-rule-form__actions button {
+    flex: 1 1 140px;
   }
 }
