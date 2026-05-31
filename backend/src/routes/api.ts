@@ -74,6 +74,7 @@ dashboard.route("/nodes", nodesApi);
 dashboard.route("/agentless", agentlessApi);
 dashboard.route("/stats", statsApi);
 dashboard.route("/settings", settingsApi);
+dashboard.route("/v1/settings", settingsApi);
 dashboard.route("/v1/monitors", monitorsApi);
 dashboard.route("/v1/alerts", alertsApi);
 dashboard.route("/v1/notifications", notificationsApi);

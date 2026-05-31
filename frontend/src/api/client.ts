@@ -179,7 +179,7 @@ export const api = {
   getAuthStatus: () =>
     apiFetch<AuthStatusResponse>('/auth/status', { auth: false }),
 
-  getSettings: () => apiFetch<ApiResponse<SettingsResponse>>('/settings'),
+  getSettings: () => apiFetch<ApiResponse<SettingsResponse>>('/v1/settings'),
 
   login: (password: string) =>
     apiFetch<LoginResponse>('/auth/login', {
@@ -297,13 +297,13 @@ export const api = {
     }),
 
   updateSecuritySettings: (payload: { enabled: boolean; password?: string }) =>
-    apiFetch<{ success: boolean }>('/settings/security', {
+    apiFetch<{ success: boolean }>('/v1/settings/security', {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
 
   updatePublicStatusSettings: (payload: PublicStatusSettings & { readonly monitors?: ReadonlyArray<{ readonly id: string; readonly public_visible: boolean }> }) =>
-    apiFetch<ApiResponse<{ public_status: PublicStatusSettings }>>('/settings/public-status', {
+    apiFetch<ApiResponse<{ public_status: PublicStatusSettings }>>('/v1/settings/public-status', {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
