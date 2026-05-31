@@ -10,6 +10,12 @@ import { refreshStatistics } from './services/statisticsRollup'
 
 // Payload size enforcement
 const MAX_BODY_SIZE = 1024 * 1024 // 1 MB
+const CRON_INTERVAL_SECONDS = 5 * 60
+const STATISTICS_REFRESH_INTERVAL_SECONDS = 60 * 60
+
+export function shouldRefreshStatistics(nowSeconds: number): boolean {
+  return nowSeconds % STATISTICS_REFRESH_INTERVAL_SECONDS < CRON_INTERVAL_SECONDS
+}
 
 const app = new Hono<{ Bindings: Bindings }>()
 
@@ -165,13 +171,17 @@ export const scheduled: ExportedHandlerScheduledHandler<Bindings> = async (contr
     console.error("Cron v2 monitor checks failed:", error instanceof Error ? error.message : String(error));
   }
 
+  let statisticsRefreshed = false;
   try {
-    await refreshStatistics(env, nowSeconds);
+    if (shouldRefreshStatistics(nowSeconds)) {
+      await refreshStatistics(env, nowSeconds);
+      statisticsRefreshed = true;
+    }
   } catch (error) {
     console.error("Cron statistics refresh failed:", error instanceof Error ? error.message : String(error));
   }
 
-  console.log(`Cron cleanup: ${tokenChanges} tokens, ${attemptChanges} attempts, ${auditChanges} audit entries removed; ${agentlessChecks} agentless checks run; ${monitorChecks} v2 monitor checks run; statistics refreshed`);
+  console.log(`Cron cleanup: ${tokenChanges} tokens, ${attemptChanges} attempts, ${auditChanges} audit entries removed; ${agentlessChecks} agentless checks run; ${monitorChecks} v2 monitor checks run; statistics ${statisticsRefreshed ? "refreshed" : "skipped"}`);
 };
 
 export default {

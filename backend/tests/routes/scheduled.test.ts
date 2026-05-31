@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, vi } from "vitest";
 import { env } from "cloudflare:workers";
-import worker, { scheduled } from "../../src/index";
+import worker, { scheduled, shouldRefreshStatistics } from "../../src/index";
 
 describe("Scheduled Tasks (Cron)", () => {
   let testEnv: any;
@@ -68,6 +68,14 @@ describe("Scheduled Tasks (Cron)", () => {
   it("0b. Default export fetch handles HTTP requests", async () => {
     const response = await worker.fetch(new Request("http://localhost/"), testEnv, {} as any);
     expect(response.status).toBe(200);
+  });
+
+  it("0c. Limits scheduled statistics refreshes to one cron window per hour", () => {
+    expect(shouldRefreshStatistics(0)).toBe(true);
+    expect(shouldRefreshStatistics(299)).toBe(true);
+    expect(shouldRefreshStatistics(300)).toBe(false);
+    expect(shouldRefreshStatistics(3599)).toBe(false);
+    expect(shouldRefreshStatistics(3600)).toBe(true);
   });
 
   it("1. Run scheduled task — deletes expired entries but keeps active ones", async () => {
