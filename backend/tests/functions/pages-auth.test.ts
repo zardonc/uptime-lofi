@@ -66,7 +66,7 @@ describe("Pages Functions BFF auth boundary", () => {
     const body = await res.json() as Record<string, unknown>;
 
     expect(res.status).toBe(200);
-    expect(body).toEqual({ authenticated: true });
+    expect(body).toEqual({ authenticated: true, is_ui_lock_enabled: true, has_refresh_cookie: false });
     expect(JSON.stringify(body)).not.toContain("pages-session-secret");
     expect(JSON.stringify(body)).not.toContain("internal-test-key");
   });

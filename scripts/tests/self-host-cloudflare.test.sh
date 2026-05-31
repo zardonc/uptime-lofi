@@ -185,7 +185,7 @@ test_v2_resource_summary_and_template_rendering() {
   assert_contains "$summary_file" "Worker API URL"
   assert_contains "$summary_file" "Session KV namespace"
   assert_contains "$summary_file" "Statistics KV namespace"
-  assert_contains "$summary_file" "Pages Functions must be deployed with BACKEND_URL, INTERNAL_API_KEY, API_SECRET_KEY, and PAGES_SESSION_SECRET"
+  assert_contains "$summary_file" "Pages Functions must be deployed with BACKEND_URL, INTERNAL_API_KEY, API_SECRET_KEY, PAGES_SESSION_SECRET, and PAGES_ADMIN_PASSWORD"
   assert_not_contains "$summary_file" "$internal_key_value"
   assert_contains "$output_file" "public_status_url=https://uptime-lofi-demo.pages.dev/status"
   assert_contains "$ROOT_DIR/backend/wrangler.self-host.generated.toml" 'binding = "STATISTICS_CACHE"'
@@ -199,8 +199,13 @@ test_v2_resource_summary_and_template_rendering() {
 test_pages_functions_deploy_command() {
   local workflow_file="$ROOT_DIR/.github/workflows/deploy-production.yml"
 
-  assert_contains "$workflow_file" "wrangler pages functions build ../functions --outdir ../frontend/dist/_worker.js"
-  assert_contains "$workflow_file" "wrangler pages deploy ../frontend/dist --project-name="
+  assert_contains "$workflow_file" "wrangler --cwd .. pages functions build functions --outdir frontend/dist/_worker.js"
+  assert_contains "$workflow_file" "wrangler --cwd .. pages deploy frontend/dist --project-name="
+  assert_contains "$workflow_file" "wrangler --cwd .. pages secret put BACKEND_URL"
+  assert_contains "$workflow_file" "pages secret put PAGES_ADMIN_PASSWORD"
+  assert_contains "$workflow_file" '${INITIAL_UI_PASSWORD:-$API_SECRET_KEY}'
+  assert_not_contains "$workflow_file" "wrangler pages deploy ../frontend/dist"
+  assert_not_contains "$workflow_file" "wrangler pages secret put"
   assert_not_contains "$workflow_file" "--outfile ../frontend/dist/_worker.js"
   assert_not_contains "$workflow_file" "--functions="
 }

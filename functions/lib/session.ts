@@ -22,7 +22,8 @@ type SessionPayload = {
 
 export async function verifyAdminPassword(env: SessionEnv, password: string): Promise<boolean> {
   const expected = env.PAGES_ADMIN_PASSWORD ?? env.ADMIN_PASSWORD ?? env.API_SECRET_KEY;
-  return Boolean(expected) && await timingSafeEqual(password, expected);
+  if (!expected) return false;
+  return timingSafeEqual(password, expected);
 }
 
 export async function createSessionCookie(env: SessionEnv, nowSeconds = currentSeconds()): Promise<string> {

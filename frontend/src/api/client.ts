@@ -5,6 +5,7 @@
 
 import type {
   LoginResponse,
+  AuthStatusResponse,
   ApiResponse,
   ApiNode,
   ApiMetric,
@@ -129,7 +130,7 @@ async function tryRefresh(): Promise<string | null> {
         return null;
       }
       const body = (await res.json()) as LoginResponse;
-      accessToken = body.access_token;
+      accessToken = body.access_token ?? null;
       return accessToken;
     } catch {
       accessToken = null;
@@ -144,11 +145,22 @@ async function tryRefresh(): Promise<string | null> {
 
 async function safeText(res: Response): Promise<string> {
   try {
-    const json = await res.json();
-    return (json as Record<string, string>).error ?? JSON.stringify(json);
+    const json = await res.json() as unknown;
+    return errorMessage(json) ?? JSON.stringify(json);
   } catch {
     return res.statusText;
   }
+}
+
+function errorMessage(value: unknown): string | null {
+  if (!value || typeof value !== 'object' || !('error' in value)) return null;
+
+  const error = (value as { readonly error?: unknown }).error;
+  if (typeof error === 'string') return error;
+  if (!error || typeof error !== 'object') return null;
+
+  const message = (error as { readonly message?: unknown }).message;
+  return typeof message === 'string' && message.trim() ? message : null;
 }
 
 // ── Error class ──
@@ -165,7 +177,7 @@ export class ApiClientError extends Error {
 // ── Public API methods ──
 export const api = {
   getAuthStatus: () =>
-    apiFetch<{ is_ui_lock_enabled: boolean; has_refresh_cookie?: boolean }>('/auth/status', { auth: false }),
+    apiFetch<AuthStatusResponse>('/auth/status', { auth: false }),
 
   getSettings: () => apiFetch<ApiResponse<SettingsResponse>>('/settings'),
 

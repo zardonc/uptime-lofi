@@ -367,7 +367,14 @@ export interface ApiError {
 }
 
 export interface LoginResponse {
-  readonly access_token: string;
+  readonly access_token?: string;
+  readonly authenticated?: boolean;
+}
+
+export interface AuthStatusResponse {
+  readonly authenticated?: boolean;
+  readonly is_ui_lock_enabled?: boolean;
+  readonly has_refresh_cookie?: boolean;
 }
 
 export interface TrendPoint {

@@ -110,6 +110,7 @@ describe("useAuth", () => {
     setAccessToken("stale-token");
     setMockAuthState({
       authenticated: true,
+      hasRefreshCookie: true,
       accessToken: "refreshed-access-token",
       refreshToken: "rotated-refresh-token",
     });
@@ -127,8 +128,22 @@ describe("useAuth", () => {
     expect(sessionStorageSetItem).not.toHaveBeenCalled();
   });
 
+  it("resumes an existing Pages session without an access token refresh", async () => {
+    setMockAuthState({ authenticated: true, hasRefreshCookie: false });
+
+    const { result } = renderHook(() => useAuth(), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    expect(result.current.isAuthenticated).toBe(true);
+    expect(result.current.error).toBeNull();
+    expect(getAccessToken()).toBeNull();
+  });
+
   it("marks the session unauthenticated when API refresh fails later", async () => {
-    setMockAuthState({ authenticated: true });
+    setMockAuthState({ authenticated: true, hasRefreshCookie: true });
     const { result } = renderHook(() => useAuth(), { wrapper });
 
     await waitFor(() => {

@@ -16,7 +16,7 @@ export function LoginGate({ children }: { readonly children: React.ReactNode }) 
 
   useEffect(() => {
     import('../api/client').then((module) => {
-      module.api.getAuthStatus().then((res) => setIsUiLock(res.is_ui_lock_enabled)).catch(() => setIsUiLock(true));
+      module.api.getAuthStatus().then((res) => setIsUiLock(res.is_ui_lock_enabled ?? null)).catch(() => setIsUiLock(true));
     });
   }, []);
 
