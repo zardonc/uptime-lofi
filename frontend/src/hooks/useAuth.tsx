@@ -31,10 +31,13 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
     (async () => {
       try {
         const status = await api.getAuthStatus();
-        if (!status.has_refresh_cookie) return;
+        if (!status.has_refresh_cookie) {
+          if (status.authenticated && !cancelled) setIsAuthenticated(true);
+          return;
+        }
         const body = await api.refreshSession();
         if (!cancelled) {
-          setAccessToken(body.access_token);
+          setAccessToken(body.access_token ?? null);
           setIsAuthenticated(true);
         }
       } catch {
@@ -64,7 +67,7 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
     setIsLoading(true);
     try {
       const result = await api.login(password);
-      setAccessToken(result.access_token);
+      setAccessToken(result.access_token ?? null);
       setIsAuthenticated(true);
     } catch (err) {
       const msg = err instanceof ApiClientError ? err.message : 'Login failed';

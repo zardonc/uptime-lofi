@@ -21,6 +21,7 @@ interface MockAuthState {
   readonly password: string;
   readonly accessToken: string;
   readonly refreshToken: string;
+  readonly hasRefreshCookie: boolean;
 }
 
 interface MockApiState {
@@ -298,6 +299,7 @@ function createMockState(): MockApiState {
       password: "test-password",
       accessToken: "test-access-token",
       refreshToken: "test-refresh-token",
+      hasRefreshCookie: false,
     },
     nodes: createMockNodes(),
     monitors: createMockMonitors(),
@@ -402,7 +404,7 @@ function authStatusResponse() {
   return HttpResponse.json({
     authenticated: mockApiState.auth.authenticated,
     is_ui_lock_enabled: mockApiState.auth.isUiLockEnabled,
-    has_refresh_cookie: mockApiState.auth.authenticated,
+    has_refresh_cookie: mockApiState.auth.hasRefreshCookie,
   });
 }
 
@@ -427,7 +429,7 @@ export const handlers = [
       });
     }
 
-    return HttpResponse.json({ error: "Invalid credentials" }, { status: 401 });
+    return HttpResponse.json({ error: { code: "unauthorized", message: "Invalid credentials" } }, { status: 401 });
   }),
   http.post("/api/auth/refresh", () => {
     if (!mockApiState.auth.authenticated) {

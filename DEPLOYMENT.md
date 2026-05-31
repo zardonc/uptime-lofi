@@ -63,7 +63,7 @@ Add these secrets:
 | `API_SECRET_KEY` | Yes | Backend master secret for setup and probe credentials. | Random 32+ bytes, for example 43+ base64url chars or 64 hex chars. |
 | `INTERNAL_API_KEY` | Yes | Authenticates Pages Functions to the Worker internal API. | Different random 32+ bytes; do not reuse `API_SECRET_KEY`. |
 | `PAGES_SESSION_SECRET` | Yes | Signs admin session cookies. | Different random 32+ bytes; rotating it logs users out. |
-| `INITIAL_UI_PASSWORD` | Optional | Sets the dashboard password after deploy. *If omitted, use the admin setup/login flow after opening the Dashboard URL.*| Password-manager value, 16+ chars minimum, 20+ preferred. |
+| `INITIAL_UI_PASSWORD` | Optional | Sets the initial dashboard login password. If omitted, log in with `API_SECRET_KEY`. | Password-manager value, 16+ chars minimum, 20+ preferred. |
 
 Generate the three key secrets independently with a password manager or another cryptographically random source. Treat all secrets as production credentials. The workflow summary names missing secrets but never prints their values.
 
@@ -87,7 +87,7 @@ The workflow performs these steps:
 6. Deploys the Dashboard Worker and sets `API_SECRET_KEY` and `INTERNAL_API_KEY`.
 7. Deploys the Probe Worker and sets `API_SECRET_KEY`.
 8. Builds the frontend with same-origin API calls.
-9. Configures Pages Functions secrets: `BACKEND_URL`, `INTERNAL_API_KEY`, `API_SECRET_KEY`, `PAGES_SESSION_SECRET`, and `BACKEND_LABEL`.
+9. Configures Pages Functions secrets: `BACKEND_URL`, `INTERNAL_API_KEY`, `API_SECRET_KEY`, `PAGES_SESSION_SECRET`, `PAGES_ADMIN_PASSWORD`, and `BACKEND_LABEL`.
 10. Deploys Cloudflare Pages with the `functions/` directory.
 11. Builds and uploads probe binaries plus `install-probe.sh` to the `probe-latest` release in your fork.
 12. Optionally configures `INITIAL_UI_PASSWORD`.
@@ -106,7 +106,7 @@ When the workflow completes, open the run summary.
 
 ## 5. Open The Dashboard
 
-Open the Dashboard URL from the workflow summary. Complete the setup/login flow and confirm the dashboard loads.
+Open the Dashboard URL from the workflow summary. If `INITIAL_UI_PASSWORD` was set, use it to log in. If it was omitted, use `API_SECRET_KEY`.
 
 The dashboard uses signed HttpOnly session cookies through Pages Functions. Browser admin APIs should be same-origin `/api/*` calls from the Dashboard URL; they should not call the Worker internal API directly.
 
@@ -181,7 +181,7 @@ The deployment workflow is idempotent and reuses existing resources where possib
 
 ### Dashboard cannot reach the API
 
-Confirm the workflow deployed Pages Functions and configured `BACKEND_URL`, `INTERNAL_API_KEY`, `API_SECRET_KEY`, and `PAGES_SESSION_SECRET` as Pages secrets. Browser admin APIs should go through the Dashboard URL under `/api/*`; they should not call the Worker internal API directly.
+Confirm the workflow deployed Pages Functions and configured `BACKEND_URL`, `INTERNAL_API_KEY`, `API_SECRET_KEY`, `PAGES_SESSION_SECRET`, and `PAGES_ADMIN_PASSWORD` as Pages secrets. Browser admin APIs should go through the Dashboard URL under `/api/*`; they should not call the Worker internal API directly.
 
 ### Public Status is unavailable
 

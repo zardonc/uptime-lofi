@@ -390,7 +390,7 @@ ensure_self_host_resources() {
   append_summary "| Session KV namespace | ${SESSION_KV_NAMESPACE_NAME} |"
   append_summary "| Statistics KV namespace | ${STATISTICS_KV_NAMESPACE_NAME} |"
   append_summary ""
-  append_summary "Pages Functions must be deployed with BACKEND_URL, INTERNAL_API_KEY, API_SECRET_KEY, and PAGES_SESSION_SECRET configured as Pages secrets. Do not print or paste secret values into logs."
+  append_summary "Pages Functions must be deployed with BACKEND_URL, INTERNAL_API_KEY, API_SECRET_KEY, PAGES_SESSION_SECRET, and PAGES_ADMIN_PASSWORD configured as Pages secrets. Do not print or paste secret values into logs."
   append_summary ""
   append_summary "Next: open the Dashboard URL, log in, then go to Monitors -> Add Monitor -> Agent Probe to generate install details."
 }
