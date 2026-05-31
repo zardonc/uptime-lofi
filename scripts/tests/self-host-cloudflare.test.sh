@@ -199,8 +199,9 @@ test_v2_resource_summary_and_template_rendering() {
 test_pages_functions_deploy_command() {
   local workflow_file="$ROOT_DIR/.github/workflows/deploy-production.yml"
 
-  assert_contains "$workflow_file" "wrangler pages functions build ../functions --outfile ../frontend/dist/_worker.js"
+  assert_contains "$workflow_file" "wrangler pages functions build ../functions --outdir ../frontend/dist/_worker.js"
   assert_contains "$workflow_file" "wrangler pages deploy ../frontend/dist --project-name="
+  assert_not_contains "$workflow_file" "--outfile ../frontend/dist/_worker.js"
   assert_not_contains "$workflow_file" "--functions="
 }
 

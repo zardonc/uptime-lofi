@@ -86,7 +86,7 @@ jobs:
           VITE_API_URL: ''
 
       - name: Build Pages Functions
-        run: pnpm --dir backend exec wrangler pages functions build ../functions --outfile ../frontend/dist/_worker.js --output-routes-path ../frontend/dist/_routes.json --build-output-directory ../frontend/dist
+        run: pnpm --dir backend exec wrangler pages functions build ../functions --outdir ../frontend/dist/_worker.js --output-routes-path ../frontend/dist/_routes.json --build-output-directory ../frontend/dist
 
       - name: Configure Pages Functions secrets
         run: |
