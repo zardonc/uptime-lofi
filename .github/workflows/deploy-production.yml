@@ -85,6 +85,9 @@ jobs:
         env:
           VITE_API_URL: ''
 
+      - name: Build Pages Functions
+        run: pnpm --dir backend exec wrangler pages functions build ../functions --outfile ../frontend/dist/_worker.js --output-routes-path ../frontend/dist/_routes.json --build-output-directory ../frontend/dist
+
       - name: Configure Pages Functions secrets
         run: |
           printf '%s' "${{ steps.cf.outputs.dashboard_worker_url }}" | pnpm --dir backend exec wrangler pages secret put BACKEND_URL --project-name=${{ steps.cf.outputs.pages_project_name }}
@@ -94,7 +97,7 @@ jobs:
           printf '%s' "Default backend" | pnpm --dir backend exec wrangler pages secret put BACKEND_LABEL --project-name=${{ steps.cf.outputs.pages_project_name }}
 
       - name: Deploy Cloudflare Pages
-        run: pnpm --dir backend exec wrangler pages deploy ../frontend/dist --project-name=${{ steps.cf.outputs.pages_project_name }} --branch=main --functions=../functions
+        run: pnpm --dir backend exec wrangler pages deploy ../frontend/dist --project-name=${{ steps.cf.outputs.pages_project_name }} --branch=main
 
       - name: Build and publish probe release assets
         env:

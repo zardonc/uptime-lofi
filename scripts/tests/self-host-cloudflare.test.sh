@@ -11,14 +11,14 @@ assert_contains() {
   local file="$1"
   local expected="$2"
 
-  grep -F "$expected" "$file" >/dev/null
+  grep -F -- "$expected" "$file" >/dev/null
 }
 
 assert_not_contains() {
   local file="$1"
   local unexpected="$2"
 
-  if grep -F "$unexpected" "$file" >/dev/null; then
+  if grep -F -- "$unexpected" "$file" >/dev/null; then
     printf 'Did not expect summary to contain: %s\n' "$unexpected" >&2
     return 1
   fi
@@ -29,7 +29,7 @@ assert_count() {
   local expected="$2"
   local count="$3"
   local actual
-  actual=$(grep -F "$expected" "$file" | wc -l | tr -d ' ')
+  actual=$(grep -F -- "$expected" "$file" | wc -l | tr -d ' ')
 
   if [ "$actual" != "$count" ]; then
     printf 'Expected %s occurrences of %s, found %s\n' "$count" "$expected" "$actual" >&2
@@ -196,10 +196,19 @@ test_v2_resource_summary_and_template_rendering() {
   rm -f "$ROOT_DIR/backend/wrangler.self-host.generated.toml" "$ROOT_DIR/backend/probe-wrangler.self-host.generated.toml"
 }
 
+test_pages_functions_deploy_command() {
+  local workflow_file="$ROOT_DIR/.github/workflows/deploy-production.yml"
+
+  assert_contains "$workflow_file" "wrangler pages functions build ../functions --outfile ../frontend/dist/_worker.js"
+  assert_contains "$workflow_file" "wrangler pages deploy ../frontend/dist --project-name="
+  assert_not_contains "$workflow_file" "--functions="
+}
+
 test_missing_required_secrets
 test_invalid_resource_prefix
 test_summary_does_not_leak_cloudflare_token
 test_cloudflare_api_failure_summary
 test_v2_resource_summary_and_template_rendering
+test_pages_functions_deploy_command
 
 printf 'self-host-cloudflare preflight tests passed\n'
