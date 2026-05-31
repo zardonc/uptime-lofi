@@ -1,7 +1,7 @@
 {
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "rootDir": ".",
+    "rootDir": "..",
     "types": [
       "node",
       "vitest/globals",
@@ -9,5 +9,5 @@
       "@cloudflare/vitest-pool-workers/types"
     ]
   },
-  "include": ["src", "tests", "vitest.config.ts", "worker-configuration.d.ts"]
+  "include": ["src", "tests", "vitest.config.ts", "worker-configuration.d.ts", "../functions"]
 }

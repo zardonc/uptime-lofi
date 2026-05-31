@@ -740,7 +740,7 @@ export const handlers = [
   http.get("/api/stats/overview", () => {
     return HttpResponse.json({ data: mockApiState.overview });
   }),
-  http.get("/api/settings", () => {
+  http.get("/api/v1/settings", () => {
     return HttpResponse.json({
       data: {
         is_ui_lock_enabled: mockApiState.auth.isUiLockEnabled,
@@ -748,7 +748,7 @@ export const handlers = [
       },
     });
   }),
-  http.post("/api/settings/security", async ({ request }) => {
+  http.post("/api/v1/settings/security", async ({ request }) => {
     if (mockApiState.failSettingsUpdate) {
       return HttpResponse.json({ error: "Failed to save settings" }, { status: 500 });
     }
@@ -770,7 +770,7 @@ export const handlers = [
 
     return HttpResponse.json({ success: true });
   }),
-  http.post("/api/settings/public-status", async ({ request }) => {
+  http.post("/api/v1/settings/public-status", async ({ request }) => {
     const body = (await request.json()) as PublicStatusSettings & { monitors?: ReadonlyArray<{ id: string; public_visible: boolean }> };
     mockApiState = {
       ...mockApiState,
