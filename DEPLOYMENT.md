@@ -20,11 +20,13 @@ You do not need to run `wrangler` locally for the normal path.
 
 Open the upstream repository on GitHub and click `Fork`. All setup below happens in your forked repository.
 
-## 2. Create A Cloudflare API Token
+## 2. Create A Cloudflare Account API Token
 
 In Cloudflare:
 
-1. Open `My Profile -> API Tokens`.
+You need Super Administrator permission on the target account to create an Account API token.
+
+1. Open `Manage Account -> Account API Tokens`.
 2. Click `Create Token`.
 3. Choose `Create Custom Token`.
 4. Add these account permissions:
@@ -40,6 +42,8 @@ In Cloudflare:
 5. Set the account resource to the Cloudflare account where you want to deploy uptime-lofi.
 6. Create the token and copy it once. Cloudflare will not show it again.
 
+Use an Account API token for GitHub Actions. Cloudflare issues new account tokens with the `cfat_` prefix.
+
 Zone permissions are not required for the default `*.pages.dev` and `*.workers.dev` deployment.
 
 You also need your Cloudflare Account ID. In the Cloudflare dashboard, select your account and copy the `Account ID` from the account overview/sidebar.
@@ -52,16 +56,16 @@ In your forked repo, open:
 
 Add these secrets:
 
-| Secret | Required | Value |
-| --- | --- | --- |
-| `CLOUDFLARE_API_TOKEN` | Yes | The Cloudflare API token from step 2. |
-| `CLOUDFLARE_ACCOUNT_ID` | Yes | Your Cloudflare Account ID. |
-| `API_SECRET_KEY` | Yes | A long random master secret for backend setup and probe credential derivation. |
-| `INTERNAL_API_KEY` | Yes | A separate long random secret used only between Pages Functions and the Worker internal API. |
-| `PAGES_SESSION_SECRET` | Yes | A long random secret used to sign admin session cookies in Pages Functions. |
-| `INITIAL_UI_PASSWORD` | Optional | Initial dashboard password set after deploy. If omitted, use the admin setup/login flow after opening the Dashboard URL. |
+| Secret | Required | Purpose | Recommended format |
+| --- | --- | --- | --- |
+| `CLOUDFLARE_API_TOKEN` | Yes | Deploys Cloudflare resources. | Account API token from step 2, usually `cfat_...`. |
+| `CLOUDFLARE_ACCOUNT_ID` | Yes | Selects the target Cloudflare account. | 32-character Cloudflare account ID. |
+| `API_SECRET_KEY` | Yes | Backend master secret for setup and probe credentials. | Random 32+ bytes, for example 43+ base64url chars or 64 hex chars. |
+| `INTERNAL_API_KEY` | Yes | Authenticates Pages Functions to the Worker internal API. | Different random 32+ bytes; do not reuse `API_SECRET_KEY`. |
+| `PAGES_SESSION_SECRET` | Yes | Signs admin session cookies. | Different random 32+ bytes; rotating it logs users out. |
+| `INITIAL_UI_PASSWORD` | Optional | Sets the dashboard password after deploy. *If omitted, use the admin setup/login flow after opening the Dashboard URL.*| Password-manager value, 16+ chars minimum, 20+ preferred. |
 
-Generate `API_SECRET_KEY`, `INTERNAL_API_KEY`, and `PAGES_SESSION_SECRET` with a password manager or another cryptographically random source. Treat all three as production secrets. The workflow summary names missing secrets but never prints their values.
+Generate the three key secrets independently with a password manager or another cryptographically random source. Treat all secrets as production credentials. The workflow summary names missing secrets but never prints their values.
 
 ## 4. Run Deploy Self-Hosted
 
