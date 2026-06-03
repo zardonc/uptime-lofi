@@ -24,14 +24,18 @@ describe("Public Status Routes (/api/public)", () => {
     await db.prepare("DELETE FROM kv_settings").run();
   });
 
-  it("returns a non-public response while Public Status is disabled", async () => {
-    await seedMonitor({ id: "private-http", publicVisible: true });
+  it("shows publicly visible monitors even when Public Status settings are missing", async () => {
+    await seedMonitor({ id: "public-without-settings-http", publicVisible: true });
 
     const res = await app.fetch(new Request("http://localhost/api/public/status"), testEnv);
     const body = await res.json() as any;
 
-    expect(res.status).toBe(404);
-    expect(body.error.code).toBe("public_status_unavailable");
+    expect(res.status).toBe(200);
+    expect(body.monitors).toHaveLength(1);
+    expect(body.monitors[0]).toMatchObject({
+      id: "public-without-settings-http",
+      name: "public-without-settings-http",
+    });
   });
 
   it("omits hidden monitors and redacts secret-like operational data", async () => {

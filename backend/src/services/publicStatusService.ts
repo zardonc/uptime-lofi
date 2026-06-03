@@ -89,7 +89,6 @@ export async function buildPublicStatusResponse(
   slug: string | null,
 ): Promise<PublicStatusResponse | null> {
   const settings = await readPublicStatusSettings(db);
-  if (!settings.enabled) return null;
   if (settings.private_slug && settings.private_slug !== slug) return null;
 
   const rows = await db.prepare(
