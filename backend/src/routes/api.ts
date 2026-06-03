@@ -1,7 +1,6 @@
 import { Hono } from "hono";
 import { strictRateLimit, standardRateLimit } from "../middleware/rateLimiter";
 import { dashboardAuthMiddleware } from "../middleware/dashboardAuth";
-import { nodesApi } from "./nodes";
 import { statsApi } from "./stats";
 import { authApi } from "./auth";
 import { settingsApi } from "./settings";
@@ -49,7 +48,6 @@ api.use("/auth/setup", strictRateLimit);
 api.use("/auth/unlock", strictRateLimit);
 api.use("/auth/login", strictRateLimit);
 api.use("/auth/*", standardRateLimit);
-api.use("/nodes", standardRateLimit);
 api.use("/agentless", standardRateLimit);
 api.use("/stats", standardRateLimit);
 api.use("/internal/*", standardRateLimit);
@@ -70,7 +68,6 @@ api.route("/public", publicStatusApi);
 // 4. Protected Dashboard endpoints
 const dashboard = new Hono<{ Bindings: Bindings }>();
 dashboard.use("*", dashboardAuthMiddleware);
-dashboard.route("/nodes", nodesApi);
 dashboard.route("/agentless", agentlessApi);
 dashboard.route("/stats", statsApi);
 dashboard.route("/settings", settingsApi);

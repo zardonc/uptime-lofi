@@ -70,7 +70,7 @@ describe("v2 contracts", () => {
     })).toThrow();
     expect(() => publicStatusResponseSchema.parse({
       ...publicStatus,
-      monitors: [{ ...publicStatus.monitors[0], node_secret: "secret" }],
+      monitors: [{ ...publicStatus.monitors[0], monitor_secret: "secret" }],
     })).toThrow();
   });
 

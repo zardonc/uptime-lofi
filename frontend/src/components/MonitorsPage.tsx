@@ -202,7 +202,7 @@ export function MonitorsPage() {
             <section className="card monitors-empty">
               <h2>No monitors match</h2>
               <p>Adjust the current search or filters to see existing monitors.</p>
-              {hasActiveFilters && <button type="button" className="node-action" onClick={clearFilters}>Clear Filters</button>}
+              {hasActiveFilters && <button type="button" className="monitor-action" onClick={clearFilters}>Clear Filters</button>}
             </section>
           ) : (
             <section className="monitors-list" aria-label="Monitor list">
@@ -223,13 +223,13 @@ export function MonitorsPage() {
       )}
 
       {deleteTarget && (
-        <div className="node-dialog" role="presentation">
-          <div className="node-dialog__panel" role="dialog" aria-modal="true" aria-label={`Delete ${deleteTarget.name}?`}>
+        <div className="monitor-dialog" role="presentation">
+          <div className="monitor-dialog__panel" role="dialog" aria-modal="true" aria-label={`Delete ${deleteTarget.name}?`}>
             <h3>Delete {deleteTarget.name}?</h3>
             <p>Historical results stay available for reports. The monitor leaves active management.</p>
-            <div className="node-dialog__actions">
-              <button type="button" className="node-action" onClick={() => setDeleteTarget(null)}>Keep Monitor</button>
-              <button type="button" className="node-action node-action--danger" disabled={pendingId === deleteTarget.id} onClick={() => void handleArchive()}><Trash2 size={16} /> Delete Monitor</button>
+            <div className="monitor-dialog__actions">
+              <button type="button" className="monitor-action" onClick={() => setDeleteTarget(null)}>Keep Monitor</button>
+              <button type="button" className="monitor-action monitor-action--danger" disabled={pendingId === deleteTarget.id} onClick={() => void handleArchive()}><Trash2 size={16} /> Delete Monitor</button>
             </div>
           </div>
         </div>
@@ -272,10 +272,10 @@ function MonitorCard({ monitor, pending, onEdit, onPauseResume, onDetails, onDel
         <Metric icon={<MemoryStick size={17} />} label="Memory" value={formatMetric(monitor.latest.mem_percent, '%')} empty={monitor.latest.mem_percent == null} />
       </div>
       <div className="monitor-card__actions">
-        <button type="button" className="node-action" onClick={onEdit}>Edit</button>
-        <button type="button" className="node-action" disabled={pending} onClick={onPauseResume}>{pauseLabel}</button>
-        <button type="button" className="node-action node-action--primary" onClick={onDetails}>Details</button>
-        <button type="button" className="node-action node-action--danger" onClick={onDelete}>Delete</button>
+        <button type="button" className="monitor-action" onClick={onEdit}>Edit</button>
+        <button type="button" className="monitor-action" disabled={pending} onClick={onPauseResume}>{pauseLabel}</button>
+        <button type="button" className="monitor-action monitor-action--primary" onClick={onDetails}>Details</button>
+        <button type="button" className="monitor-action monitor-action--danger" onClick={onDelete}>Delete</button>
       </div>
     </article>
   );
@@ -288,8 +288,8 @@ function MonitorEditDialog({ monitor, pending, onCancel, onSubmit }: {
   readonly onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
   return (
-    <div className="node-dialog monitor-edit-dialog-shell" role="presentation">
-      <form className="node-dialog__panel monitor-edit-dialog" role="dialog" aria-modal="true" aria-label={`Edit ${monitor.name}`} onSubmit={onSubmit}>
+    <div className="monitor-dialog monitor-edit-dialog-shell" role="presentation">
+      <form className="monitor-dialog__panel monitor-edit-dialog" role="dialog" aria-modal="true" aria-label={`Edit ${monitor.name}`} onSubmit={onSubmit}>
         <div className="monitor-edit-dialog__header">
           <div>
             <h3>Edit {monitor.name}</h3>
@@ -304,9 +304,9 @@ function MonitorEditDialog({ monitor, pending, onCancel, onSubmit }: {
           <label className="monitor-edit-dialog__toggle"><input name="public_visible" type="checkbox" defaultChecked={monitor.public_visible} /> <span>Public visible</span></label>
         </div>
         <p className="monitor-edit-dialog__note">Target and secret-like fields are not edited here.</p>
-        <div className="node-dialog__actions monitor-edit-dialog__actions">
-          <button type="button" className="node-action" onClick={onCancel}>Cancel Edit</button>
-          <button type="submit" className="node-action node-action--primary" disabled={pending}>Save Monitor</button>
+        <div className="monitor-dialog__actions monitor-edit-dialog__actions">
+          <button type="button" className="monitor-action" onClick={onCancel}>Cancel Edit</button>
+          <button type="submit" className="monitor-action monitor-action--primary" disabled={pending}>Save Monitor</button>
         </div>
       </form>
     </div>
@@ -336,8 +336,8 @@ function MonitorDetailPage({ monitor, pending, onBack, onEdit, onPauseResume }: 
           </div>
         </div>
         <div className="monitor-detail-header__actions">
-          <button type="button" className="node-action" onClick={onEdit}>Edit</button>
-          <button type="button" className="node-action" disabled={pending} onClick={onPauseResume}>{pauseLabel}</button>
+          <button type="button" className="monitor-action" onClick={onEdit}>Edit</button>
+          <button type="button" className="monitor-action" disabled={pending} onClick={onPauseResume}>{pauseLabel}</button>
         </div>
       </div>
 
@@ -522,7 +522,7 @@ function MonitorForm({ mode, onCancel, onCreate }: {
           <h2>{typeLabels[mode]}</h2>
           <p>{mode === 'agent' ? 'Create a v2 probe placeholder without exposing credentials.' : 'Create a scheduler-backed monitor.'}</p>
         </div>
-        <button type="button" className="node-action" onClick={onCancel}>Cancel</button>
+        <button type="button" className="monitor-action" onClick={onCancel}>Cancel</button>
       </div>
       <label>Name<input name="name" required maxLength={80} /></label>
       {mode === 'http' && (
@@ -622,3 +622,4 @@ function buildMonitorDetail(monitor: Monitor) {
     checks,
   };
 }
+

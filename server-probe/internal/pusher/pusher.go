@@ -99,7 +99,7 @@ func (p *BatchPusher) FlushToEdge() {
 
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("X-Timestamp", fmt.Sprintf("%d", timestamp))
-		req.Header.Set("X-Node-Id", p.cfg.NodeID)
+		req.Header.Set("X-Monitor-Id", p.cfg.MonitorID)
 		req.Header.Set("X-Signature", signature)
 		req.Header.Set("Authorization", "Bearer "+signature)
 
@@ -113,8 +113,8 @@ func (p *BatchPusher) FlushToEdge() {
 
 		switch {
 		case resp.StatusCode == 410:
-			// Hard edge-case: If Gateway responds with 410 Gone, node is permanently disconnected
-			log.Fatalf("[FATAL] 410 Gone returned. Node identity suspended by Control Plane. Exiting.")
+			// Hard edge-case: If Gateway responds with 410 Gone, monitor is permanently disconnected
+			log.Fatalf("[FATAL] 410 Gone returned. Monitor identity suspended by Control Plane. Exiting.")
 			return backoff.Permanent(fmt.Errorf("410 remote suspension"))
 		case resp.StatusCode >= 200 && resp.StatusCode < 300:
 			log.Printf("[Pusher] Success! Flushed %d metrics to Edge (Status: %d)", len(snapshots), resp.StatusCode)

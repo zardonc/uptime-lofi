@@ -26,7 +26,7 @@ Read the full guide: [Self-Hosted Deployment](./DEPLOYMENT.md).
 | Alerts | Monitor-aware rules, enable/disable flow, alert state, and history. |
 | Notifications | Webhook and Telegram channels with secret redaction; Email is reserved/disabled. |
 | Statistics | D1-derived summaries, trends, leaderboards, and empty states backed by rebuildable KV cache. |
-| Probe install | Dashboard-generated install command with node-specific credentials. |
+| Probe install | Dashboard-generated install command with monitor-specific credentials. |
 
 ## Repository Layout
 

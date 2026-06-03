@@ -38,7 +38,6 @@ describe("App navigation", () => {
     expect(await screen.findByRole("heading", { name: "Dashboard" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Monitors" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Agentless" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Nodes" })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Monitors" }));
 

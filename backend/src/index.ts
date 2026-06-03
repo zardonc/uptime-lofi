@@ -4,7 +4,6 @@ import { HTTPException } from 'hono/http-exception'
 import type { ExportedHandlerScheduledHandler } from '@cloudflare/workers-types'
 import { api, Bindings } from './routes/api'
 import { securityHeadersMiddleware } from './middleware/securityHeaders'
-import { runDueAgentlessChecks } from './agentless/checks'
 import { runDueMonitorChecks } from './services/checkRunner'
 import { refreshStatistics } from './services/statisticsRollup'
 
@@ -41,7 +40,7 @@ app.use('*', async (c, next) => {
       return undefined
     },
     allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowHeaders: ['Content-Type', 'Authorization', 'X-Node-Id', 'X-Timestamp', 'X-Signature'],
+    allowHeaders: ['Content-Type', 'Authorization', 'X-Monitor-Id', 'X-Timestamp', 'X-Signature'],
     credentials: true,
     maxAge: 86400,
   })(c, next)
@@ -157,14 +156,7 @@ export const scheduled: ExportedHandlerScheduledHandler<Bindings> = async (contr
     "DELETE FROM audit_log WHERE created_at < (strftime('%s', 'now') - 7776000)"
   );
 
-  let agentlessChecks = 0;
   let monitorChecks = 0;
-  try {
-    agentlessChecks = await runDueAgentlessChecks(env, nowSeconds);
-  } catch (error) {
-    console.error("Cron Agentless checks failed:", error instanceof Error ? error.message : String(error));
-  }
-
   try {
     monitorChecks = await runDueMonitorChecks(env, nowSeconds);
   } catch (error) {
@@ -181,7 +173,7 @@ export const scheduled: ExportedHandlerScheduledHandler<Bindings> = async (contr
     console.error("Cron statistics refresh failed:", error instanceof Error ? error.message : String(error));
   }
 
-  console.log(`Cron cleanup: ${tokenChanges} tokens, ${attemptChanges} attempts, ${auditChanges} audit entries removed; ${agentlessChecks} agentless checks run; ${monitorChecks} v2 monitor checks run; statistics ${statisticsRefreshed ? "refreshed" : "skipped"}`);
+  console.log(`Cron cleanup: ${tokenChanges} tokens, ${attemptChanges} attempts, ${auditChanges} audit entries removed; ${monitorChecks} monitor checks run; statistics ${statisticsRefreshed ? "refreshed" : "skipped"}`);
 };
 
 export default {

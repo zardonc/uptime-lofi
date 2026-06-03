@@ -8,7 +8,7 @@ import (
 func TestGenerateSignature(t *testing.T) {
 	psk := "my-secret-key"
 	timestamp := int64(1710000000)
-	rawBody := []byte(`[{"node_id":"test","cpu":10.5}]`)
+	rawBody := []byte(`[{"monitor_id":"test","cpu":10.5}]`)
 
 	sig := pusher.GenerateSignature(psk, timestamp, rawBody)
 	if len(sig) != 64 {
@@ -19,7 +19,7 @@ func TestGenerateSignature(t *testing.T) {
 func TestHMACDeterministic(t *testing.T) {
 	psk := "my-secret-key"
 	timestamp := int64(1710000000)
-	body := []byte(`[{"node_id":"test","cpu":10.5}]`)
+	body := []byte(`[{"monitor_id":"test","cpu":10.5}]`)
 
 	first := pusher.GenerateSignature(psk, timestamp, body)
 	second := pusher.GenerateSignature(psk, timestamp, body)
@@ -31,7 +31,7 @@ func TestHMACDeterministic(t *testing.T) {
 
 func TestHMACDifferentKeys(t *testing.T) {
 	timestamp := int64(1710000000)
-	body := []byte(`[{"node_id":"test","cpu":10.5}]`)
+	body := []byte(`[{"monitor_id":"test","cpu":10.5}]`)
 
 	first := pusher.GenerateSignature("key-one", timestamp, body)
 	second := pusher.GenerateSignature("key-two", timestamp, body)
@@ -45,8 +45,8 @@ func TestHMACDifferentMessages(t *testing.T) {
 	psk := "shared-key"
 	timestamp := int64(1710000000)
 
-	first := pusher.GenerateSignature(psk, timestamp, []byte(`[{"node_id":"a"}]`))
-	second := pusher.GenerateSignature(psk, timestamp, []byte(`[{"node_id":"b"}]`))
+	first := pusher.GenerateSignature(psk, timestamp, []byte(`[{"monitor_id":"a"}]`))
+	second := pusher.GenerateSignature(psk, timestamp, []byte(`[{"monitor_id":"b"}]`))
 
 	if first == second {
 		t.Fatalf("expected different messages to produce different signatures")

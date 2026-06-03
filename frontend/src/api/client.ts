@@ -7,13 +7,8 @@ import type {
   LoginResponse,
   AuthStatusResponse,
   ApiResponse,
-  ApiNode,
-  ApiMetric,
-  OverviewStats,
   ProbeConfigRequest,
   ProbeConfigResponse,
-  UpdateNodeRequest,
-  DeleteNodeResponse,
   AgentlessCheck,
   CreateHttpCheckRequest,
   CreateTcpCheckRequest,
@@ -199,19 +194,6 @@ export const api = {
       method: 'POST',
     }),
 
-  getNodes: () => apiFetch<{ data: ApiNode[] }>('/nodes'),
-  updateNode: (id: string, payload: UpdateNodeRequest) =>
-    apiFetch<ApiResponse<ApiNode>>(`/nodes/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(payload),
-    }),
-  deleteNode: (id: string) =>
-    apiFetch<ApiResponse<DeleteNodeResponse>>(`/nodes/${id}`, {
-      method: 'DELETE',
-    }),
-  getOverview: () => apiFetch<{ data: OverviewStats }>('/stats/overview'),
-  getMetrics: (nodeId: string, hours = 24) =>
-    apiFetch<{ data: ApiMetric[] }>(`/nodes/${nodeId}/metrics?hours=${hours}`),
   getAgentlessChecks: () => apiFetch<ApiResponse<AgentlessCheck[]>>('/agentless'),
   getMonitors: () => apiFetch<ApiResponse<Monitor[]>>('/v1/monitors'),
   createMonitor: (payload: CreateMonitorRequest) =>
@@ -314,7 +296,7 @@ export const api = {
   },
 
   createProbeConfig: (payload: ProbeConfigRequest) =>
-    apiFetch<ProbeConfigResponse>('/nodes/probe-config', {
+    apiFetch<ProbeConfigResponse>('/v1/monitors/probe-config', {
       method: 'POST',
       body: JSON.stringify(payload),
     }),

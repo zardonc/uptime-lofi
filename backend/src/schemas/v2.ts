@@ -49,6 +49,8 @@ export const monitorSchema = backendSourceSchema.extend({
 
 export const agentMonitorConfigSchema = z.object({
   platform: z.enum(["linux/amd64", "linux/arm64", "darwin/amd64", "darwin/arm64"]).optional(),
+  generated_by: z.string().trim().optional(),
+  credential_version: z.number().int().positive().optional(),
 }).strict();
 
 export const httpMonitorConfigSchema = z.object({

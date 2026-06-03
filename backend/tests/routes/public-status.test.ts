@@ -52,7 +52,7 @@ describe("Public Status Routes (/api/public)", () => {
       config: {
         url: "https://status.example.com/internal?api_key=secret",
         bot_token: "telegram-secret",
-        node_secret: "probe-secret",
+        monitor_secret: "probe-secret",
         containers: [{ image: "internal/backend:latest" }],
         backend_url: "https://worker-internal.example.com",
       },
@@ -79,7 +79,7 @@ describe("Public Status Routes (/api/public)", () => {
     expect(serialized).not.toContain("hidden-http");
     expect(serialized).not.toContain("api_key");
     expect(serialized).not.toContain("bot_token");
-    expect(serialized).not.toContain("node_secret");
+    expect(serialized).not.toContain("monitor_secret");
     expect(serialized).not.toContain("containers");
     expect(serialized).not.toContain("worker-internal.example.com");
   });

@@ -32,7 +32,7 @@ id = "PRODUCTION_STATS_KV_ID_PLACEHOLDER"
 preview_id = "PRODUCTION_STATS_KV_PREVIEW_ID_PLACEHOLDER"
 
 # Cron Trigger for cleanup and due Agentless checks.
-# Runs every 5 minutes; per-node SQL due filtering enforces configured intervals.
+# Runs every 5 minutes; per-monitor SQL due filtering enforces configured intervals.
 [triggers]
 crons = ["*/5 * * * *"]
 

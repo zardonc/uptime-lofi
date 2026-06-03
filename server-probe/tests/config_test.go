@@ -10,7 +10,7 @@ import (
 
 func clearConfigEnv(t *testing.T) {
 	t.Helper()
-	for _, key := range []string{"UPTIME_API_URL", "UPTIME_NODE_ID", "UPTIME_PSK", "UPTIME_ENABLE_DOCKER"} {
+	for _, key := range []string{"UPTIME_API_URL", "UPTIME_MONITOR_ID", "UPTIME_PSK", "UPTIME_ENABLE_DOCKER"} {
 		if err := os.Unsetenv(key); err != nil {
 			t.Fatalf("failed to unset %s: %v", key, err)
 		}
@@ -28,7 +28,7 @@ func TestLoadConfigMissingFile(t *testing.T) {
 func TestLoadConfigFromEnv(t *testing.T) {
 	clearConfigEnv(t)
 	os.Setenv("UPTIME_API_URL", "https://api.example.com")
-	os.Setenv("UPTIME_NODE_ID", "test-node")
+	os.Setenv("UPTIME_MONITOR_ID", "test-monitor")
 	os.Setenv("UPTIME_PSK", "secret")
 	os.Setenv("UPTIME_ENABLE_DOCKER", "true")
 
@@ -40,8 +40,8 @@ func TestLoadConfigFromEnv(t *testing.T) {
 	if cfg.ApiUrl != "https://api.example.com" {
 		t.Errorf("Expected api_url 'https://api.example.com', got '%s'", cfg.ApiUrl)
 	}
-	if cfg.NodeID != "test-node" {
-		t.Errorf("Expected node_id 'test-node', got '%s'", cfg.NodeID)
+	if cfg.MonitorID != "test-monitor" {
+		t.Errorf("Expected monitor_id 'test-monitor', got '%s'", cfg.MonitorID)
 	}
 	if cfg.PSK != "secret" {
 		t.Errorf("Expected psk 'secret', got '%s'", cfg.PSK)
@@ -63,8 +63,8 @@ func TestConfigDefaults(t *testing.T) {
 	if cfg.ApiUrl == "" {
 		t.Fatalf("expected default api_url")
 	}
-	if cfg.NodeID == "" {
-		t.Fatalf("expected default node_id")
+	if cfg.MonitorID == "" {
+		t.Fatalf("expected default monitor_id")
 	}
 	if cfg.EnableDocker {
 		t.Fatalf("expected default enable_docker false")
@@ -77,7 +77,7 @@ func TestConfigEnvOverride(t *testing.T) {
 	cfgPath := filepath.Join(tmpDir, "config.yaml")
 	content := strings.Join([]string{
 		"api_url: https://yaml.example.com/push",
-		"node_id: yaml-node",
+		"monitor_id: yaml-monitor",
 		"psk: yaml-secret",
 		"enable_docker: false",
 	}, "\n")
@@ -86,7 +86,7 @@ func TestConfigEnvOverride(t *testing.T) {
 	}
 
 	os.Setenv("UPTIME_API_URL", "https://env.example.com/push")
-	os.Setenv("UPTIME_NODE_ID", "env-node")
+	os.Setenv("UPTIME_MONITOR_ID", "env-monitor")
 	os.Setenv("UPTIME_PSK", "env-secret")
 	os.Setenv("UPTIME_ENABLE_DOCKER", "true")
 
@@ -95,7 +95,7 @@ func TestConfigEnvOverride(t *testing.T) {
 		t.Fatalf("Failed to load config with env overrides: %v", err)
 	}
 
-	if cfg.ApiUrl != "https://env.example.com/push" || cfg.NodeID != "env-node" || cfg.PSK != "env-secret" || !cfg.EnableDocker {
+	if cfg.ApiUrl != "https://env.example.com/push" || cfg.MonitorID != "env-monitor" || cfg.PSK != "env-secret" || !cfg.EnableDocker {
 		t.Fatalf("expected env overrides to win, got %+v", cfg)
 	}
 }
@@ -106,7 +106,7 @@ func TestConfigYAMLParsing(t *testing.T) {
 	cfgPath := filepath.Join(tmpDir, "config.yaml")
 	content := strings.Join([]string{
 		"api_url: https://yaml.example.com/push",
-		"node_id: yaml-node",
+		"monitor_id: yaml-monitor",
 		"psk: yaml-secret",
 		"enable_docker: true",
 	}, "\n")
@@ -122,8 +122,8 @@ func TestConfigYAMLParsing(t *testing.T) {
 	if cfg.ApiUrl != "https://yaml.example.com/push" {
 		t.Fatalf("unexpected api_url: %s", cfg.ApiUrl)
 	}
-	if cfg.NodeID != "yaml-node" {
-		t.Fatalf("unexpected node_id: %s", cfg.NodeID)
+	if cfg.MonitorID != "yaml-monitor" {
+		t.Fatalf("unexpected monitor_id: %s", cfg.MonitorID)
 	}
 	if cfg.PSK != "yaml-secret" {
 		t.Fatalf("unexpected psk: %s", cfg.PSK)
@@ -139,7 +139,7 @@ func TestConfigValidation(t *testing.T) {
 	cfgPath := filepath.Join(tmpDir, "config.yaml")
 	content := strings.Join([]string{
 		"api_url: ''",
-		"node_id: ''",
+		"monitor_id: ''",
 		"psk: ''",
 	}, "\n")
 	if err := os.WriteFile(cfgPath, []byte(content), 0o600); err != nil {

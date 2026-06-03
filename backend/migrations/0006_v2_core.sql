@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS monitors (
     timeout_sec INTEGER NOT NULL DEFAULT 10,
     expected_json TEXT,
     config_json TEXT NOT NULL,
+    salt TEXT,
     paused INTEGER NOT NULL DEFAULT 0,
     public_visible INTEGER NOT NULL DEFAULT 1,
     created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),

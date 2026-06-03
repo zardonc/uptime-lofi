@@ -11,7 +11,7 @@ You do not need to run `wrangler` locally for the normal path.
 | Dashboard UI | Cloudflare Pages static assets from `frontend/dist` | Admin dashboard and public `/status` page. |
 | Pages Functions | Cloudflare Pages Functions from `functions/` | Browser-facing BFF, admin cookies, session refresh, and internal Worker proxy. |
 | Dashboard Worker | Cloudflare Worker from `backend/src/index.ts` | Internal v2 APIs, scheduler, D1/KV access, alerts, statistics, and probe config generation. |
-| Probe Worker | Cloudflare Worker from `backend/probe-wrangler.self-host.template.toml` | Receives node probe pushes. |
+| Probe Worker | Cloudflare Worker from `backend/probe-wrangler.self-host.template.toml` | Receives monitor probe pushes. |
 | D1 | Cloudflare D1 database | Monitors, latest state, checks, alerts, notifications, settings, and statistics rollups. |
 | KV | Cloudflare KV namespaces | Session revocation and rebuildable statistics cache. |
 | Probe binaries | GitHub Release `probe-latest` in your fork | Installable Go probe assets used by generated install commands. |
@@ -133,8 +133,8 @@ The generated install details include:
 | --- | --- |
 | Install command | Downloads the right probe binary, writes `config.yaml`, and prints start guidance. |
 | Probe push URL | Points the probe at your deployed Probe Worker. |
-| Node ID | Identifies the server in the dashboard. |
-| Node-specific credential | Authenticates the probe without exposing `API_SECRET_KEY`. |
+| Monitor ID | Identifies the server monitor in the dashboard. |
+| Monitor-specific credential | Authenticates the probe without exposing `API_SECRET_KEY`. |
 
 Probe binary links point to your fork's `probe-latest` release. The deployment workflow publishes or refreshes those assets automatically.
 
@@ -189,11 +189,11 @@ Open `Settings`, enable Public Status, choose visible monitors and fields, and s
 
 ### Probe does not appear online
 
-Confirm the probe is using the generated Probe Worker URL, node ID, and node-specific credential from the dashboard. Do not use `API_SECRET_KEY` directly in client-side or browser-visible config.
+Confirm the probe is using the generated Probe Worker URL, monitor ID, and monitor-specific credential from the dashboard. Do not use `API_SECRET_KEY` directly in client-side or browser-visible config.
 
 ### Docker data is empty
 
-If the node is online but Docker/runtime data is empty, make sure Docker collection is enabled for the probe and that the user running the probe can read the Docker socket. After changing probe settings, wait for the next push and reopen the monitor detail view.
+If the monitor is online but Docker/runtime data is empty, make sure Docker collection is enabled for the probe and that the user running the probe can read the Docker socket. After changing probe settings, wait for the next push and reopen the monitor detail view.
 
 ### Statistics are empty
 

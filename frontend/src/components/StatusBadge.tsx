@@ -1,6 +1,6 @@
-import type { MonitorStatus, NodeStatus } from '../api/types';
+import type { MonitorStatus } from '../api/types';
 
-type StatusBadgeStatus = NodeStatus | MonitorStatus;
+type StatusBadgeStatus = MonitorStatus;
 
 const statusConfig: Record<StatusBadgeStatus, { label: string; className: string }> = {
   online:   { label: 'Online',   className: 'badge-online'   },

@@ -1,13 +1,11 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { env } from "cloudflare:workers";
-import { sign } from "hono/jwt";
-import app from "../../src/index";
 import probeApp from "../../src/probe-index";
 
-async function derivePsk(masterSecret: string, nodeId: string, salt: string): Promise<string> {
+async function derivePsk(masterSecret: string, monitorId: string, salt: string): Promise<string> {
   const encoder = new TextEncoder();
   const keyData = encoder.encode(masterSecret);
-  const msgData = encoder.encode(`${nodeId}:${salt}`);
+  const msgData = encoder.encode(`${monitorId}:${salt}`);
   const cryptoKey = await crypto.subtle.importKey("raw", keyData, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
   const sigBuffer = await crypto.subtle.sign("HMAC", cryptoKey, msgData);
   return Array.from(new Uint8Array(sigBuffer)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
@@ -23,11 +21,10 @@ async function signProbePayload(psk: string, timestamp: number, body: string): P
 }
 
 describe("Docker container data path", () => {
-  const nodeId = "docker_path_node";
+  const monitorId = "docker_path_monitor";
   const salt = "docker_path_salt";
   const masterSecret = "test_admin_key";
   let testEnv: any;
-  let adminToken: string;
   let psk: string;
 
   beforeAll(async () => {
@@ -43,48 +40,42 @@ describe("Docker container data path", () => {
     };
 
     const db = (env as any).DB;
-    await db.prepare("DELETE FROM raw_metrics").run();
-    await db.prepare("DELETE FROM nodes").run();
+    await db.prepare("DELETE FROM monitor_latest").run();
+    await db.prepare("DELETE FROM agent_metrics").run();
+    await db.prepare("DELETE FROM monitors").run();
     await db.prepare("DELETE FROM refresh_tokens").run();
 
-    const sessionId = crypto.randomUUID();
-    await db.prepare("INSERT INTO refresh_tokens (token_hash, session_id, status, expires_at) VALUES ('dockerhash', ?, 'active', 9999999999)")
-      .bind(sessionId)
+    await db.prepare(
+      `INSERT INTO monitors (
+         id, backend_id, name, type, target, interval_sec, timeout_sec,
+         config_json, salt, paused, public_visible
+       ) VALUES (?, 'default', ?, 'agent', 'Agent probe', 60, 10, '{}', ?, 0, 1)`,
+    )
+      .bind(monitorId, "Docker Path Monitor", salt)
       .run();
 
-    adminToken = await sign({
-      session_id: sessionId,
-      role: "admin",
-      aud: "test_aud",
-      iss: "test_iss",
-      exp: Math.floor(Date.now() / 1000) + 3600,
-    }, masterSecret);
-
-    await db.prepare("INSERT INTO nodes (id, name, type, salt, status) VALUES (?, ?, ?, ?, ?)")
-      .bind(nodeId, "Docker Path Node", "agent_push", salt, "offline")
-      .run();
-
-    psk = await derivePsk(masterSecret, nodeId, salt);
+    psk = await derivePsk(masterSecret, monitorId, salt);
   });
 
   afterAll(async () => {
     const db = (env as any).DB;
-    await db.prepare("DELETE FROM raw_metrics").run();
-    await db.prepare("DELETE FROM nodes").run();
+    await db.prepare("DELETE FROM monitor_latest").run();
+    await db.prepare("DELETE FROM agent_metrics").run();
+    await db.prepare("DELETE FROM monitors").run();
     await db.prepare("DELETE FROM refresh_tokens").run();
   });
 
-  it("stores signed containers_json and exposes parsed containers from metrics", async () => {
+  it("stores signed containers_json in agent metric payloads", async () => {
     const timestamp = Math.floor(Date.now() / 1000);
     const containers = [{ id: "abc1234567", name: "/web", image: "nginx:1.27", state: "running", status: "Up 5 minutes" }];
-    const pushBody = JSON.stringify([{ node_id: nodeId, timestamp, ping: 42, cpu: 18.5, mem: 44.2, is_up: true, containers_json: JSON.stringify(containers) }]);
+    const pushBody = JSON.stringify([{ monitor_id: monitorId, timestamp, ping: 42, cpu: 18.5, mem: 44.2, is_up: true, containers_json: JSON.stringify(containers) }]);
     const signature = await signProbePayload(psk, timestamp, pushBody);
 
     const pushRes = await probeApp.fetch(new Request("http://localhost/api/push", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${signature}`,
-        "X-Node-Id": nodeId,
+        "X-Monitor-Id": monitorId,
         "X-Timestamp": timestamp.toString(),
         "Content-Type": "application/json",
       },
@@ -92,26 +83,11 @@ describe("Docker container data path", () => {
     }), testEnv);
 
     expect(pushRes.status).toBe(200);
-    const stored = await (env as any).DB.prepare("SELECT containers_json FROM raw_metrics WHERE node_id = ? ORDER BY id DESC LIMIT 1")
-      .bind(nodeId)
+    const stored = await (env as any).DB.prepare("SELECT payload_json FROM agent_metrics WHERE monitor_id = ? ORDER BY id DESC LIMIT 1")
+      .bind(monitorId)
       .first();
-    expect(stored.containers_json).toEqual(expect.stringMatching(/^gz:/));
-
-    const listRes = await app.fetch(new Request("http://localhost/api/nodes", {
-      headers: { Authorization: `Bearer ${adminToken}` },
-    }), testEnv);
-    const listBody: any = await listRes.json();
-    expect(listBody.data[0].config?.agent?.containers ?? null).toBeNull();
-
-    const metricsRes = await app.fetch(new Request(`http://localhost/api/nodes/${nodeId}/metrics?hours=1`, {
-      headers: { Authorization: `Bearer ${adminToken}` },
-    }), testEnv);
-
-    expect(metricsRes.status).toBe(200);
-    const metricsBody: any = await metricsRes.json();
-    expect(metricsBody.data[0].containers[0].name).toBe("/web");
-    expect(metricsBody.data[0].containers[0].image).toBe("nginx:1.27");
-    expect(metricsBody.data[0].containers[0].state).toBe("running");
-    expect(metricsBody.data[0].containers[0].status).toBe("Up 5 minutes");
+    const payload = JSON.parse(stored.payload_json);
+    expect(payload.monitor_id).toBe(monitorId);
+    expect(payload.containers_json).toEqual(expect.stringMatching(/^gz:/));
   });
 });
