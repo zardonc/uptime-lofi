@@ -37,7 +37,6 @@ type PublicMonitorRow = {
   name: string;
   type: "agent" | "http" | "tcp";
   target: string | null;
-  public_visible: number;
   status: MonitorStatus | null;
   checked_at: number | null;
   latency_ms: number | null;
@@ -94,7 +93,7 @@ export async function buildPublicStatusResponse(
   if (settings.private_slug && settings.private_slug !== slug) return null;
 
   const rows = await db.prepare(
-    `SELECT m.id, m.name, m.type, m.target, m.public_visible,
+    `SELECT m.id, m.name, m.type, m.target,
             ml.status, ml.checked_at, ml.latency_ms, ml.uptime_ratio, ml.updated_at,
             (
               SELECT cr.detail_json
@@ -105,7 +104,8 @@ export async function buildPublicStatusResponse(
             ) AS last_detail_json
        FROM monitors m
        LEFT JOIN monitor_latest ml ON ml.monitor_id = m.id
-      WHERE m.archived_at IS NULL AND m.public_visible = 1
+      WHERE m.archived_at IS NULL
+        AND m.public_visible = 1
       ORDER BY lower(m.name) ASC`,
   ).all<PublicMonitorRow>();
 
