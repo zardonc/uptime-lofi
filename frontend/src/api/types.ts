@@ -361,6 +361,7 @@ export type ProbeDownloadKey = 'linux_amd64' | 'linux_arm64' | 'darwin_amd64' | 
 export interface ProbeConfigRequest {
   readonly name: string;
   readonly platform?: ProbePlatform;
+  readonly public_visible?: boolean;
 }
 
 export interface ProbeConfigData {

@@ -149,6 +149,27 @@ describe("Monitors page", () => {
     expect(screen.getByText(/db\.example\.com:5432/)).toBeInTheDocument();
   });
 
+  it("creates an Agent Probe and shows the install command in the Add Monitor flow", async () => {
+    setMockMonitors([]);
+    const user = await openMonitorsPage();
+
+    await user.click(screen.getByRole("button", { name: "Add Monitor" }));
+    await user.click(screen.getByRole("menuitem", { name: "Agent Probe" }));
+    const form = await screen.findByRole("form", { name: "Monitor form" });
+
+    await user.type(within(form).getByLabelText("Name"), "prod-vps-1");
+    await user.selectOptions(within(form).getByLabelText("Platform"), "linux/arm64");
+    await user.click(within(form).getByRole("button", { name: "Create Probe & Generate Command" }));
+
+    expect(await screen.findByRole("heading", { name: "Run this on your server" })).toBeInTheDocument();
+    const commandBlock = screen.getByTestId("probe-install-command");
+    expect(commandBlock).toHaveTextContent("UPTIME_PLATFORM='linux/arm64'");
+    expect(commandBlock).toHaveTextContent("UPTIME_MONITOR_ID='monitor-generated-1'");
+    expect(commandBlock).toHaveTextContent("UPTIME_MONITOR_SECRET='monitor-secret-generated'");
+    expect(commandBlock).not.toHaveTextContent("API_SECRET_KEY");
+    expect(await screen.findByRole("article", { name: "prod-vps-1 monitor" })).toBeInTheDocument();
+  });
+
   it("requires confirmation before deleting a monitor", async () => {
     const user = await openMonitorsPage();
 

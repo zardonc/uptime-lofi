@@ -2,13 +2,17 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { Activity, ArrowLeft, ChevronDown, Clock, Cpu, Gauge, MemoryStick, Plus, Search, ShieldCheck, Trash2, X } from 'lucide-react';
 import { api, ApiClientError } from '../api/client';
-import type { CreateMonitorRequest, Monitor, MonitorStatus, MonitorType } from '../api/types';
+import type { CreateMonitorRequest, Monitor, MonitorStatus, MonitorType, ProbeConfigData, ProbePlatform } from '../api/types';
 import { useAuth } from '../hooks/useAuth';
 import { useMonitors } from '../hooks/useMonitors';
 import { ErrorBanner } from './ErrorBanner';
 import { StatusBadge } from './StatusBadge';
 
 type FormMode = MonitorType | null;
+type ProbeCommandResult = {
+  readonly platform: ProbePlatform;
+  readonly config: ProbeConfigData;
+};
 type MonitorDetailWorkload = {
   readonly name: string;
   readonly meta: string;
@@ -46,6 +50,7 @@ export function MonitorsPage() {
   const [editTarget, setEditTarget] = useState<Monitor | null>(null);
   const [detailTarget, setDetailTarget] = useState<Monitor | null>(null);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
+  const [probeCommand, setProbeCommand] = useState<ProbeCommandResult | null>(null);
   const addMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -95,6 +100,18 @@ export function MonitorsPage() {
     }
   };
 
+  const handleCreateProbe = async (payload: { readonly name: string; readonly platform: ProbePlatform; readonly public_visible: boolean }) => {
+    try {
+      setSaveError(null);
+      const response = await api.createProbeConfig(payload);
+      setProbeCommand({ platform: payload.platform, config: response.data });
+      setFormMode('agent');
+      void refetch();
+    } catch (err) {
+      setSaveError(probeConfigErrorMessage(err));
+    }
+  };
+
   const handlePauseResume = async (monitor: Monitor) => {
     setPendingId(monitor.id);
     try {
@@ -140,6 +157,7 @@ export function MonitorsPage() {
 
   const selectFormMode = (mode: MonitorType) => {
     setFormMode(mode);
+    setProbeCommand(null);
     setAddMenuOpen(false);
   };
 
@@ -176,7 +194,18 @@ export function MonitorsPage() {
 
       {error && <ErrorBanner message={error} onRetry={refetch} />}
       {saveError && <p className="agentless-form__error" role="alert">{saveError}</p>}
-      {formMode && <MonitorForm mode={formMode} onCancel={() => setFormMode(null)} onCreate={(payload) => void handleCreate(payload)} />}
+      {formMode && (
+        <MonitorForm
+          mode={formMode}
+          probeCommand={probeCommand}
+          onCancel={() => {
+            setFormMode(null);
+            setProbeCommand(null);
+          }}
+          onCreate={(payload) => void handleCreate(payload)}
+          onCreateProbe={(payload) => void handleCreateProbe(payload)}
+        />
+      )}
 
       {detailTarget ? (
         <MonitorDetailPage
@@ -518,17 +547,73 @@ function isReachable403(statusCode: number | null | undefined): boolean {
   return statusCode === 403;
 }
 
-function MonitorForm({ mode, onCancel, onCreate }: {
+function probeConfigErrorMessage(error: unknown): string {
+  if (error instanceof ApiClientError) {
+    if (error.status === 409) return 'A monitor with this name already exists. Choose another name.';
+    if (error.status === 401 || error.status === 403) return 'Your session expired. Sign in again before generating the probe command.';
+    if (error.status >= 500) return 'Could not create the probe install command. Check backend probe configuration and try again.';
+    return error.message;
+  }
+  return 'Could not create the probe install command. Try again.';
+}
+
+const probePlatforms: ReadonlyArray<ProbePlatform> = ['linux/amd64', 'linux/arm64', 'darwin/amd64', 'darwin/arm64'];
+
+const probePlatformLabels: Readonly<Record<ProbePlatform, string>> = {
+  'linux/amd64': 'Linux amd64',
+  'linux/arm64': 'Linux arm64',
+  'darwin/amd64': 'macOS amd64',
+  'darwin/arm64': 'macOS arm64',
+};
+
+function MonitorForm({ mode, probeCommand, onCancel, onCreate, onCreateProbe }: {
   readonly mode: MonitorType;
+  readonly probeCommand: ProbeCommandResult | null;
   readonly onCancel: () => void;
   readonly onCreate: (payload: CreateMonitorRequest) => void;
+  readonly onCreateProbe: (payload: { readonly name: string; readonly platform: ProbePlatform; readonly public_visible: boolean }) => void;
 }) {
+  const [commandCopied, setCommandCopied] = useState(false);
+  const [configCopied, setConfigCopied] = useState(false);
+  const [showManual, setShowManual] = useState(false);
+  const selectedDownload = probeCommand?.config.downloads[probeCommand.platform.replace('/', '_') as keyof ProbeConfigData['downloads']];
+
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = event.currentTarget;
     const data = new FormData(form);
+    if (mode === 'agent') {
+      onCreateProbe({
+        name: String(data.get('name') ?? ''),
+        platform: String(data.get('platform') ?? 'linux/amd64') as ProbePlatform,
+        public_visible: data.get('public_visible') === 'on',
+      });
+      return;
+    }
     onCreate(buildPayload(mode, data));
     form.reset();
+  };
+
+  const copyCommand = async () => {
+    if (!probeCommand) return;
+    await navigator.clipboard.writeText(probeCommand.config.install_command);
+    setCommandCopied(true);
+  };
+
+  const copyConfig = async () => {
+    if (!probeCommand) return;
+    await navigator.clipboard.writeText(probeCommand.config.config_yaml);
+    setConfigCopied(true);
+  };
+
+  const downloadConfig = () => {
+    if (!probeCommand) return;
+    const url = URL.createObjectURL(new Blob([probeCommand.config.config_yaml], { type: 'text/yaml' }));
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = 'config.yaml';
+    anchor.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -536,11 +621,26 @@ function MonitorForm({ mode, onCancel, onCreate }: {
       <div className="monitor-form__header">
         <div>
           <h2>{typeLabels[mode]}</h2>
-          <p>{mode === 'agent' ? 'Create a v2 probe placeholder without exposing credentials.' : 'Create a scheduler-backed monitor.'}</p>
+          <p>{mode === 'agent' ? 'Create the probe monitor and generate its install command.' : 'Create a scheduler-backed monitor.'}</p>
         </div>
         <button type="button" className="monitor-action" onClick={onCancel}>Cancel</button>
       </div>
       <label>Name<input name="name" required maxLength={80} /></label>
+      {mode === 'agent' && (
+        <>
+          <label>Platform
+            <select name="platform" defaultValue="linux/amd64">
+              {probePlatforms.map((value) => (
+                <option key={value} value={value}>{probePlatformLabels[value]}</option>
+              ))}
+            </select>
+          </label>
+          <label className="monitor-form__checkbox">
+            <input name="public_visible" type="checkbox" defaultChecked />
+            <span>Public visible</span>
+          </label>
+        </>
+      )}
       {mode === 'http' && (
         <>
           <label>URL<input name="url" type="url" placeholder="https://example.com/health" required /></label>
@@ -553,9 +653,87 @@ function MonitorForm({ mode, onCancel, onCreate }: {
           <label>Port<input name="port" type="number" min="1" max="65535" placeholder="5432" required /></label>
         </>
       )}
-      <label>Interval<input name="interval_sec" type="number" min="30" defaultValue="300" required /></label>
-      <label>Timeout<input name="timeout_sec" type="number" min="1" defaultValue="10" required /></label>
-      <button type="submit" className="page-header__primary">Create Monitor</button>
+      {mode !== 'agent' && (
+        <>
+          <label>Interval<input name="interval_sec" type="number" min="30" defaultValue="300" required /></label>
+          <label>Timeout<input name="timeout_sec" type="number" min="1" defaultValue="10" required /></label>
+        </>
+      )}
+      <button type="submit" className="page-header__primary">{mode === 'agent' ? 'Create Probe & Generate Command' : 'Create Monitor'}</button>
+      {probeCommand && (
+        <div className="probe-setup monitor-form__probe-result">
+          <div className="probe-setup__result">
+            <article className="probe-setup__command-card">
+              <div className="probe-setup__command-header">
+                <h3>Run this on your server</h3>
+                <button type="button" onClick={copyCommand}>Copy Command</button>
+              </div>
+              <pre className="probe-setup__code" data-testid="probe-install-command">{probeCommand.config.install_command}</pre>
+              {commandCopied && <p className="probe-setup__copied">Command copied</p>}
+              <p className="probe-setup__notice">
+                This command uses a monitor-specific credential. It never includes your master API secret.
+              </p>
+              <p className="probe-setup__hint">
+                The monitor has been created. Run the command on your server, then wait for the first probe report.
+              </p>
+            </article>
+
+            <button
+              type="button"
+              className="probe-setup__manual-toggle"
+              aria-expanded={showManual}
+              aria-controls="probe-manual-setup"
+              onClick={() => setShowManual((current) => !current)}
+            >
+              Show Manual Setup
+            </button>
+
+            {showManual && (
+              <section id="probe-manual-setup" className="probe-setup__manual" role="region" aria-label="Manual setup">
+                <h3>Manual setup</h3>
+                <p>Use this if the one-command installer cannot run on your server. Download the matching binary, save config.yaml beside it, then start the probe.</p>
+
+                <dl className="probe-setup__details">
+                  <div>
+                    <dt>Monitor ID</dt>
+                    <dd>{probeCommand.config.monitor_id}</dd>
+                  </div>
+                  <div>
+                    <dt>Probe Push URL</dt>
+                    <dd>{probeCommand.config.probe_push_url}</dd>
+                  </div>
+                  <div>
+                    <dt>Monitor Credential</dt>
+                    <dd>{probeCommand.config.monitor_secret}</dd>
+                  </div>
+                </dl>
+
+                <div className="probe-setup__downloads">
+                  <h4>Download Probe Binary</h4>
+                  {selectedDownload && (
+                    <a href={selectedDownload} rel="noreferrer" target="_blank">Recommended for {probePlatformLabels[probeCommand.platform]}</a>
+                  )}
+                  <div className="probe-setup__download-grid">
+                    {Object.entries(probeCommand.config.downloads).map(([key, href]) => (
+                      <a key={key} href={href} rel="noreferrer" target="_blank">{key.replace('_', ' ')}</a>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="probe-setup__config-header">
+                  <h4>config.yaml</h4>
+                  <div>
+                    <button type="button" onClick={copyConfig}>Copy Config</button>
+                    <button type="button" onClick={downloadConfig}>Download config.yaml</button>
+                  </div>
+                </div>
+                {configCopied && <p className="probe-setup__copied">Copied config.yaml</p>}
+                <pre className="probe-setup__code">{probeCommand.config.config_yaml}</pre>
+              </section>
+            )}
+          </div>
+        </div>
+      )}
     </form>
   );
 }

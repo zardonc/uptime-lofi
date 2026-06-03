@@ -5,7 +5,6 @@ import type { UseFormRegisterReturn } from 'react-hook-form';
 import { api } from '../api/client';
 import type { CreateNotificationChannelRequest, Monitor, NotificationChannel, PublicStatusSettings } from '../api/types';
 import { useAuth } from '../hooks/useAuth';
-import { ProbeSetup } from './ProbeSetup';
 import { Bell, Eye, EyeOff, KeyRound, Link, Loader2, Mail, Send, Shield, ShieldAlert, Trash2 } from 'lucide-react';
 
 type SettingsFormData = {
@@ -370,10 +369,6 @@ export function Settings() {
         </div>
       </section>
 
-      <section className="card animate-in delay-2">
-        <h2 className="section-title">Probe Installation</h2>
-        <ProbeSetup />
-      </section>
       </div>
     </div>
   );
