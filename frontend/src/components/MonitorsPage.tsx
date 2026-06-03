@@ -551,7 +551,7 @@ function probeConfigErrorMessage(error: unknown): string {
   if (error instanceof ApiClientError) {
     if (error.status === 409) return 'A monitor with this name already exists. Choose another name.';
     if (error.status === 401 || error.status === 403) return 'Your session expired. Sign in again before generating the probe command.';
-    if (error.status >= 500) return 'Could not create the probe install command. Check backend probe configuration and try again.';
+    if (error.status >= 500) return error.message || 'Could not create the probe install command. Check backend probe configuration and try again.';
     return error.message;
   }
   return 'Could not create the probe install command. Try again.';

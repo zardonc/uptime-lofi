@@ -1,4 +1,5 @@
 import { render, screen, within } from "@testing-library/react";
+import { http, HttpResponse } from "msw";
 import userEvent from "@testing-library/user-event";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
@@ -168,6 +169,27 @@ describe("Monitors page", () => {
     expect(commandBlock).toHaveTextContent("UPTIME_MONITOR_SECRET='monitor-secret-generated'");
     expect(commandBlock).not.toHaveTextContent("API_SECRET_KEY");
     expect(await screen.findByRole("article", { name: "prod-vps-1 monitor" })).toBeInTheDocument();
+  });
+
+  it("shows the backend probe configuration error when command generation fails", async () => {
+    server.use(
+      http.post("/api/v1/monitors/probe-config", () => HttpResponse.json({
+        error: {
+          code: "probe_secret_not_configured",
+          message: "Probe credential generation is not configured. Set API_SECRET_KEY on the dashboard Worker and redeploy.",
+        },
+      }, { status: 500 })),
+    );
+    const user = await openMonitorsPage();
+
+    await user.click(screen.getByRole("button", { name: "Add Monitor" }));
+    await user.click(screen.getByRole("menuitem", { name: "Agent Probe" }));
+    const form = await screen.findByRole("form", { name: "Monitor form" });
+    await user.type(within(form).getByLabelText("Name"), "prod-vps-1");
+    await user.click(within(form).getByRole("button", { name: "Create Probe & Generate Command" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Probe credential generation is not configured. Set API_SECRET_KEY on the dashboard Worker and redeploy.");
+    expect(screen.queryByRole("heading", { name: "Run this on your server" })).not.toBeInTheDocument();
   });
 
   it("requires confirmation before deleting a monitor", async () => {

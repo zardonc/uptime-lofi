@@ -50,13 +50,21 @@ monitorsApi.post(
   }),
   async (c) => {
     const { name, platform, public_visible: publicVisible } = c.req.valid("json");
+    const apiSecret = configuredSecret(c.env.API_SECRET_KEY);
+    if (!apiSecret) {
+      return c.json(structuredError(
+        "probe_secret_not_configured",
+        "Probe credential generation is not configured. Set API_SECRET_KEY on the dashboard Worker and redeploy.",
+      ), 500);
+    }
+
     if (await activeNameExists(c.env.DB, name)) {
       return c.json(structuredError("monitor_name_exists", "A monitor with this name already exists"), 409);
     }
 
     const monitorId = crypto.randomUUID();
     const salt = crypto.randomUUID();
-    const monitorSecret = await deriveMonitorSecret(c.env.API_SECRET_KEY, monitorId, salt);
+    const monitorSecret = await deriveMonitorSecret(apiSecret, monitorId, salt);
     const probePushUrl = probePushEndpoint(c.env.PROBE_PUSH_URL ?? new URL(c.req.url).origin);
     const releaseRepo = c.env.PROBE_RELEASE_REPO ?? c.env.GITHUB_REPOSITORY ?? DEFAULT_PROBE_RELEASE_REPO;
     const releaseTag = c.env.PROBE_RELEASE_TAG ?? DEFAULT_PROBE_RELEASE_TAG;
@@ -166,6 +174,10 @@ monitorsApi.delete("/:id", async (c) => {
 
 function validMonitorId(id: string) {
   return MONITOR_ID_PATTERN.test(id);
+}
+
+function configuredSecret(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
 }
 
 async function deriveMonitorSecret(masterSecret: string, monitorId: string, salt: string): Promise<string> {
