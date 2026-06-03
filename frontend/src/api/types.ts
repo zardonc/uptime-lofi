@@ -2,10 +2,6 @@
 // Shared API response types — Uptime LoFi
 // ═══════════════════════════════════════════
 
-export type NodeStatus = 'online' | 'degraded' | 'offline' | 'paused';
-
-export type NodeType = 'agent_push' | 'agentless_http' | 'agentless_tcp';
-
 export interface BackendSource {
   readonly backend_id: string;
   readonly backend_label: string;
@@ -30,6 +26,7 @@ export interface MonitorLatestMetrics {
   readonly cpu_percent: number | null;
   readonly mem_percent: number | null;
   readonly error_text: string | null;
+  readonly status_code?: number | null;
 }
 
 export interface MonitorVisibility {
@@ -79,6 +76,7 @@ export interface PublicMonitor extends BackendSource {
   readonly target_label?: string;
   readonly latency_ms?: number | null;
   readonly uptime_ratio?: number | null;
+  readonly status_code?: number | null;
   readonly updated_at: number;
 }
 
@@ -110,6 +108,11 @@ export interface PublicStatusSettings {
 export interface SettingsResponse {
   readonly is_ui_lock_enabled: boolean;
   readonly public_status: PublicStatusSettings;
+}
+
+export interface PublicMonitorVisibility {
+  readonly id: string;
+  readonly public_visible: boolean;
 }
 
 export interface AlertRule extends BackendSource {
@@ -257,7 +260,7 @@ export interface AgentlessTcpConfig {
   readonly timeout_seconds?: number;
 }
 
-export type AgentlessCheckType = Extract<NodeType, 'agentless_http' | 'agentless_tcp'>;
+export type AgentlessCheckType = Extract<MonitorType, 'http' | 'tcp'>;
 
 export interface AgentlessLatestResult {
   readonly timestamp: number | null;
@@ -270,7 +273,7 @@ export interface AgentlessCheck {
   readonly id: string;
   readonly name: string;
   readonly type: AgentlessCheckType;
-  readonly status: NodeStatus;
+  readonly status: MonitorStatus;
   readonly config?: AgentlessHttpConfig | AgentlessTcpConfig | null;
   readonly config_json?: string;
   readonly target?: string;
@@ -304,32 +307,6 @@ export interface CreateTcpCheckRequest {
   readonly timeout: number;
 }
 
-export type NodeConfig = Record<string, unknown> | AgentlessHttpConfig | AgentlessTcpConfig;
-
-export interface ApiNode {
-  readonly id: string;
-  readonly name: string;
-  readonly type: NodeType;
-  readonly status: NodeStatus;
-  readonly last_heartbeat: number | null;
-  readonly ping_ms: number | null;
-  readonly cpu_usage: number | null;
-  readonly mem_usage: number | null;
-  readonly uptime_ratio: number | null;
-  readonly config: NodeConfig | null;
-}
-
-export interface UpdateNodeRequest {
-  readonly name?: string;
-  readonly status?: Extract<NodeStatus, 'offline' | 'paused'>;
-  readonly config?: NodeConfig;
-}
-
-export interface DeleteNodeResponse {
-  readonly id: string;
-  readonly archived_at: number;
-}
-
 export interface ApiContainerMetric {
   readonly id?: string;
   readonly name?: string;
@@ -343,19 +320,12 @@ export interface ApiContainerMetric {
 
 export interface ApiMetric {
   readonly id: number;
-  readonly node_id: string;
+  readonly monitor_id: string;
   readonly timestamp: number;
   readonly cpu_percent: number | null;
   readonly mem_percent: number | null;
   readonly ping_ms: number | null;
   readonly containers: ReadonlyArray<ApiContainerMetric> | null;
-}
-
-export interface OverviewStats {
-  readonly totalNodes: number;
-  readonly onlineNodes: number;
-  readonly avgUptimeRatio: number;
-  readonly avgPing: number;
 }
 
 export interface ApiResponse<T> {
@@ -394,9 +364,9 @@ export interface ProbeConfigRequest {
 }
 
 export interface ProbeConfigData {
-  readonly node_id: string;
-  readonly node_name: string;
-  readonly node_secret: string;
+  readonly monitor_id: string;
+  readonly monitor_name: string;
+  readonly monitor_secret: string;
   readonly probe_push_url: string;
   readonly install_command: string;
   readonly install_script_url: string;

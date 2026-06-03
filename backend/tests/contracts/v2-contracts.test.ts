@@ -29,6 +29,7 @@ describe("v2 contracts", () => {
         cpu_percent: null,
         mem_percent: null,
         error_text: null,
+        status_code: 403,
       },
       visibility: {
         public: true,
@@ -58,6 +59,7 @@ describe("v2 contracts", () => {
         target_label: "Public endpoint",
         latency_ms: 84,
         uptime_ratio: 100,
+        status_code: 403,
         updated_at: 1_800_000_000,
       }],
       incidents: [],
@@ -70,7 +72,7 @@ describe("v2 contracts", () => {
     })).toThrow();
     expect(() => publicStatusResponseSchema.parse({
       ...publicStatus,
-      monitors: [{ ...publicStatus.monitors[0], node_secret: "secret" }],
+      monitors: [{ ...publicStatus.monitors[0], monitor_secret: "secret" }],
     })).toThrow();
   });
 

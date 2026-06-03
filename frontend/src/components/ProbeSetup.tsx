@@ -68,7 +68,7 @@ export function ProbeSetup() {
     <section className="probe-setup">
       <form className="probe-setup__form" onSubmit={submit}>
         <div className="probe-setup__field">
-          <label htmlFor="probe-name">Node name</label>
+          <label htmlFor="probe-name">Monitor name</label>
           <input
             id="probe-name"
             value={name}
@@ -108,7 +108,7 @@ export function ProbeSetup() {
             <pre className="probe-setup__code" data-testid="probe-install-command">{config.install_command}</pre>
             {commandCopied && <p className="probe-setup__copied">Command copied</p>}
             <p className="probe-setup__notice">
-              This command uses a node-specific credential. It never includes your master API secret.
+              This command uses a monitor-specific credential. It never includes your master API secret.
             </p>
             <p className="probe-setup__hint">
               For security, this bootstrap command may expire. Generate a new command if it stops working.
@@ -132,16 +132,16 @@ export function ProbeSetup() {
 
               <dl className="probe-setup__details">
                 <div>
-                  <dt>Node ID</dt>
-                  <dd>{config.node_id}</dd>
+                  <dt>Monitor ID</dt>
+                  <dd>{config.monitor_id}</dd>
                 </div>
                 <div>
                   <dt>Probe Push URL</dt>
                   <dd>{config.probe_push_url}</dd>
                 </div>
                 <div>
-                  <dt>Node Credential</dt>
-                  <dd>{config.node_secret}</dd>
+                  <dt>Monitor Credential</dt>
+                  <dd>{config.monitor_secret}</dd>
                 </div>
               </dl>
 

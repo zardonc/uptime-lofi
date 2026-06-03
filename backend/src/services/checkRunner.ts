@@ -42,7 +42,7 @@ export async function runDueMonitorChecks(
     try {
       const result = await runMonitorCheck(monitor, options);
       const status = checkResultStatus(result.isUp, result.errorText);
-      await recordCheckResult(env.DB, monitor.id, nowSeconds, status, result.latencyMs, result.errorText);
+      await recordCheckResult(env.DB, monitor.id, nowSeconds, status, result.latencyMs, result.errorText, result.statusCode);
       await evaluateAlerts(env.DB, monitor.id, nowSeconds);
       checked += 1;
     } catch (error) {
@@ -81,6 +81,7 @@ async function recordCheckResult(
   status: CheckStatus,
   latencyMs: number | null,
   errorText: string | null,
+  statusCode?: number,
 ) {
   await db.prepare(
     `INSERT INTO check_results (monitor_id, timestamp, status, latency_ms, detail_json)
@@ -90,7 +91,10 @@ async function recordCheckResult(
     timestamp,
     status,
     latencyMs,
-    JSON.stringify({ error_text: errorText }),
+    JSON.stringify({
+      error_text: errorText,
+      ...(typeof statusCode === "number" ? { status_code: statusCode } : {}),
+    }),
   ).run();
 
   await updateMonitorLatestFromCheckResult(db, {

@@ -9,7 +9,6 @@ describe("Sidebar", () => {
 
     expect(screen.getByRole("button", { name: /dashboard/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /monitors/i })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /nodes/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /agentless/i })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /settings/i })).toBeInTheDocument();
   });

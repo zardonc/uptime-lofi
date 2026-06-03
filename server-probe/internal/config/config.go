@@ -9,20 +9,20 @@ import (
 
 const (
 	defaultAPIURL       = "http://localhost:8787/api/push"
-	defaultNodeID       = "probe-local"
+	defaultMonitorID    = "probe-local"
 	defaultEnableDocker = false
 )
 
 func newViper() *viper.Viper {
 	v := viper.New()
 	v.SetDefault("api_url", defaultAPIURL)
-	v.SetDefault("node_id", defaultNodeID)
+	v.SetDefault("monitor_id", defaultMonitorID)
 	v.SetDefault("enable_docker", defaultEnableDocker)
 	v.SetEnvPrefix("UPTIME")
 	v.AutomaticEnv()
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	v.BindEnv("api_url")
-	v.BindEnv("node_id")
+	v.BindEnv("monitor_id")
 	v.BindEnv("psk")
 	v.BindEnv("enable_docker")
 	return v
@@ -30,7 +30,7 @@ func newViper() *viper.Viper {
 
 type Config struct {
 	ApiUrl       string `mapstructure:"api_url"`
-	NodeID       string `mapstructure:"node_id"`
+	MonitorID    string `mapstructure:"monitor_id"`
 	PSK          string `mapstructure:"psk"`
 	EnableDocker bool   `mapstructure:"enable_docker"`
 }
@@ -63,8 +63,8 @@ func LoadConfig(cfgFile string) (*Config, error) {
 	if cfg.ApiUrl == "" {
 		return nil, fmt.Errorf("api_url is required")
 	}
-	if cfg.NodeID == "" {
-		return nil, fmt.Errorf("node_id is required")
+	if cfg.MonitorID == "" {
+		return nil, fmt.Errorf("monitor_id is required")
 	}
 	if cfg.PSK == "" {
 		return nil, fmt.Errorf("psk is required")

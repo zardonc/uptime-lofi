@@ -1,14 +1,12 @@
 import { connect } from "cloudflare:sockets";
-import type { Bindings } from "../routes/api";
 
 const BLOCKED_PORT_25 = 25;
 const MAX_PORT = 65535;
-const TCP_TARGET_LIMIT = 25;
-
 export type AgentlessCheckResult = {
   readonly isUp: boolean;
   readonly latencyMs: number | null;
   readonly errorText: string | null;
+  readonly statusCode?: number;
 };
 
 export type HttpCheckConfig = {
@@ -25,18 +23,6 @@ export type TcpCheckConfig = {
 
 export type ConnectSocket = { readonly close?: () => void | Promise<void> };
 export type ConnectFunction = (address: { hostname: string; port: number }) => ConnectSocket | Promise<ConnectSocket>;
-
-type DueNode = {
-  readonly id: string;
-  readonly type: string;
-  readonly last_heartbeat: number | null;
-  readonly config_json: string | null;
-};
-
-type RunDueOptions = {
-  readonly fetchImpl?: typeof fetch;
-  readonly connectImpl?: ConnectFunction;
-};
 
 function nowMs() {
   return Date.now();
@@ -75,10 +61,13 @@ export async function runHttpCheck(config: HttpCheckConfig, fetchImpl: typeof fe
     const start = nowMs();
     const response = await fetchImpl(config.url, { signal: timeoutSignal(config.timeout) });
     const latencyMs = Math.max(0, nowMs() - start);
-    if (response.status !== config.expected_status) {
-      return { isUp: true, latencyMs, errorText: `Expected HTTP ${config.expected_status}, got ${response.status}` };
+    if (response.status === 403) {
+      return { isUp: true, latencyMs, errorText: null, statusCode: response.status };
     }
-    return { isUp: true, latencyMs, errorText: null };
+    if (response.status !== config.expected_status) {
+      return { isUp: true, latencyMs, errorText: `Expected HTTP ${config.expected_status}, got ${response.status}`, statusCode: response.status };
+    }
+    return { isUp: true, latencyMs, errorText: null, statusCode: response.status };
   } catch (error) {
     return { isUp: false, latencyMs: null, errorText: errorMessage(error) };
   }
@@ -150,79 +139,3 @@ export async function runTcpCheck(
   }
 }
 
-function parseConfig<T>(value: string | null): T | null {
-  if (!value) return null;
-  try {
-    return JSON.parse(value) as T;
-  } catch {
-    return null;
-  }
-}
-
-function intervalSeconds(config: unknown) {
-  if (!config || typeof config !== "object") return null;
-  const interval = (config as { interval?: unknown }).interval;
-  return typeof interval === "number" && Number.isFinite(interval) ? interval : null;
-}
-
-async function runNodeCheck(node: DueNode, options: RunDueOptions) {
-  const config = parseConfig<Record<string, unknown>>(node.config_json);
-  if (node.type === "agentless_http" && config) {
-    return runHttpCheck(config as HttpCheckConfig, options.fetchImpl);
-  }
-  if (node.type === "agentless_tcp" && config) {
-    return runTcpCheck(config as unknown as TcpCheckConfig, options.connectImpl);
-  }
-  return { isUp: false, latencyMs: null, errorText: "Invalid agentless check configuration" };
-}
-
-async function recordCheckResult(db: D1Database, node: DueNode, nowSeconds: number, result: AgentlessCheckResult) {
-  await db.batch([
-    db.prepare(
-      `INSERT INTO raw_metrics (node_id, timestamp, ping_ms, cpu_usage, mem_usage, is_up, error_text)
-       VALUES (?, ?, ?, NULL, NULL, ?, ?)`,
-    ).bind(node.id, nowSeconds, result.latencyMs, result.isUp ? 1 : 0, result.errorText),
-    db.prepare(
-      `UPDATE nodes SET status = ?, last_heartbeat = ?, updated_at = ? WHERE id = ?`,
-    ).bind(result.isUp ? "online" : "offline", nowSeconds, nowSeconds, node.id),
-  ]);
-}
-
-async function recordInternalCheckError(db: D1Database, node: DueNode, nowSeconds: number, error: unknown) {
-  const message = `Internal Agentless check error: ${errorMessage(error)}`;
-  await recordCheckResult(db, node, nowSeconds, { isUp: false, latencyMs: null, errorText: message });
-}
-
-export async function runDueAgentlessChecks(
-  env: Pick<Bindings, "DB">,
-  nowSeconds: number,
-  options: RunDueOptions = {},
-): Promise<number> {
-  const { results } = await env.DB.prepare(
-    `SELECT id, type, last_heartbeat, config_json
-     FROM nodes
-     WHERE archived_at IS NULL
-       AND status != 'paused'
-       AND type IN ('agentless_http', 'agentless_tcp')
-       AND (last_heartbeat IS NULL OR last_heartbeat + CAST(json_extract(config_json, '$.interval') AS INTEGER) <= ?)
-     ORDER BY COALESCE(last_heartbeat, 0) ASC
-     LIMIT ?`,
-  ).bind(nowSeconds, TCP_TARGET_LIMIT).all<DueNode>();
-
-  let checked = 0;
-  for (const node of results) {
-    try {
-      const config = parseConfig<Record<string, unknown>>(node.config_json);
-      const interval = intervalSeconds(config);
-      if (!interval) continue;
-      const result = await runNodeCheck(node, options);
-      await recordCheckResult(env.DB, node, nowSeconds, result);
-      checked += 1;
-    } catch (error) {
-      console.error(`Agentless check failed for node ${node.id}:`, errorMessage(error));
-      await recordInternalCheckError(env.DB, node, nowSeconds, error);
-      checked += 1;
-    }
-  }
-  return checked;
-}

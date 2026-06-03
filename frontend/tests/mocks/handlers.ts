@@ -3,12 +3,9 @@ import type {
   AgentlessCheck,
   AlertEvent,
   AlertRule,
-  ApiMetric,
-  ApiNode,
   Monitor,
   MonitorType,
   NotificationChannel,
-  OverviewStats,
   PublicStatusSettings,
   StatisticsLeaderboards,
   StatisticsSummary,
@@ -26,52 +23,18 @@ interface MockAuthState {
 
 interface MockApiState {
   readonly auth: MockAuthState;
-  readonly nodes: ReadonlyArray<ApiNode>;
   readonly monitors: ReadonlyArray<Monitor>;
   readonly notificationChannels: ReadonlyArray<NotificationChannel>;
   readonly alertRules: ReadonlyArray<AlertRule>;
   readonly alertEvents: ReadonlyArray<AlertEvent>;
   readonly agentlessChecks: ReadonlyArray<AgentlessCheck>;
-  readonly overview: OverviewStats;
   readonly statistics: {
     readonly summary: StatisticsSummary;
     readonly leaderboards: StatisticsLeaderboards;
     readonly trends: StatisticsTrends;
   };
-  readonly metricsByNode: Readonly<Record<string, ReadonlyArray<ApiMetric>>>;
   readonly publicStatus: PublicStatusSettings;
   readonly failSettingsUpdate: boolean;
-}
-
-function createMockNodes(): ReadonlyArray<ApiNode> {
-  const now = Math.floor(Date.now() / 1000);
-
-  return [
-    {
-      id: "node-1",
-      name: "edge-sfo-1",
-      type: "agent_push",
-      status: "online",
-      last_heartbeat: now - 45,
-      ping_ms: 18,
-      cpu_usage: 24,
-      mem_usage: 58,
-      uptime_ratio: 99.9,
-      config: null,
-    },
-    {
-      id: "node-2",
-      name: "edge-fra-1",
-      type: "agent_push",
-      status: "offline",
-      last_heartbeat: now - 600,
-      ping_ms: null,
-      cpu_usage: null,
-      mem_usage: null,
-      uptime_ratio: 87.2,
-      config: null,
-    },
-  ];
 }
 
 function createMockMonitors(): ReadonlyArray<Monitor> {
@@ -189,15 +152,6 @@ function createMockAlertEvents(): ReadonlyArray<AlertEvent> {
   }];
 }
 
-function createOverview(): OverviewStats {
-  return {
-    totalNodes: 2,
-    onlineNodes: 1,
-    avgUptimeRatio: 93.55,
-    avgPing: 18,
-  };
-}
-
 function createStatistics(): MockApiState["statistics"] {
   const now = Math.floor(Date.now() / 1000);
   const source = {
@@ -263,34 +217,6 @@ function createStatistics(): MockApiState["statistics"] {
   };
 }
 
-function createMetricsByNode(): Readonly<Record<string, ReadonlyArray<ApiMetric>>> {
-  const now = Math.floor(Date.now() / 1000);
-
-  return {
-    "node-1": [
-      {
-        id: 1,
-        node_id: "node-1",
-        timestamp: now - 300,
-        cpu_percent: 22,
-        mem_percent: 54,
-        ping_ms: 21,
-        containers: [],
-      },
-      {
-        id: 2,
-        node_id: "node-1",
-        timestamp: now - 60,
-        cpu_percent: 28,
-        mem_percent: 59,
-        ping_ms: 19,
-        containers: [],
-      },
-    ],
-    "node-2": [],
-  };
-}
-
 function createMockState(): MockApiState {
   return {
     auth: {
@@ -301,15 +227,12 @@ function createMockState(): MockApiState {
       refreshToken: "test-refresh-token",
       hasRefreshCookie: false,
     },
-    nodes: createMockNodes(),
     monitors: createMockMonitors(),
     notificationChannels: createMockNotificationChannels(),
     alertRules: createMockAlertRules(),
     alertEvents: createMockAlertEvents(),
     agentlessChecks: [],
-    overview: createOverview(),
     statistics: createStatistics(),
-    metricsByNode: createMetricsByNode(),
     publicStatus: {
       enabled: true,
       private_slug: null,
@@ -338,13 +261,6 @@ export function setMockAuthState(overrides: Partial<MockAuthState>): void {
   };
 }
 
-export function setMockNodes(nodes: ReadonlyArray<ApiNode>): void {
-  mockApiState = {
-    ...mockApiState,
-    nodes,
-  };
-}
-
 export function setMockMonitors(monitors: ReadonlyArray<Monitor>): void {
   mockApiState = {
     ...mockApiState,
@@ -366,29 +282,12 @@ export function setMockNotificationChannels(notificationChannels: ReadonlyArray<
   };
 }
 
-export function setMockOverview(overview: OverviewStats): void {
-  mockApiState = {
-    ...mockApiState,
-    overview,
-  };
-}
-
 export function setMockStatistics(statistics: Partial<MockApiState["statistics"]>): void {
   mockApiState = {
     ...mockApiState,
     statistics: {
       ...mockApiState.statistics,
       ...statistics,
-    },
-  };
-}
-
-export function setMockMetrics(nodeId: string, metrics: ReadonlyArray<ApiMetric>): void {
-  mockApiState = {
-    ...mockApiState,
-    metricsByNode: {
-      ...mockApiState.metricsByNode,
-      [nodeId]: metrics,
     },
   };
 }
@@ -451,22 +350,6 @@ export const handlers = [
     };
 
     return HttpResponse.json({ success: true });
-  }),
-  http.get("/api/nodes", () => {
-    return HttpResponse.json({ data: mockApiState.nodes });
-  }),
-  http.put("/api/nodes/:nodeId", async ({ params, request }) => {
-    const nodeId = typeof params.nodeId === "string" ? params.nodeId : "";
-    const body = (await request.json()) as Partial<ApiNode>;
-    const nodes = mockApiState.nodes.map((node) => node.id === nodeId ? { ...node, ...body } : node);
-    const updated = nodes.find((node) => node.id === nodeId);
-    mockApiState = { ...mockApiState, nodes };
-    return updated ? HttpResponse.json({ data: updated }) : HttpResponse.json({ error: "Node not found" }, { status: 404 });
-  }),
-  http.delete("/api/nodes/:nodeId", ({ params }) => {
-    const nodeId = typeof params.nodeId === "string" ? params.nodeId : "";
-    mockApiState = { ...mockApiState, nodes: mockApiState.nodes.filter((node) => node.id !== nodeId) };
-    return HttpResponse.json({ data: { id: nodeId, archived_at: Math.floor(Date.now() / 1000) } });
   }),
   http.get("/api/agentless", () => {
     return HttpResponse.json({ data: mockApiState.agentlessChecks });
@@ -615,6 +498,7 @@ export const handlers = [
           target_label: monitor.type === "agent" ? "Agent probe" : monitor.type === "tcp" ? "TCP endpoint" : "example.com",
           ...(mockApiState.publicStatus.show_latency ? { latency_ms: monitor.latest.latency_ms } : {}),
           ...(mockApiState.publicStatus.show_uptime ? { uptime_ratio: monitor.latest.uptime_ratio } : {}),
+          ...(monitor.latest.status_code === 403 ? { status_code: 403 } : {}),
           updated_at: monitor.updated_at,
         })),
       incidents: mockApiState.publicStatus.show_incidents ? [] : [],
@@ -681,7 +565,7 @@ export const handlers = [
     const check: AgentlessCheck = {
       id: `agentless-http-${mockApiState.agentlessChecks.length + 1}`,
       name: body.name ?? "HTTP check",
-      type: "agentless_http",
+      type: "http",
       status: "paused",
       target: body.url ?? "https://example.com/health",
       interval: body.interval ?? 300,
@@ -697,7 +581,7 @@ export const handlers = [
     const check: AgentlessCheck = {
       id: `agentless-tcp-${mockApiState.agentlessChecks.length + 1}`,
       name: body.name ?? "TCP check",
-      type: "agentless_tcp",
+      type: "tcp",
       status: "paused",
       target: `${body.host ?? "db.example.com"}:${body.port ?? 5432}`,
       interval: body.interval ?? 300,
@@ -707,23 +591,23 @@ export const handlers = [
     mockApiState = { ...mockApiState, agentlessChecks: [...mockApiState.agentlessChecks, check] };
     return HttpResponse.json({ data: check });
   }),
-  http.post("/api/nodes/probe-config", async ({ request }) => {
+  http.post("/api/v1/monitors/probe-config", async ({ request }) => {
     const body = (await request.json()) as { name?: string; platform?: string };
-    const nodeName = body.name?.trim();
+    const monitorName = body.name?.trim();
 
-    if (!nodeName) {
+    if (!monitorName) {
       return HttpResponse.json({ error: "Name is required" }, { status: 400 });
     }
 
     return HttpResponse.json({
       data: {
-        node_id: "node-generated-1",
-        node_name: nodeName,
-        node_secret: "node-secret-generated",
+        monitor_id: "monitor-generated-1",
+        monitor_name: monitorName,
+        monitor_secret: "monitor-secret-generated",
         probe_push_url: "https://uptime-lofi-probe.example.workers.dev/api/push",
-        install_command: "curl -fsSL 'https://github.com/example/uptime-lofi/releases/download/probe-latest/install-probe.sh' | UPTIME_PLATFORM='linux/amd64' UPTIME_PROBE_PUSH_URL='https://uptime-lofi-probe.example.workers.dev/api/push' UPTIME_NODE_ID='node-generated-1' UPTIME_NODE_SECRET='node-secret-generated' UPTIME_RELEASE_REPO='example/uptime-lofi' UPTIME_RELEASE_TAG='probe-latest' bash",
+        install_command: "curl -fsSL 'https://github.com/example/uptime-lofi/releases/download/probe-latest/install-probe.sh' | UPTIME_PLATFORM='linux/amd64' UPTIME_PROBE_PUSH_URL='https://uptime-lofi-probe.example.workers.dev/api/push' UPTIME_MONITOR_ID='monitor-generated-1' UPTIME_MONITOR_SECRET='monitor-secret-generated' UPTIME_RELEASE_REPO='example/uptime-lofi' UPTIME_RELEASE_TAG='probe-latest' bash",
         install_script_url: "https://github.com/example/uptime-lofi/releases/download/probe-latest/install-probe.sh",
-        config_yaml: "api_url: https://uptime-lofi-probe.example.workers.dev/api/push\nnode_id: node-generated-1\npsk: node-secret-generated\nenable_docker: true\n",
+        config_yaml: "api_url: https://uptime-lofi-probe.example.workers.dev/api/push\nmonitor_id: monitor-generated-1\npsk: monitor-secret-generated\nenable_docker: true\n",
         downloads: {
           linux_amd64: "https://github.com/example/uptime-lofi/releases/latest/download/probe-linux-amd64.tar.gz",
           linux_arm64: "https://github.com/example/uptime-lofi/releases/latest/download/probe-linux-arm64.tar.gz",
@@ -732,13 +616,6 @@ export const handlers = [
         },
       },
     });
-  }),
-  http.get("/api/nodes/:nodeId/metrics", ({ params }) => {
-    const nodeId = typeof params.nodeId === "string" ? params.nodeId : "";
-    return HttpResponse.json({ data: mockApiState.metricsByNode[nodeId] ?? [] });
-  }),
-  http.get("/api/stats/overview", () => {
-    return HttpResponse.json({ data: mockApiState.overview });
   }),
   http.get("/api/v1/settings", () => {
     return HttpResponse.json({
@@ -787,6 +664,14 @@ export const handlers = [
         return visibility ? { ...monitor, public_visible: visibility.public_visible } : monitor;
       }),
     };
-    return HttpResponse.json({ data: { public_status: mockApiState.publicStatus } });
+    return HttpResponse.json({
+      data: {
+        public_status: mockApiState.publicStatus,
+        monitors: mockApiState.monitors.map((monitor) => ({
+          id: monitor.id,
+          public_visible: monitor.public_visible,
+        })),
+      },
+    });
   }),
 ];

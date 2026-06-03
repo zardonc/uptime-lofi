@@ -18,7 +18,7 @@ import (
 
 func testMetric() collector.MetricPayload {
 	return collector.MetricPayload{
-		NodeID:    "node-1",
+		MonitorID: "monitor-1",
 		Timestamp: 1710000000,
 		PingMs:    12,
 		CpuUsage:  33.3,
@@ -31,21 +31,21 @@ func TestPusherFlushSuccess(t *testing.T) {
 	var requestCount int
 	var receivedAuth string
 	var receivedTimestamp string
-	var receivedNodeID string
+	var receivedMonitorID string
 	var receivedBody []byte
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requestCount++
 		receivedAuth = r.Header.Get("Authorization")
 		receivedTimestamp = r.Header.Get("X-Timestamp")
-		receivedNodeID = r.Header.Get("X-Node-Id")
+		receivedMonitorID = r.Header.Get("X-Monitor-Id")
 		defer r.Body.Close()
 		receivedBody, _ = io.ReadAll(r.Body)
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
 
-	p := pusher.NewBatchPusher(&config.Config{ApiUrl: server.URL, NodeID: "node-1", PSK: "test-psk"})
+	p := pusher.NewBatchPusher(&config.Config{ApiUrl: server.URL, MonitorID: "monitor-1", PSK: "test-psk"})
 	p.AddMetric(testMetric())
 	p.FlushToEdge()
 
@@ -61,15 +61,15 @@ func TestPusherFlushSuccess(t *testing.T) {
 	if receivedTimestamp == "" {
 		t.Fatalf("expected X-Timestamp header")
 	}
-	if receivedNodeID != "node-1" {
-		t.Fatalf("expected X-Node-Id node-1, got %q", receivedNodeID)
+	if receivedMonitorID != "monitor-1" {
+		t.Fatalf("expected X-Monitor-Id monitor-1, got %q", receivedMonitorID)
 	}
 
 	var payload []collector.MetricPayload
 	if err := json.Unmarshal(receivedBody, &payload); err != nil {
 		t.Fatalf("expected valid JSON body: %v", err)
 	}
-	if len(payload) != 1 || payload[0].NodeID != "node-1" {
+	if len(payload) != 1 || payload[0].MonitorID != "monitor-1" {
 		t.Fatalf("unexpected payload: %+v", payload)
 	}
 
@@ -95,7 +95,7 @@ func TestPusherFlushRetry(t *testing.T) {
 	}))
 	defer server.Close()
 
-	p := pusher.NewBatchPusher(&config.Config{ApiUrl: server.URL, NodeID: "node-1", PSK: "test-psk"})
+	p := pusher.NewBatchPusher(&config.Config{ApiUrl: server.URL, MonitorID: "monitor-1", PSK: "test-psk"})
 	p.AddMetric(testMetric())
 	p.FlushToEdge()
 
@@ -113,12 +113,12 @@ func TestPusherBackoff(t *testing.T) {
 	defer server.Close()
 
 	backoffs := []time.Duration{10 * time.Millisecond, 20 * time.Millisecond, backoff.Stop}
-	p := pusher.NewBatchPusherWithDeps(&config.Config{ApiUrl: server.URL, NodeID: "node-1", PSK: "test-psk"}, nil, func() backoff.BackOff {
+	p := pusher.NewBatchPusherWithDeps(&config.Config{ApiUrl: server.URL, MonitorID: "monitor-1", PSK: "test-psk"}, nil, func() backoff.BackOff {
 		return &backoff.ConstantBackOff{Interval: backoffs[0]}
 	})
 	p.AddMetric(testMetric())
 	// override helper to produce deterministic increasing intervals
-	p = pusher.NewBatchPusherWithDeps(&config.Config{ApiUrl: server.URL, NodeID: "node-1", PSK: "test-psk"}, nil, func() backoff.BackOff {
+	p = pusher.NewBatchPusherWithDeps(&config.Config{ApiUrl: server.URL, MonitorID: "monitor-1", PSK: "test-psk"}, nil, func() backoff.BackOff {
 		return backoff.WithMaxRetries(backoff.NewExponentialBackOff(backoff.WithInitialInterval(10*time.Millisecond), backoff.WithMaxInterval(20*time.Millisecond), backoff.WithMaxElapsedTime(60*time.Millisecond)), 2)
 	})
 	p.AddMetric(testMetric())
@@ -146,7 +146,7 @@ func TestPusherBatchAccumulation(t *testing.T) {
 	}))
 	defer server.Close()
 
-	p := pusher.NewBatchPusher(&config.Config{ApiUrl: server.URL, NodeID: "node-1", PSK: "test-psk"})
+	p := pusher.NewBatchPusher(&config.Config{ApiUrl: server.URL, MonitorID: "monitor-1", PSK: "test-psk"})
 	for range 59 {
 		p.AddMetric(testMetric())
 	}
@@ -176,7 +176,7 @@ func TestPusherHMACHeaders(t *testing.T) {
 	}))
 	defer server.Close()
 
-	p := pusher.NewBatchPusher(&config.Config{ApiUrl: server.URL, NodeID: "node-1", PSK: psk})
+	p := pusher.NewBatchPusher(&config.Config{ApiUrl: server.URL, MonitorID: "monitor-1", PSK: psk})
 	p.AddMetric(testMetric())
 	p.FlushToEdge()
 

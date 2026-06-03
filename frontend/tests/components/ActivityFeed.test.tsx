@@ -9,14 +9,14 @@ function createEvents(): ReadonlyArray<ActivityEvent> {
       id: "evt-1",
       timestamp: "5 minutes ago",
       type: "online",
-      node: "edge-sfo-1",
-      message: "Node reporting normally",
+      monitor: "edge-sfo-1",
+      message: "Monitor reporting normally",
     },
     {
       id: "evt-2",
       timestamp: "2 hours ago",
       type: "warning",
-      node: "edge-fra-1",
+      monitor: "edge-fra-1",
       message: "Packet loss above threshold",
     },
   ];
@@ -27,7 +27,7 @@ describe("ActivityFeed", () => {
     render(<ActivityFeed events={[...createEvents()]} />);
 
     expect(screen.getByText("edge-sfo-1")).toBeInTheDocument();
-    expect(screen.getByText("Node reporting normally")).toBeInTheDocument();
+    expect(screen.getByText("Monitor reporting normally")).toBeInTheDocument();
     expect(screen.getByText("Packet loss above threshold")).toBeInTheDocument();
   });
 

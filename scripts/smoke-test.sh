@@ -151,18 +151,18 @@ test_probe_worker_health() {
   fi
 }
 
-test_node_listing() {
-  section "Node Listing"
+test_monitor_listing() {
+  section "Monitor Listing"
 
   local resp
-  resp=$(http_get "/api/nodes" -H "Authorization: Bearer ${JWT_TOKEN:-}")
+  resp=$(http_get "/api/v1/monitors" -H "Authorization: Bearer ${JWT_TOKEN:-}")
   local status
   status=$(get_status "$resp")
 
   if [ "$status" = "200" ] || [ "$status" = "401" ]; then
-    pass "GET /api/nodes → ${status} (endpoint reachable)"
+    pass "GET /api/v1/monitors → ${status} (endpoint reachable)"
   else
-    fail "GET /api/nodes → ${status} (expected 200 or 401)"
+    fail "GET /api/v1/monitors → ${status} (expected 200 or 401)"
   fi
 }
 
@@ -272,14 +272,14 @@ test_probe_push() {
     return 0
   fi
 
-  local node_id="smoke-test-node"
+  local monitor_id="smoke-test-monitor"
   local salt="smoke-test-salt"
   local timestamp
   timestamp=$(date +%s)
-  local body="[{\"node_id\":\"${node_id}\",\"timestamp\":${timestamp},\"cpu\":25.5,\"mem\":60.2,\"is_up\":true}]"
+  local body="[{\"monitor_id\":\"${monitor_id}\",\"timestamp\":${timestamp},\"cpu\":25.5,\"mem\":60.2,\"is_up\":true}]"
 
   local psk
-  psk=$(derive_psk "$API_SECRET_KEY" "$node_id" "$salt")
+  psk=$(derive_psk "$API_SECRET_KEY" "$monitor_id" "$salt")
   local signature
   signature=$(hmac_sign "$psk" "$timestamp" "$body")
 
@@ -288,7 +288,7 @@ test_probe_push() {
     -H "Content-Type: application/json" \
     -H "Authorization: Bearer ${signature}" \
     -H "X-Timestamp: ${timestamp}" \
-    -H "X-Node-Id: ${node_id}" \
+    -H "X-Monitor-Id: ${monitor_id}" \
     -d "$body" \
     "${API_BASE_URL}/api/push")
 
@@ -365,33 +365,23 @@ test_rate_limiting() {
   fi
 }
 
-test_node_metrics() {
-  section "Node Metrics (Staging)"
+test_monitor_latest_state() {
+  section "Monitor Latest State (Staging)"
 
   if [ -z "${JWT_TOKEN:-}" ]; then
-    skip "Node metrics — no JWT token"
+    skip "Monitor latest state — no JWT token"
     return 0
   fi
 
   local resp
-  resp=$(http_get "/api/nodes" -H "Authorization: Bearer ${JWT_TOKEN}")
+  resp=$(http_get "/api/v1/monitors" -H "Authorization: Bearer ${JWT_TOKEN}")
   local body
   body=$(get_body "$resp")
 
-  local first_node
-  first_node=$(echo "$body" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4 || true)
-
-  if [ -n "$first_node" ]; then
-    resp=$(http_get "/api/nodes/${first_node}/metrics?hours=1" -H "Authorization: Bearer ${JWT_TOKEN}")
-    local status
-    status=$(get_status "$resp")
-    if [ "$status" = "200" ]; then
-      pass "GET /api/nodes/${first_node}/metrics → 200"
-    else
-      fail "GET /api/nodes/${first_node}/metrics → ${status}"
-    fi
+  if echo "$body" | grep -q '"latest"'; then
+    pass "GET /api/v1/monitors includes latest monitor state"
   else
-    skip "Node metrics — no nodes found in listing"
+    skip "Monitor latest state — no monitors found in listing"
   fi
 }
 
@@ -418,8 +408,8 @@ if [ "$ENV" = "staging" ]; then
   test_auth_login
   test_auth_refresh
   test_probe_push
-  test_node_listing
-  test_node_metrics
+  test_monitor_listing
+  test_monitor_latest_state
   test_stats_overview
   test_settings
   test_rate_limiting
@@ -432,7 +422,7 @@ elif [ "$ENV" = "production" ]; then
   test_cors_headers
   test_security_headers
   test_auth_login
-  test_node_listing
+  test_monitor_listing
 
 elif [ "$ENV" = "self-host" ]; then
   test_health_check
@@ -442,9 +432,9 @@ elif [ "$ENV" = "self-host" ]; then
   test_security_headers
   test_auth_login
   if [ -n "${JWT_TOKEN:-}" ]; then
-    test_node_listing
+    test_monitor_listing
   else
-    skip "Node listing — login skipped or failed"
+    skip "Monitor listing — login skipped or failed"
   fi
 fi
 

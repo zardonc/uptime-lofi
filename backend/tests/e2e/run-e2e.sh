@@ -22,8 +22,8 @@ WRANGLER_LOG="$TMP_DIR/dashboard-worker.log"
 PROBE_WORKER_LOG="$TMP_DIR/probe-worker.log"
 PROBE_BINARY_LOG="$TMP_DIR/probe-binary.log"
 
-NODE_ID="e2e-test-node-001"
-NODE_SALT="e2e-salt-001"
+MONITOR_ID="e2e-test-monitor-001"
+MONITOR_SALT="e2e-salt-001"
 UI_PASSWORD="e2e-test-password"
 AUTH_IP="198.51.100.10"
 RATE_LIMIT_IP="198.51.100.20"
@@ -128,14 +128,16 @@ cp "$SCRIPT_DIR/.dev.vars.test" "$BACKEND_DIR/.dev.vars"
 CI=1 pnpm exec wrangler d1 migrations apply DB --local --persist-to "$PERSIST_DIR"
 
 SEED_SQL=$(cat <<SQL
-DELETE FROM raw_metrics;
 DELETE FROM refresh_tokens;
 DELETE FROM login_attempts;
 DELETE FROM audit_log;
 DELETE FROM kv_settings;
-DELETE FROM nodes;
-INSERT INTO nodes (id, name, type, status, last_heartbeat, config_json, salt)
-VALUES ('${NODE_ID}', 'E2E Probe Node', 'agent_push', 'offline', strftime('%s', 'now'), '{}', '${NODE_SALT}');
+DELETE FROM monitor_latest;
+DELETE FROM agent_metrics;
+DELETE FROM check_results;
+DELETE FROM monitors;
+INSERT INTO monitors (id, backend_id, name, type, target, interval_sec, timeout_sec, config_json, salt, paused, public_visible)
+VALUES ('${MONITOR_ID}', 'default', 'E2E Probe Monitor', 'agent', 'Agent probe', 60, 10, '{}', '${MONITOR_SALT}', 0, 1);
 SQL
 )
 
@@ -180,11 +182,11 @@ TOKEN=$(printf '%s' "$LOGIN_BODY" | jq -r '.access_token // empty')
 assert_status "POST /api/auth/login succeeds" "200" "$STATUS"
 assert_non_empty "Login returns access token" "$TOKEN"
 
-STATUS=$(request "$TMP_DIR/nodes-auth.json" "$BASE_URL/api/nodes" -H "Authorization: Bearer $TOKEN")
-assert_status "GET /api/nodes with token succeeds" "200" "$STATUS"
+STATUS=$(request "$TMP_DIR/monitors-auth.json" "$BASE_URL/api/v1/monitors" -H "Authorization: Bearer $TOKEN")
+assert_status "GET /api/v1/monitors with token succeeds" "200" "$STATUS"
 
-STATUS=$(request "$TMP_DIR/nodes-no-auth.json" "$BASE_URL/api/nodes")
-assert_status "GET /api/nodes without token returns 401" "401" "$STATUS"
+STATUS=$(request "$TMP_DIR/monitors-no-auth.json" "$BASE_URL/api/v1/monitors")
+assert_status "GET /api/v1/monitors without token returns 401" "401" "$STATUS"
 
 STATUS=$(request "$TMP_DIR/refresh.json" -X POST "$BASE_URL/api/auth/refresh" -c "$COOKIE_JAR" -b "$COOKIE_JAR")
 REFRESH_BODY="$(<"$TMP_DIR/refresh.json")"
@@ -196,10 +198,10 @@ STATUS=$(request "$TMP_DIR/logout.json" -X POST "$BASE_URL/api/auth/logout" -H "
 assert_status "POST /api/auth/logout succeeds" "200" "$STATUS"
 
 print_section "Test Suite 3: Probe Push → Query"
-DERIVED_PSK=$(printf '%s' "${NODE_ID}:${NODE_SALT}" | openssl dgst -sha256 -hmac "$MASTER_SECRET" -binary | xxd -p -c 256)
+DERIVED_PSK=$(printf '%s' "${MONITOR_ID}:${MONITOR_SALT}" | openssl dgst -sha256 -hmac "$MASTER_SECRET" -binary | xxd -p -c 256)
 cat >"$PROBE_CONFIG" <<EOF
 api_url: ${PROBE_URL}/api/push
-node_id: ${NODE_ID}
+monitor_id: ${MONITOR_ID}
 psk: ${DERIVED_PSK}
 enable_docker: false
 EOF
@@ -224,16 +226,11 @@ TOKEN=$(printf '%s' "$REL_LOGIN_BODY" | jq -r '.access_token // empty')
 assert_status "Re-login after logout succeeds" "200" "$STATUS"
 assert_non_empty "Re-login returns access token" "$TOKEN"
 
-STATUS=$(request "$TMP_DIR/nodes-after-push.json" "$BASE_URL/api/nodes" -H "Authorization: Bearer $TOKEN")
-NODES_BODY="$(<"$TMP_DIR/nodes-after-push.json")"
-assert_status "GET /api/nodes after probe push succeeds" "200" "$STATUS"
-assert_json_field "Pushed node appears in listing" "$NODES_BODY" ".data[] | select(.id == \"$NODE_ID\") | .id" "$NODE_ID"
-assert_json_field "Pushed node is marked online" "$NODES_BODY" ".data[] | select(.id == \"$NODE_ID\") | .status" "online"
-
-STATUS=$(request "$TMP_DIR/metrics-after-push.json" "$BASE_URL/api/nodes/${NODE_ID}/metrics?hours=1" -H "Authorization: Bearer $TOKEN")
-METRICS_BODY="$(<"$TMP_DIR/metrics-after-push.json")"
-assert_status "GET /api/nodes/:id/metrics after probe push succeeds" "200" "$STATUS"
-assert_json_field "Probe metric stored for node" "$METRICS_BODY" ".data[0].node_id" "$NODE_ID"
+STATUS=$(request "$TMP_DIR/monitors-after-push.json" "$BASE_URL/api/v1/monitors" -H "Authorization: Bearer $TOKEN")
+MONITORS_BODY="$(<"$TMP_DIR/monitors-after-push.json")"
+assert_status "GET /api/v1/monitors after probe push succeeds" "200" "$STATUS"
+assert_json_field "Pushed monitor appears in listing" "$MONITORS_BODY" ".data[] | select(.id == \"$MONITOR_ID\") | .id" "$MONITOR_ID"
+assert_json_field "Pushed monitor is marked online" "$MONITORS_BODY" ".data[] | select(.id == \"$MONITOR_ID\") | .status" "online"
 
 print_section "Test Suite 4: Rate Limiting"
 RATE_LIMIT_STATUS=""

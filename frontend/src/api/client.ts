@@ -7,13 +7,8 @@ import type {
   LoginResponse,
   AuthStatusResponse,
   ApiResponse,
-  ApiNode,
-  ApiMetric,
-  OverviewStats,
   ProbeConfigRequest,
   ProbeConfigResponse,
-  UpdateNodeRequest,
-  DeleteNodeResponse,
   AgentlessCheck,
   CreateHttpCheckRequest,
   CreateTcpCheckRequest,
@@ -24,6 +19,7 @@ import type {
   CreateNotificationChannelRequest,
   Monitor,
   NotificationChannel,
+  PublicMonitorVisibility,
   PublicStatusResponse,
   PublicStatusSettings,
   SettingsResponse,
@@ -199,19 +195,6 @@ export const api = {
       method: 'POST',
     }),
 
-  getNodes: () => apiFetch<{ data: ApiNode[] }>('/nodes'),
-  updateNode: (id: string, payload: UpdateNodeRequest) =>
-    apiFetch<ApiResponse<ApiNode>>(`/nodes/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(payload),
-    }),
-  deleteNode: (id: string) =>
-    apiFetch<ApiResponse<DeleteNodeResponse>>(`/nodes/${id}`, {
-      method: 'DELETE',
-    }),
-  getOverview: () => apiFetch<{ data: OverviewStats }>('/stats/overview'),
-  getMetrics: (nodeId: string, hours = 24) =>
-    apiFetch<{ data: ApiMetric[] }>(`/nodes/${nodeId}/metrics?hours=${hours}`),
   getAgentlessChecks: () => apiFetch<ApiResponse<AgentlessCheck[]>>('/agentless'),
   getMonitors: () => apiFetch<ApiResponse<Monitor[]>>('/v1/monitors'),
   createMonitor: (payload: CreateMonitorRequest) =>
@@ -302,8 +285,8 @@ export const api = {
       body: JSON.stringify(payload),
     }),
 
-  updatePublicStatusSettings: (payload: PublicStatusSettings & { readonly monitors?: ReadonlyArray<{ readonly id: string; readonly public_visible: boolean }> }) =>
-    apiFetch<ApiResponse<{ public_status: PublicStatusSettings }>>('/v1/settings/public-status', {
+  updatePublicStatusSettings: (payload: PublicStatusSettings & { readonly monitors?: ReadonlyArray<PublicMonitorVisibility> }) =>
+    apiFetch<ApiResponse<{ public_status: PublicStatusSettings; monitors: ReadonlyArray<PublicMonitorVisibility> }>>('/v1/settings/public-status', {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
@@ -314,7 +297,7 @@ export const api = {
   },
 
   createProbeConfig: (payload: ProbeConfigRequest) =>
-    apiFetch<ProbeConfigResponse>('/nodes/probe-config', {
+    apiFetch<ProbeConfigResponse>('/v1/monitors/probe-config', {
       method: 'POST',
       body: JSON.stringify(payload),
     }),

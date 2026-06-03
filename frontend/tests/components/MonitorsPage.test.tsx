@@ -82,6 +82,37 @@ describe("Monitors page", () => {
     expect(within(card).queryByText("42ms")).not.toBeInTheDocument();
   });
 
+  it("shows a visible 403 reachable marker on reachable forbidden HTTP checks", async () => {
+    setMockMonitors([{
+      id: "monitor-http-403",
+      backend_id: "default",
+      backend_label: "Default backend",
+      backend_type: "cloudflare_worker",
+      name: "Forbidden Homepage",
+      type: "http",
+      status: "online",
+      target: { label: "https://example.com/forbidden", url: "https://example.com/forbidden" },
+      interval_sec: 300,
+      timeout_sec: 10,
+      public_visible: true,
+      latest: { checked_at: 1_800_000_000, latency_ms: 64, uptime_ratio: 100, cpu_percent: null, mem_percent: null, error_text: null, status_code: 403 },
+      visibility: { public: true, show_uptime: true, show_latency: true, show_incidents: true },
+      created_at: 1,
+      updated_at: 1,
+    }]);
+    const user = await openMonitorsPage();
+
+    const card = await screen.findByRole("article", { name: "Forbidden Homepage monitor" });
+    const marker = within(card).getByLabelText("403 reachable");
+    expect(marker).toBeInTheDocument();
+    expect(marker).toHaveTextContent("403");
+    expect(marker).toHaveAttribute("title", "403 reachable");
+
+    await user.click(within(card).getByRole("button", { name: "Details" }));
+    expect(await screen.findByRole("region", { name: "Forbidden Homepage detail" })).toBeInTheDocument();
+    expect(screen.getByLabelText("403 reachable")).toHaveAttribute("title", "403 reachable");
+  });
+
   it("distinguishes an empty monitor list from filtered no-match state", async () => {
     const user = await openMonitorsPage();
 

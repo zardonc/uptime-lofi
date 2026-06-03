@@ -6,7 +6,7 @@ export interface ActivityEvent {
   readonly id: string;
   readonly timestamp: string;
   readonly type: ActivityEventType;
-  readonly node: string;
+  readonly monitor: string;
   readonly message: string;
 }
 
@@ -41,7 +41,7 @@ export function ActivityFeed({ events }: ActivityFeedProps) {
                 <Icon size={16} />
               </span>
               <div className="activity-feed__content">
-                <span className="activity-feed__node">{evt.node}</span>
+                <span className="activity-feed__monitor">{evt.monitor}</span>
                 <span className="activity-feed__message">{evt.message}</span>
               </div>
               <span className="activity-feed__time">{evt.timestamp}</span>

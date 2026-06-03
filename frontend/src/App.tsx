@@ -49,13 +49,16 @@ export default function App() {
 
 function AdminApp() {
   const [activeNav, setActiveNav] = useState<PageId>(() => pageFromPath(window.location.pathname));
-  const { logout } = useAuth();
+  const { logout, verifySession } = useAuth();
 
   useEffect(() => {
-    const handlePopState = () => setActiveNav(pageFromPath(window.location.pathname));
+    const handlePopState = () => {
+      setActiveNav(pageFromPath(window.location.pathname));
+      void verifySession();
+    };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
+  }, [verifySession]);
 
   return (
     <LoginGate>
@@ -64,7 +67,9 @@ function AdminApp() {
           activeId={activeNav}
           onNavigate={(id) => {
             if (id === 'logout') {
-              logout();
+              void logout();
+              setActiveNav('dashboard');
+              window.history.replaceState({}, '', '/');
               return;
             }
             const nextPage = id as PageId;

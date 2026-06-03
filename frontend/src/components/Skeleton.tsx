@@ -31,23 +31,6 @@ export function MetricCardSkeleton() {
   );
 }
 
-export function NodeListSkeleton() {
-  return (
-    <div className="card node-list" aria-label="Loading monitored nodes">
-      <h3 className="section-title"><Skeleton width="160px" height="20px" /></h3>
-      <div className="node-table-skeleton">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="node-row-skeleton">
-            <Skeleton width="120px" height="16px" />
-            <Skeleton width="60px" height="20px" borderRadius="var(--radius-sm)" />
-            <Skeleton width="80px" height="14px" />
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 export function ActivityFeedSkeleton() {
   return (
     <div className="card activity-feed" aria-label="Loading activity feed">

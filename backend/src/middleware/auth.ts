@@ -2,10 +2,10 @@ import { Context, Next } from "hono";
 import { HTTPException } from "hono/http-exception";
 
 // Crypto helper using Web Crypto API for HMAC-SHA256
-async function deriveExpectedPsk(masterSecret: string, nodeId: string, salt: string): Promise<string> {
+async function deriveExpectedPsk(masterSecret: string, monitorId: string, salt: string): Promise<string> {
   const encoder = new TextEncoder();
   const keyData = encoder.encode(masterSecret);
-  const msgData = encoder.encode(`${nodeId}:${salt}`);
+  const msgData = encoder.encode(`${monitorId}:${salt}`);
 
   const cryptoKey = await crypto.subtle.importKey(
     "raw",
@@ -48,16 +48,15 @@ export const probeAuthMiddleware = async (c: Context, next: Next) => {
 
 	const authHeader = c.req.header("Authorization");
 	const timestampStr = c.req.header("X-Timestamp");
-	const nodeId = c.req.header("X-Node-Id");
+	const monitorId = c.req.header("X-Monitor-Id");
 
-	if (!authHeader || !authHeader.startsWith("Bearer ") || !timestampStr || !nodeId) {
-		throw new HTTPException(401, { message: "Missing Authentication Headers (Authorization, X-Timestamp, or X-Node-Id)" });
+	if (!authHeader || !authHeader.startsWith("Bearer ") || !timestampStr || !monitorId) {
+		throw new HTTPException(401, { message: "Missing Authentication Headers (Authorization, X-Timestamp, or X-Monitor-Id)" });
 	}
 
-	// SECURITY: Validate X-Node-Id format to prevent injection and ensure consistency
-	// The node ID is used in database queries and must be alphanumeric with optional underscores/hyphens
-	if (!/^[a-zA-Z0-9_-]+$/.test(nodeId)) {
-		throw new HTTPException(400, { message: "Invalid node ID format" });
+	// SECURITY: Validate monitor ID format before using it in database queries.
+	if (!/^[a-zA-Z0-9_-]+$/.test(monitorId)) {
+		throw new HTTPException(400, { message: "Invalid monitor ID format" });
 	}
 
   const timestamp = parseInt(timestampStr, 10);
@@ -70,16 +69,16 @@ export const probeAuthMiddleware = async (c: Context, next: Next) => {
 
   // 1. Database Lookup for Salt
   const db = c.env.DB as D1Database;
-  const nodeRecord = await db.prepare(
-    "SELECT salt FROM nodes WHERE id = ? AND archived_at IS NULL AND status != 'paused' AND type = 'agent_push'",
-  ).bind(nodeId).first<{ salt: string | null }>();
+  const monitorRecord = await db.prepare(
+    "SELECT salt FROM monitors WHERE id = ? AND archived_at IS NULL AND paused = 0 AND type = 'agent'",
+  ).bind(monitorId).first<{ salt: string | null }>();
   
-  if (!nodeRecord || !nodeRecord.salt) {
+  if (!monitorRecord || !monitorRecord.salt) {
     // If salt is missing, the probe is not natively initialized to authenticate
-    throw new HTTPException(401, { message: "Node auth mismatch or missing salt" });
+    throw new HTTPException(401, { message: "Monitor auth mismatch or missing salt" });
   }
 
-  const expectedPsk = await deriveExpectedPsk(masterSecret, nodeId, nodeRecord.salt);
+  const expectedPsk = await deriveExpectedPsk(masterSecret, monitorId, monitorRecord.salt);
   const signature = authHeader.replace("Bearer ", "");
 
   // Clone request to safely read raw bytes without consuming Hono's stream down the line
@@ -92,7 +91,7 @@ export const probeAuthMiddleware = async (c: Context, next: Next) => {
 	if (!isValid) {
 		// SECURITY: Log failed authentication attempts for audit trail
 		const clientIp = c.req.header("CF-Connecting-IP") || "unknown";
-		console.warn(`Auth failed for node ${nodeId} from IP ${clientIp}`);
+		console.warn(`Auth failed for monitor ${monitorId} from IP ${clientIp}`);
 		throw new HTTPException(401, { message: "Invalid HMAC Signature" });
 	}
 

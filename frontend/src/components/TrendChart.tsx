@@ -8,7 +8,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from 'recharts';
-import type { TrendPoint } from '../hooks/useMetrics';
+import type { TrendPoint } from '../api/types';
 
 interface TrendChartProps {
   data: TrendPoint[];

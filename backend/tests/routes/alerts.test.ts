@@ -25,7 +25,7 @@ describe("Internal Alert Routes (/api/internal/v1/alerts)", () => {
     await db.prepare("DELETE FROM check_results").run();
     await db.prepare("DELETE FROM monitors").run();
 
-    await insertMonitor("agent-1", "Agent One", "agent", { legacy_node_id: "agent-1" });
+    await insertMonitor("agent-1", "Agent One", "agent", { platform: "linux/amd64" });
     await insertMonitor("http-1", "Homepage", "http", { url: "https://example.com", expected_status: 200 });
     await insertMonitor("tcp-1", "Postgres", "tcp", { host: "db.example.com", port: 5432 });
   });

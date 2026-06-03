@@ -86,13 +86,13 @@ hmac_sign() {
   echo -n "$message" | openssl dgst -sha256 -hmac "$psk" -hex | sed 's/.*= //'
 }
 
-# Generate test node PSK from API_SECRET_KEY.
-# PSK = HMAC-SHA256(API_SECRET_KEY, "{nodeId}:{salt}")
+# Generate test monitor PSK from API_SECRET_KEY.
+# PSK = HMAC-SHA256(API_SECRET_KEY, "{monitorId}:{salt}")
 derive_psk() {
   local secret_key="$1"
-  local node_id="$2"
+  local monitor_id="$2"
   local salt="$3"
-  local message="${node_id}:${salt}"
+  local message="${monitor_id}:${salt}"
   echo -n "$message" | openssl dgst -sha256 -hmac "$secret_key" -hex | sed 's/.*= //'
 }
 

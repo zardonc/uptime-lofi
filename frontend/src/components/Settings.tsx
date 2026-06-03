@@ -118,7 +118,7 @@ export function Settings() {
       const response = await api.updatePublicStatusSettings({ ...nextPublicStatus, monitors: monitorVisibility });
       setPublicStatus(response.data.public_status);
       setMonitors((current) => current.map((monitor) => {
-        const visible = monitorVisibility.find((item) => item.id === monitor.id)?.public_visible;
+        const visible = response.data.monitors.find((item) => item.id === monitor.id)?.public_visible;
         return typeof visible === 'boolean' ? { ...monitor, public_visible: visible } : monitor;
       }));
       setPublicSuccess(true);
@@ -218,7 +218,7 @@ export function Settings() {
                   aria-invalid={!!errors.password}
                   aria-describedby={errors.password ? 'password-error' : 'password-hint'}
                 />
-                <button type="button" className="node-action" onClick={generateRandom}>Generate</button>
+                <button type="button" className="monitor-action" onClick={generateRandom}>Generate</button>
               </div>
               {errors.password ? (
                 <div id="password-error" className="settings-form__error">
@@ -319,9 +319,9 @@ export function Settings() {
                   <span>{channel.type} · {channel.redacted_label ?? 'No endpoint summary'} · {channel.delivery_status}</span>
                 </div>
                 <div className="notification-channel-row__actions">
-                  <button type="button" className="node-action" onClick={() => void testChannel(channel)} disabled={channel.type === 'email' || !channel.enabled}>Test</button>
-                  <button type="button" className="node-action" disabled>Edit</button>
-                  <button type="button" className="node-action node-action--icon node-action--danger" aria-label={`Delete ${channel.name}`} onClick={() => void deleteChannel(channel)}>
+                  <button type="button" className="monitor-action" onClick={() => void testChannel(channel)} disabled={channel.type === 'email' || !channel.enabled}>Test</button>
+                  <button type="button" className="monitor-action" disabled>Edit</button>
+                  <button type="button" className="monitor-action monitor-action--icon monitor-action--danger" aria-label={`Delete ${channel.name}`} onClick={() => void deleteChannel(channel)}>
                     <Trash2 size={16} />
                   </button>
                 </div>
@@ -334,7 +334,7 @@ export function Settings() {
                 <strong>Email</strong>
                 <span>Coming soon · reserved for a future phase</span>
               </div>
-              <button type="button" className="node-action" disabled>Configure</button>
+              <button type="button" className="monitor-action" disabled>Configure</button>
             </div>
           </div>
 
@@ -430,3 +430,4 @@ function ToggleInput({ id, label, checked, register }: {
     </label>
   );
 }
+

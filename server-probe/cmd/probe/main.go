@@ -34,7 +34,7 @@ var rootCmd = &cobra.Command{
 
 		batchPusher := pusher.NewBatchPusher(cfg)
 
-		log.Printf("Starting Uptime LoFi Probe [%s]...", cfg.NodeID)
+		log.Printf("Starting Uptime LoFi Probe [%s]...", cfg.MonitorID)
 		log.Printf("Target Edge: %s | Docker Analytics: %v", cfg.ApiUrl, cfg.EnableDocker)
 
 		// Create background measurement tickers
@@ -51,7 +51,7 @@ var rootCmd = &cobra.Command{
 			ping := collector.PingTarget(cfg.ApiUrl)
 
 			payload := collector.MetricPayload{
-				NodeID:    cfg.NodeID,
+				MonitorID: cfg.MonitorID,
 				Timestamp: time.Now().Unix(),
 				PingMs:    ping,
 				CpuUsage:  cpuPct,

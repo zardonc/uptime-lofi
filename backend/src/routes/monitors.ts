@@ -1,4 +1,6 @@
 import { Hono } from "hono";
+import { z } from "zod";
+import { zValidator } from "@hono/zod-validator";
 import type { Bindings } from "./api";
 import {
   createMonitorSchema,
@@ -19,6 +21,12 @@ import {
 const monitorsApi = new Hono<{ Bindings: Bindings }>();
 
 const MONITOR_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
+const DEFAULT_PROBE_RELEASE_REPO = "zardonc/uptime-lofi";
+const DEFAULT_PROBE_RELEASE_TAG = "probe-latest";
+const probeConfigSchema = z.object({
+  name: z.string().trim().min(1).max(80),
+  platform: z.enum(["linux/amd64", "linux/arm64", "darwin/amd64", "darwin/arm64"]).optional().default("linux/amd64"),
+});
 
 monitorsApi.get("/", async (c) => {
   return c.json({ data: await listMonitors(c.env.DB, backendSource(c.req.header("x-uptime-lofi-backend-id"))) });
@@ -31,6 +39,69 @@ monitorsApi.get("/:id", async (c) => {
   const monitor = await getMonitor(c.env.DB, id, backendSource(c.req.header("x-uptime-lofi-backend-id")));
   return monitor ? c.json({ data: monitor }) : c.json(structuredError("monitor_not_found", "Monitor not found"), 404);
 });
+
+monitorsApi.post(
+  "/probe-config",
+  zValidator("json", probeConfigSchema, (result, c) => {
+    if (!result.success) {
+      return c.json(structuredError("invalid_probe_config", "Invalid probe config request"), 400);
+    }
+  }),
+  async (c) => {
+    const { name, platform } = c.req.valid("json");
+    if (await activeNameExists(c.env.DB, name)) {
+      return c.json(structuredError("monitor_name_exists", "A monitor with this name already exists"), 409);
+    }
+
+    const monitorId = crypto.randomUUID();
+    const salt = crypto.randomUUID();
+    const monitorSecret = await deriveMonitorSecret(c.env.API_SECRET_KEY, monitorId, salt);
+    const probePushUrl = probePushEndpoint(c.env.PROBE_PUSH_URL ?? new URL(c.req.url).origin);
+    const releaseRepo = c.env.PROBE_RELEASE_REPO ?? c.env.GITHUB_REPOSITORY ?? DEFAULT_PROBE_RELEASE_REPO;
+    const releaseTag = c.env.PROBE_RELEASE_TAG ?? DEFAULT_PROBE_RELEASE_TAG;
+    const scriptUrl = installScriptUrl(releaseRepo, releaseTag);
+    const now = Math.floor(Date.now() / 1000);
+
+    await c.env.DB.prepare(
+      `INSERT INTO monitors (
+         id, backend_id, name, type, target, interval_sec, timeout_sec,
+         expected_json, config_json, salt, paused, public_visible, created_at, updated_at
+       ) VALUES (?, 'default', ?, 'agent', 'Agent probe', 60, 10, NULL, ?, ?, 0, 1, ?, ?)`,
+    ).bind(
+      monitorId,
+      name,
+      JSON.stringify({
+        platform,
+        generated_by: "dashboard_probe_config",
+        credential_version: 1,
+      }),
+      salt,
+      now,
+      now,
+    ).run();
+
+    return c.json({
+      data: {
+        monitor_id: monitorId,
+        monitor_name: name,
+        monitor_secret: monitorSecret,
+        probe_push_url: probePushUrl,
+        install_command: createInstallCommand({
+          installScriptUrl: scriptUrl,
+          platform,
+          probePushUrl,
+          monitorId,
+          monitorSecret,
+          releaseRepo,
+          releaseTag,
+        }),
+        install_script_url: scriptUrl,
+        config_yaml: createConfigYaml(probePushUrl, monitorId, monitorSecret),
+        downloads: releaseDownloads(releaseRepo, releaseTag),
+      },
+    });
+  },
+);
 
 monitorsApi.post("/", async (c) => {
   const parsed = createMonitorSchema.safeParse(await readJson(c.req.raw));
@@ -93,6 +164,83 @@ monitorsApi.delete("/:id", async (c) => {
 
 function validMonitorId(id: string) {
   return MONITOR_ID_PATTERN.test(id);
+}
+
+async function deriveMonitorSecret(masterSecret: string, monitorId: string, salt: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const keyData = encoder.encode(masterSecret);
+  const messageData = encoder.encode(`${monitorId}:${salt}`);
+  const cryptoKey = await crypto.subtle.importKey(
+    "raw",
+    keyData,
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const signature = await crypto.subtle.sign("HMAC", cryptoKey, messageData);
+  return Array.from(new Uint8Array(signature)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function releaseDownloads(repo: string, tag: string) {
+  const base = `https://github.com/${repo}/releases/download/${tag}`;
+  return {
+    linux_amd64: `${base}/probe-linux-amd64.tar.gz`,
+    linux_arm64: `${base}/probe-linux-arm64.tar.gz`,
+    darwin_amd64: `${base}/probe-darwin-amd64.tar.gz`,
+    darwin_arm64: `${base}/probe-darwin-arm64.tar.gz`,
+  };
+}
+
+function createConfigYaml(apiUrl: string, monitorId: string, monitorSecret: string) {
+  return [
+    `api_url: ${apiUrl}`,
+    `monitor_id: ${monitorId}`,
+    `psk: ${monitorSecret}`,
+    "enable_docker: true",
+    "",
+  ].join("\n");
+}
+
+function probePushEndpoint(baseUrl: string) {
+  const trimmed = baseUrl.replace(/\/+$/, "");
+  return trimmed.endsWith("/api/push") ? trimmed : `${trimmed}/api/push`;
+}
+
+function shellQuote(value: string) {
+  return `'${value.replace(/'/g, `'"'"'`)}'`;
+}
+
+function installScriptUrl(repo: string, tag: string) {
+  return `https://github.com/${repo}/releases/download/${tag}/install-probe.sh`;
+}
+
+function createInstallCommand(data: {
+  readonly installScriptUrl: string;
+  readonly platform: string;
+  readonly probePushUrl: string;
+  readonly monitorId: string;
+  readonly monitorSecret: string;
+  readonly releaseRepo: string;
+  readonly releaseTag: string;
+}) {
+  return [
+    `curl -fsSL ${shellQuote(data.installScriptUrl)}`,
+    "|",
+    `UPTIME_PLATFORM=${shellQuote(data.platform)}`,
+    `UPTIME_PROBE_PUSH_URL=${shellQuote(data.probePushUrl)}`,
+    `UPTIME_MONITOR_ID=${shellQuote(data.monitorId)}`,
+    `UPTIME_MONITOR_SECRET=${shellQuote(data.monitorSecret)}`,
+    `UPTIME_RELEASE_REPO=${shellQuote(data.releaseRepo)}`,
+    `UPTIME_RELEASE_TAG=${shellQuote(data.releaseTag)}`,
+    "bash",
+  ].join(" ");
+}
+
+async function activeNameExists(db: D1Database, name: string) {
+  const row = await db.prepare(
+    "SELECT id FROM monitors WHERE archived_at IS NULL AND lower(name) = ? LIMIT 1",
+  ).bind(name.trim().toLowerCase()).first<{ id: string }>();
+  return Boolean(row);
 }
 
 async function readJson(request: Request) {

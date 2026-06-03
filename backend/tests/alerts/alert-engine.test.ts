@@ -54,6 +54,18 @@ describe("alertEngine", () => {
     expect(await eventTypes()).toEqual(["firing", "recovered"]);
   });
 
+  it("does not fire HTTP status alerts for reachable HTTP 403 checks", async () => {
+    await insertMonitor("http-1", "Homepage", "http");
+    await insertLatest("http-1", "online", { checked_at: 100, latency_ms: 42 });
+    await db.prepare(
+      "INSERT INTO check_results (monitor_id, timestamp, status, latency_ms, detail_json) VALUES (?, ?, 'up', ?, ?)",
+    ).bind("http-1", 100, 42, JSON.stringify({ status_code: 403, error_text: null })).run();
+    await insertRule("rule-1", "http-1", "http_status", { expected_status: 200 });
+
+    expect(await evaluateAlerts(db, "http-1", 100)).toBe(0);
+    expect(await eventTypes()).toEqual([]);
+  });
+
   it("suppresses notification intents during silent hours", async () => {
     await insertMonitor("agent-1", "Agent", "agent");
     await insertLatest("agent-1", "online", { checked_at: 100, cpu_percent: 95 });

@@ -113,8 +113,8 @@ export function AlertsPage() {
       {activeTab === 'rules' ? (
         <>
           {showForm && (
-            <div className="node-dialog alerts-rule-dialog-shell" role="presentation">
-              <div className="node-dialog__panel alerts-rule-dialog" role="dialog" aria-modal="true" aria-labelledby="alert-rule-dialog-title">
+            <div className="monitor-dialog alerts-rule-dialog-shell" role="presentation">
+              <div className="monitor-dialog__panel alerts-rule-dialog" role="dialog" aria-modal="true" aria-labelledby="alert-rule-dialog-title">
                 <AlertRuleForm
                   monitors={monitors}
                   channels={channels}
@@ -162,7 +162,7 @@ function AlertRuleForm({
           <h2 id="alert-rule-dialog-title">Create alert rule</h2>
           <p>Choose enabled Webhook or Telegram channels for delivery.</p>
         </div>
-        <button type="button" className="node-action node-action--icon" aria-label="Close alert rule form" onClick={onCancel}>
+        <button type="button" className="monitor-action monitor-action--icon" aria-label="Close alert rule form" onClick={onCancel}>
           <X size={16} />
         </button>
       </div>
@@ -222,7 +222,7 @@ function AlertRuleForm({
         </div>
       </details>
       <div className="alerts-rule-form__actions">
-        <button type="button" className="node-action" onClick={onCancel}>Cancel</button>
+        <button type="button" className="monitor-action" onClick={onCancel}>Cancel</button>
         <button type="submit" className="page-header__primary" disabled={disabled || monitors.length === 0}>Create Rule</button>
       </div>
     </form>
@@ -279,8 +279,8 @@ function AlertRulesList({
               <div><dt>Repeat</dt><dd>{rule.repeat_interval_sec}s</dd></div>
             </dl>
             <div className="alert-rule-card__actions">
-              <button type="button" className="node-action" onClick={() => onToggle(rule)}>{rule.enabled ? 'Disable' : 'Enable'}</button>
-              <button type="button" className="node-action node-action--icon node-action--danger" aria-label={`Delete ${rule.name}`} onClick={() => onDelete(rule)}>
+              <button type="button" className="monitor-action" onClick={() => onToggle(rule)}>{rule.enabled ? 'Disable' : 'Enable'}</button>
+              <button type="button" className="monitor-action monitor-action--icon monitor-action--danger" aria-label={`Delete ${rule.name}`} onClick={() => onDelete(rule)}>
                 <Trash2 size={16} />
               </button>
             </div>
@@ -327,3 +327,4 @@ function paramsForCondition(condition: AlertCondition, formData: FormData): Reco
   if (condition === 'cpu' || condition === 'memory') return { threshold_percent: Number(formData.get('threshold_percent') ?? 90) };
   return {};
 }
+

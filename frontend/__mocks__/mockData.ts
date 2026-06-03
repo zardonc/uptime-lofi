@@ -4,12 +4,12 @@
 
 import type { TrendPoint } from '../src/api/types';
 
-export type NodeStatus = 'online' | 'degraded' | 'offline' | 'paused';
+export type MonitorStatus = 'online' | 'degraded' | 'offline' | 'paused';
 
-export interface MonitorNode {
+export interface MockMonitor {
   id: string;
   name: string;
-  status: NodeStatus;
+  status: MonitorStatus;
   lastHeartbeat: string;
   pingMs: number;
   cpuUsage: number;
@@ -23,14 +23,14 @@ export interface ActivityEvent {
   id: string;
   timestamp: string;
   type: 'online' | 'offline' | 'warning' | 'recovery';
-  node: string;
+  monitor: string;
   message: string;
 }
 
-// ── Nodes ──
-export const mockNodes: MonitorNode[] = [
+// ── Monitors ──
+export const mockMonitors: MockMonitor[] = [
   {
-    id: 'node-sg-01',
+    id: 'monitor-sg-01',
     name: 'Singapore VPS',
     status: 'online',
     lastHeartbeat: '12 seconds ago',
@@ -40,7 +40,7 @@ export const mockNodes: MonitorNode[] = [
     uptimeRatio: 99.97,
   },
   {
-    id: 'node-us-02',
+    id: 'monitor-us-02',
     name: 'US East EC2',
     status: 'online',
     lastHeartbeat: '8 seconds ago',
@@ -50,7 +50,7 @@ export const mockNodes: MonitorNode[] = [
     uptimeRatio: 99.82,
   },
   {
-    id: 'node-jp-03',
+    id: 'monitor-jp-03',
     name: 'Tokyo Lightsail',
     status: 'degraded',
     lastHeartbeat: '3 minutes ago',
@@ -60,7 +60,7 @@ export const mockNodes: MonitorNode[] = [
     uptimeRatio: 98.14,
   },
   {
-    id: 'node-de-04',
+    id: 'monitor-de-04',
     name: 'Frankfurt Hetzner',
     status: 'offline',
     lastHeartbeat: '27 minutes ago',
@@ -93,46 +93,46 @@ export const mockActivity: ActivityEvent[] = [
     id: 'evt-1',
     timestamp: '2 min ago',
     type: 'warning',
-    node: 'Tokyo Lightsail',
+    monitor: 'Tokyo Lightsail',
     message: 'CPU usage exceeded 90% threshold',
   },
   {
     id: 'evt-2',
     timestamp: '18 min ago',
     type: 'offline',
-    node: 'Frankfurt Hetzner',
-    message: 'Node stopped responding to heartbeats',
+    monitor: 'Frankfurt Hetzner',
+    message: 'Monitor stopped reporting heartbeats',
   },
   {
     id: 'evt-3',
     timestamp: '1 hour ago',
     type: 'recovery',
-    node: 'US East EC2',
+    monitor: 'US East EC2',
     message: 'Recovered from brief network interruption',
   },
   {
     id: 'evt-4',
     timestamp: '3 hours ago',
     type: 'online',
-    node: 'Singapore VPS',
+    monitor: 'Singapore VPS',
     message: 'Probe deployed and reporting successfully',
   },
   {
     id: 'evt-5',
     timestamp: '6 hours ago',
     type: 'warning',
-    node: 'US East EC2',
+    monitor: 'US East EC2',
     message: 'Memory usage at 82%, approaching threshold',
   },
 ];
 
 // ── Aggregate Stats ──
 export const mockStats = {
-  totalNodes: mockNodes.length,
-  onlineNodes: mockNodes.filter((n) => n.status === 'online').length,
-  avgUptime: +(mockNodes.reduce((s, n) => s + n.uptimeRatio, 0) / mockNodes.length).toFixed(2),
+  totalMonitors: mockMonitors.length,
+  onlineMonitors: mockMonitors.filter((monitor) => monitor.status === 'online').length,
+  avgUptime: +(mockMonitors.reduce((sum, monitor) => sum + monitor.uptimeRatio, 0) / mockMonitors.length).toFixed(2),
   avgPing: Math.round(
-    mockNodes.filter((n) => n.pingMs > 0).reduce((s, n) => s + n.pingMs, 0) /
-      mockNodes.filter((n) => n.pingMs > 0).length
+    mockMonitors.filter((monitor) => monitor.pingMs > 0).reduce((sum, monitor) => sum + monitor.pingMs, 0) /
+      mockMonitors.filter((monitor) => monitor.pingMs > 0).length
   ),
 };

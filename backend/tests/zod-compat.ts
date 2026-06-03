@@ -57,6 +57,6 @@ export default app;
 //
 // Production routes already verify Zod v4 + @hono/zod-validator integration:
 // - src/routes/push.ts: batchPayloadSchema with zValidator
-// - src/routes/nodes.ts: node schema validation
+// - src/routes/monitors.ts: monitor schema validation
 // - src/routes/settings.ts: settings schema validation
 // - src/routes/auth.ts: auth payload validation

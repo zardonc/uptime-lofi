@@ -5,7 +5,8 @@ import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { AuthProvider } from "../../src/hooks/useAuth";
 import { Settings } from "../../src/components/Settings";
-import { handlers, resetMockApiState, setFailSettingsUpdate, setMockAuthState } from "../mocks/handlers";
+import { handlers, resetMockApiState, setFailSettingsUpdate, setMockAuthState, setMockMonitors } from "../mocks/handlers";
+import type { Monitor } from "../../src/api/types";
 
 const server = setupServer(...handlers);
 
@@ -91,6 +92,37 @@ describe("Settings", () => {
     expect(screen.getByRole("button", { name: /save public status/i })).toBeInTheDocument();
   });
 
+  it("persists Public Status monitor visibility from the backend response", async () => {
+    const user = userEvent.setup();
+    setMockAuthState({ isUiLockEnabled: false, authenticated: true });
+    setMockMonitors([{
+      id: "monitor-private-1",
+      backend_id: "default",
+      backend_label: "Default backend",
+      backend_type: "cloudflare_worker",
+      name: "Private API",
+      type: "http",
+      status: "unknown",
+      target: { label: "https://api.example.com", url: "https://api.example.com" },
+      interval_sec: 300,
+      timeout_sec: 10,
+      public_visible: false,
+      latest: { checked_at: null, latency_ms: null, uptime_ratio: null, cpu_percent: null, mem_percent: null, error_text: null },
+      visibility: { public: false, show_uptime: true, show_latency: true, show_incidents: true },
+      created_at: 1,
+      updated_at: 1,
+    } satisfies Monitor]);
+    renderWithAuth(<Settings />);
+
+    const checkbox = await screen.findByRole("checkbox", { name: /private api/i });
+    expect(checkbox).not.toBeChecked();
+    await user.click(checkbox);
+    await user.click(screen.getByRole("button", { name: /save public status/i }));
+
+    expect(await screen.findByText(/public status settings saved/i)).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: /private api/i })).toBeChecked();
+  });
+
   it("adds Webhook channels without displaying saved secret headers", async () => {
     const user = userEvent.setup();
     setMockAuthState({ isUiLockEnabled: false, authenticated: true });
@@ -141,19 +173,19 @@ describe("Settings", () => {
 
     renderWithAuth(<Settings />);
 
-    const nameInput = await screen.findByLabelText(/node name/i);
+    const nameInput = await screen.findByLabelText(/monitor name/i);
     await user.clear(nameInput);
     await user.type(nameInput, "prod-vps-1");
     await user.click(screen.getByRole("button", { name: /generate install command/i }));
 
     expect(await screen.findByRole("heading", { name: /run this on your server/i })).toBeInTheDocument();
-    expect(screen.getByTestId("probe-install-command")).toHaveTextContent("node-generated-1");
-    expect(screen.queryByText("node-secret-generated")).not.toBeInTheDocument();
+    expect(screen.getByTestId("probe-install-command")).toHaveTextContent("monitor-generated-1");
+    expect(screen.queryByText("monitor-secret-generated")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /show manual setup/i }));
 
-    expect(screen.getByText("node-generated-1")).toBeInTheDocument();
-    expect(screen.getByText("node-secret-generated")).toBeInTheDocument();
+    expect(screen.getByText("monitor-generated-1")).toBeInTheDocument();
+    expect(screen.getByText("monitor-secret-generated")).toBeInTheDocument();
     expect(screen.getByText("https://uptime-lofi-probe.example.workers.dev/api/push")).toBeInTheDocument();
     expect(screen.getByText("config.yaml")).toBeInTheDocument();
   });
