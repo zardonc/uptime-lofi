@@ -6,6 +6,7 @@ export type AgentlessCheckResult = {
   readonly isUp: boolean;
   readonly latencyMs: number | null;
   readonly errorText: string | null;
+  readonly statusCode?: number;
 };
 
 export type HttpCheckConfig = {
@@ -60,10 +61,13 @@ export async function runHttpCheck(config: HttpCheckConfig, fetchImpl: typeof fe
     const start = nowMs();
     const response = await fetchImpl(config.url, { signal: timeoutSignal(config.timeout) });
     const latencyMs = Math.max(0, nowMs() - start);
-    if (response.status !== config.expected_status) {
-      return { isUp: true, latencyMs, errorText: `Expected HTTP ${config.expected_status}, got ${response.status}` };
+    if (response.status === 403) {
+      return { isUp: true, latencyMs, errorText: null, statusCode: response.status };
     }
-    return { isUp: true, latencyMs, errorText: null };
+    if (response.status !== config.expected_status) {
+      return { isUp: true, latencyMs, errorText: `Expected HTTP ${config.expected_status}, got ${response.status}`, statusCode: response.status };
+    }
+    return { isUp: true, latencyMs, errorText: null, statusCode: response.status };
   } catch (error) {
     return { isUp: false, latencyMs: null, errorText: errorMessage(error) };
   }

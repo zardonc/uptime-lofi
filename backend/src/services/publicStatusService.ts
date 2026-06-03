@@ -43,6 +43,7 @@ type PublicMonitorRow = {
   latency_ms: number | null;
   uptime_ratio: number | null;
   updated_at: number | null;
+  last_detail_json: string | null;
 };
 
 export async function readPublicStatusSettings(db: D1Database): Promise<PublicStatusSettings> {
@@ -72,6 +73,17 @@ export async function updatePublicMonitorVisibility(db: D1Database, monitors: Re
   ).bind(monitor.public_visible ? 1 : 0, monitor.id)));
 }
 
+export async function listPublicMonitorVisibility(db: D1Database): Promise<ReadonlyArray<PublicMonitorVisibilityInput>> {
+  const { results } = await db.prepare(
+    "SELECT id, public_visible FROM monitors WHERE archived_at IS NULL ORDER BY created_at DESC",
+  ).all<{ id: string; public_visible: number }>();
+
+  return results.map((monitor) => ({
+    id: monitor.id,
+    public_visible: Boolean(monitor.public_visible),
+  }));
+}
+
 export async function buildPublicStatusResponse(
   db: D1Database,
   backendSource: BackendSource,
@@ -83,7 +95,14 @@ export async function buildPublicStatusResponse(
 
   const rows = await db.prepare(
     `SELECT m.id, m.name, m.type, m.target, m.public_visible,
-            ml.status, ml.checked_at, ml.latency_ms, ml.uptime_ratio, ml.updated_at
+            ml.status, ml.checked_at, ml.latency_ms, ml.uptime_ratio, ml.updated_at,
+            (
+              SELECT cr.detail_json
+              FROM check_results cr
+              WHERE cr.monitor_id = m.id
+              ORDER BY cr.timestamp DESC, cr.id DESC
+              LIMIT 1
+            ) AS last_detail_json
        FROM monitors m
        LEFT JOIN monitor_latest ml ON ml.monitor_id = m.id
       WHERE m.archived_at IS NULL AND m.public_visible = 1
@@ -101,6 +120,7 @@ export async function buildPublicStatusResponse(
       target_label: publicTargetLabel(row),
       ...(settings.show_latency ? { latency_ms: row.latency_ms } : {}),
       ...(settings.show_uptime ? { uptime_ratio: row.uptime_ratio } : {}),
+      ...(latestStatusCode(row.last_detail_json) === 403 ? { status_code: 403 } : {}),
       updated_at: row.updated_at ?? row.checked_at ?? now,
     };
     return publicMonitor;
@@ -114,6 +134,16 @@ export async function buildPublicStatusResponse(
     monitors,
     incidents: settings.show_incidents ? [] : [],
   });
+}
+
+function latestStatusCode(detailJson: string | null): number | null {
+  if (!detailJson) return null;
+  try {
+    const value = (JSON.parse(detailJson) as { readonly status_code?: unknown }).status_code;
+    return typeof value === "number" && Number.isInteger(value) && value >= 100 && value <= 599 ? value : null;
+  } catch {
+    return null;
+  }
 }
 
 function normalizePublicStatusSettings(input: PublicStatusSettingsInput): PublicStatusSettings {

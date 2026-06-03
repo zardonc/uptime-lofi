@@ -263,7 +263,10 @@ function MonitorCard({ monitor, pending, onEdit, onPauseResume, onDetails, onDel
           <h2>{monitor.name}</h2>
           <p>{typeLabels[monitor.type]} · {monitor.target.label}</p>
         </div>
-        <StatusBadge status={monitor.status} />
+        <div className="monitor-status-stack">
+          <StatusBadge status={monitor.status} />
+          {isReachable403(monitor.latest.status_code) && <Reachable403Badge />}
+        </div>
       </div>
       <div className="monitor-card__metrics">
         <Metric icon={<Activity size={17} />} label="Status" value={monitor.status === 'unknown' ? 'No result yet' : monitor.status} />
@@ -332,6 +335,7 @@ function MonitorDetailPage({ monitor, pending, onBack, onEdit, onPauseResume }: 
             <h2>{monitor.name}</h2>
             <span className="monitor-detail-badge monitor-detail-badge--brand">{typeLabels[monitor.type]}</span>
             <StatusBadge status={monitor.status} />
+            {isReachable403(monitor.latest.status_code) && <Reachable403Badge />}
             <span className="monitor-detail-header__seen"><Clock size={13} /> {formatRelativeTime(monitor.latest.checked_at)}</span>
           </div>
         </div>
@@ -500,6 +504,18 @@ function EmptyDetailState({ title, detail }: { readonly title: string; readonly 
       <p>{detail}</p>
     </div>
   );
+}
+
+function Reachable403Badge() {
+  return (
+    <span className="reachable-403-badge" title="403 reachable" aria-label="403 reachable">
+      403
+    </span>
+  );
+}
+
+function isReachable403(statusCode: number | null | undefined): boolean {
+  return statusCode === 403;
 }
 
 function MonitorForm({ mode, onCancel, onCreate }: {

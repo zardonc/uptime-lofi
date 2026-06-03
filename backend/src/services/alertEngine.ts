@@ -209,6 +209,12 @@ function isConditionActive(rule: AlertRuleRow, latest: LatestRow): { matched: bo
   if (rule.condition === "http_status") {
     const expected = numberParam(params, "expected_status", 200);
     const actual = numberParam(safeJson(latest.last_detail_json ?? "{}"), "status_code", expected);
+    if (actual === 403) {
+      return {
+        matched: false,
+        message: `${latest.name} returned reachable HTTP 403, treated as accessible`,
+      };
+    }
     return {
       matched: actual !== expected,
       message: `${latest.name} returned HTTP ${actual}, expected ${expected}`,

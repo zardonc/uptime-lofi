@@ -130,7 +130,12 @@ function PublicMonitorCard({ monitor }: { readonly monitor: PublicMonitor }) {
           <dd>{formatRelative(monitor.updated_at)}</dd>
         </div>
       </dl>
-      <StatusBadge status={monitor.status} />
+      <div className="monitor-status-stack">
+        <StatusBadge status={monitor.status} />
+        {monitor.status_code === 403 && (
+          <span className="reachable-403-badge" title="403 reachable" aria-label="403 reachable">403</span>
+        )}
+      </div>
     </article>
   );
 }

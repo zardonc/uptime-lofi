@@ -3,6 +3,7 @@ import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { hashPassword, generateSalt } from "../utils/crypto";
 import {
+  listPublicMonitorVisibility,
   readPublicStatusSettings,
   savePublicStatusSettings,
   updatePublicMonitorVisibility,
@@ -66,7 +67,7 @@ settingsApi.post("/public-status", zValidator("json", z.object({
   const publicStatus = await savePublicStatusSettings(db, settings);
   await updatePublicMonitorVisibility(db, monitors);
 
-  return c.json({ data: { public_status: publicStatus } });
+  return c.json({ data: { public_status: publicStatus, monitors: await listPublicMonitorVisibility(db) } });
 });
 
 export { settingsApi };

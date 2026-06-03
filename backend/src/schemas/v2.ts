@@ -23,6 +23,7 @@ export const monitorLatestMetricsSchema = z.object({
   cpu_percent: z.number().min(0).max(100).nullable(),
   mem_percent: z.number().min(0).max(100).nullable(),
   error_text: z.string().nullable(),
+  status_code: z.number().int().min(100).max(599).nullable().optional(),
 }).strict();
 
 export const monitorVisibilitySchema = z.object({
@@ -88,6 +89,7 @@ export const publicMonitorSchema = backendSourceSchema.extend({
   target_label: z.string().trim().min(1).optional(),
   latency_ms: z.number().nonnegative().nullable().optional(),
   uptime_ratio: z.number().min(0).max(100).nullable().optional(),
+  status_code: z.number().int().min(100).max(599).nullable().optional(),
   updated_at: z.number().int().nonnegative(),
 }).strict();
 

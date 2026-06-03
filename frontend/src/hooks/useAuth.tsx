@@ -3,9 +3,9 @@
 // Memory-only JWT + HttpOnly refresh cookie
 // ═══════════════════════════════════════════
 
-import { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
-import { api, setAccessToken, getAccessToken, ApiClientError } from '../api/client';
+import { api, setAccessToken, ApiClientError } from '../api/client';
 
 interface AuthState {
   readonly isAuthenticated: boolean;
@@ -13,7 +13,8 @@ interface AuthState {
   readonly error: string | null;
   readonly hasCheckedSession: boolean;
   readonly login: (password: string) => Promise<void>;
-  readonly logout: () => void;
+  readonly logout: () => Promise<void>;
+  readonly verifySession: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -23,35 +24,37 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [hasCheckedSession, setHasCheckedSession] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const explicitLogoutRef = useRef(false);
+
+  const verifySession = useCallback(async () => {
+    try {
+      const status = await api.getAuthStatus();
+      if (explicitLogoutRef.current) {
+        setAccessToken(null);
+        setIsAuthenticated(false);
+        return;
+      }
+      if (!status.has_refresh_cookie) {
+        setAccessToken(null);
+        setIsAuthenticated(Boolean(status.authenticated));
+        return;
+      }
+      const body = await api.refreshSession();
+      setAccessToken(body.access_token ?? null);
+      setIsAuthenticated(true);
+    } catch {
+      setAccessToken(null);
+      setIsAuthenticated(false);
+    } finally {
+      setHasCheckedSession(true);
+      setIsLoading(false);
+    }
+  }, []);
 
   // On mount, attempt a silent refresh to resume an existing session
   useEffect(() => {
-    let cancelled = false;
-
-    (async () => {
-      try {
-        const status = await api.getAuthStatus();
-        if (!status.has_refresh_cookie) {
-          if (status.authenticated && !cancelled) setIsAuthenticated(true);
-          return;
-        }
-        const body = await api.refreshSession();
-        if (!cancelled) {
-          setAccessToken(body.access_token ?? null);
-          setIsAuthenticated(true);
-        }
-      } catch {
-        // No session — that's fine, user will see login
-      } finally {
-        if (!cancelled) {
-          setHasCheckedSession(true);
-          setIsLoading(false);
-        }
-      }
-    })();
-
-    return () => { cancelled = true; };
-  }, []);
+    void verifySession();
+  }, [verifySession]);
 
   useEffect(() => {
     const expireSession = () => {
@@ -62,11 +65,24 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
     return () => window.removeEventListener('uptime-lofi:session-expired', expireSession);
   }, []);
 
+  useEffect(() => {
+    const verifyOnHistoryRestore = () => {
+      void verifySession();
+    };
+    window.addEventListener('pageshow', verifyOnHistoryRestore);
+    window.addEventListener('popstate', verifyOnHistoryRestore);
+    return () => {
+      window.removeEventListener('pageshow', verifyOnHistoryRestore);
+      window.removeEventListener('popstate', verifyOnHistoryRestore);
+    };
+  }, [verifySession]);
+
   const login = useCallback(async (password: string) => {
     setError(null);
     setIsLoading(true);
     try {
       const result = await api.login(password);
+      explicitLogoutRef.current = false;
       setAccessToken(result.access_token ?? null);
       setIsAuthenticated(true);
     } catch (err) {
@@ -79,10 +95,11 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
-    const token = getAccessToken();
+    explicitLogoutRef.current = true;
+    setIsAuthenticated(false);
     try {
       // Call backend to revoke refresh token
-      if (token) await api.logout();
+      await api.logout();
     } catch (error) {
       // Log but don't fail - token will expire anyway
       console.warn('Logout API call failed:', error);
@@ -94,7 +111,7 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext value={{ isAuthenticated, isLoading, error, hasCheckedSession, login, logout }}>
+    <AuthContext value={{ isAuthenticated, isLoading, error, hasCheckedSession, login, logout, verifySession }}>
       {children}
     </AuthContext>
   );

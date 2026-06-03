@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
@@ -94,6 +94,28 @@ describe("App navigation", () => {
     await user.click(screen.getByRole("button", { name: "Logout" }));
 
     expect(await screen.findByRole("button", { name: "Unlock" })).toBeInTheDocument();
+  });
+
+  it("does not restore the authenticated panel when navigating back after logout", async () => {
+    const user = userEvent.setup();
+    setMockAuthState({ authenticated: true });
+
+    renderApp();
+
+    expect(await screen.findByRole("heading", { name: "Dashboard" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Monitors" }));
+    expect(await screen.findByRole("heading", { name: "Monitors" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Logout" }));
+    expect(await screen.findByRole("button", { name: "Unlock" })).toBeInTheDocument();
+
+    act(() => {
+      window.history.back();
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+
+    expect(await screen.findByRole("button", { name: "Unlock" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Monitors" })).not.toBeInTheDocument();
   });
 
   it("uses the v2 monitor list for dashboard monitor count when rollups are empty", async () => {

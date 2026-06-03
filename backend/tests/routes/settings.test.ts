@@ -22,6 +22,10 @@ describe("Settings Routes (/api/settings)", () => {
     const db = (env as any).DB;
     await db.prepare("DELETE FROM kv_settings").run();
     await db.prepare("DELETE FROM refresh_tokens").run();
+    await db.prepare("DELETE FROM monitor_latest").run();
+    await db.prepare("DELETE FROM agent_metrics").run();
+    await db.prepare("DELETE FROM check_results").run();
+    await db.prepare("DELETE FROM monitors").run();
 
     const sessionId = crypto.randomUUID();
     await db.prepare("INSERT INTO refresh_tokens (token_hash, session_id, status, expires_at) VALUES ('nohash', ?, 'active', 9999999999)").bind(sessionId).run();
@@ -39,6 +43,10 @@ describe("Settings Routes (/api/settings)", () => {
     const db = (env as any).DB;
     await db.prepare("DELETE FROM kv_settings").run();
     await db.prepare("DELETE FROM refresh_tokens").run();
+    await db.prepare("DELETE FROM monitor_latest").run();
+    await db.prepare("DELETE FROM agent_metrics").run();
+    await db.prepare("DELETE FROM check_results").run();
+    await db.prepare("DELETE FROM monitors").run();
   });
 
   it("1. Disable security — updates UI lock to false", async () => {
@@ -110,5 +118,41 @@ describe("Settings Routes (/api/settings)", () => {
       testEnv
     );
     expect(res.status).toBe(401);
+  });
+
+  it("5. Saves Public Status visibility and returns updated monitor visibility", async () => {
+    const db = (env as any).DB;
+    await db.prepare(
+      `INSERT INTO monitors (
+         id, backend_id, name, type, target, interval_sec, timeout_sec,
+         expected_json, config_json, paused, public_visible, created_at, updated_at
+       ) VALUES ('public-toggle-http', 'default', 'Public Toggle HTTP', 'http', 'https://example.com', 60, 10, '{}', '{"url":"https://example.com","expected_status":200}', 0, 0, 1, 1)`,
+    ).run();
+
+    const res = await app.fetch(
+      new Request("http://localhost/api/settings/public-status", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${adminToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          enabled: true,
+          private_slug: null,
+          show_uptime: true,
+          show_latency: true,
+          show_incidents: true,
+          show_monitor_type: true,
+          monitors: [{ id: "public-toggle-http", public_visible: true }],
+        }),
+      }),
+      testEnv,
+    );
+
+    const body = await res.json() as any;
+    expect(res.status).toBe(200);
+    expect(body.data.monitors).toContainEqual({ id: "public-toggle-http", public_visible: true });
+    const visible = await db.prepare("SELECT public_visible FROM monitors WHERE id = 'public-toggle-http'").first("public_visible");
+    expect(visible).toBe(1);
   });
 });

@@ -2896,6 +2896,34 @@ select:disabled {
   background: currentColor;
 }
 
+.monitor-status-stack {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  min-width: max-content;
+}
+
+.reachable-403-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid rgba(245, 158, 11, 0.55);
+  border-radius: 999px;
+  background: rgba(245, 158, 11, 0.16);
+  color: #92400e;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0;
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.08);
+  cursor: help;
+  white-space: nowrap;
+}
+
 .badge-online {
   background: var(--s-green-bg);
   color: var(--s-green);

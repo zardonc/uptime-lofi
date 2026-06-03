@@ -32,6 +32,7 @@ type MonitorRow = {
   cpu_percent: number | null;
   mem_percent: number | null;
   error_text: string | null;
+  last_detail_json: string | null;
 };
 
 type NormalizedConfig = {
@@ -161,7 +162,14 @@ function selectMonitorSql() {
        m.id, m.backend_id, m.name, m.type, m.target, m.interval_sec, m.timeout_sec,
        m.expected_json, m.config_json, m.paused, m.public_visible, m.created_at, m.updated_at,
        ml.status AS latest_status, ml.checked_at, ml.latency_ms, ml.uptime_ratio,
-       ml.cpu_percent, ml.mem_percent, ml.error_text
+       ml.cpu_percent, ml.mem_percent, ml.error_text,
+       (
+         SELECT cr.detail_json
+         FROM check_results cr
+         WHERE cr.monitor_id = m.id
+         ORDER BY cr.timestamp DESC, cr.id DESC
+         LIMIT 1
+       ) AS last_detail_json
      FROM monitors m
      LEFT JOIN monitor_latest ml ON ml.monitor_id = m.id`;
 }
@@ -213,6 +221,7 @@ function rowToMonitor(row: MonitorRow, source: BackendSource): Monitor {
       cpu_percent: row.cpu_percent,
       mem_percent: row.mem_percent,
       error_text: row.error_text,
+      status_code: latestStatusCode(row.last_detail_json),
     },
     visibility: {
       public: Boolean(row.public_visible),
@@ -223,6 +232,11 @@ function rowToMonitor(row: MonitorRow, source: BackendSource): Monitor {
     created_at: row.created_at,
     updated_at: row.updated_at,
   });
+}
+
+function latestStatusCode(detailJson: string | null): number | null {
+  const value = safeJson(detailJson).status_code;
+  return typeof value === "number" && Number.isInteger(value) && value >= 100 && value <= 599 ? value : null;
 }
 
 function targetSummary(type: MonitorType, target: string | null, config: Record<string, unknown>) {

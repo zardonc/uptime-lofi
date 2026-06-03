@@ -19,6 +19,7 @@ import type {
   CreateNotificationChannelRequest,
   Monitor,
   NotificationChannel,
+  PublicMonitorVisibility,
   PublicStatusResponse,
   PublicStatusSettings,
   SettingsResponse,
@@ -284,8 +285,8 @@ export const api = {
       body: JSON.stringify(payload),
     }),
 
-  updatePublicStatusSettings: (payload: PublicStatusSettings & { readonly monitors?: ReadonlyArray<{ readonly id: string; readonly public_visible: boolean }> }) =>
-    apiFetch<ApiResponse<{ public_status: PublicStatusSettings }>>('/v1/settings/public-status', {
+  updatePublicStatusSettings: (payload: PublicStatusSettings & { readonly monitors?: ReadonlyArray<PublicMonitorVisibility> }) =>
+    apiFetch<ApiResponse<{ public_status: PublicStatusSettings; monitors: ReadonlyArray<PublicMonitorVisibility> }>>('/v1/settings/public-status', {
       method: 'POST',
       body: JSON.stringify(payload),
     }),

@@ -105,6 +105,46 @@ describe("Scheduled Tasks (Cron)", () => {
     expect(v2Latest.error_text).toContain("private network");
   });
 
+  it("records reachable HTTP 403 monitors as online without alert-worthy warning text", async () => {
+    const now = Math.floor(Date.now() / 1000);
+    await db.prepare(
+      `INSERT INTO monitors (
+         id, backend_id, name, type, target, interval_sec, timeout_sec,
+         expected_json, config_json, paused, public_visible, created_at, updated_at
+       ) VALUES (?, 'default', ?, 'http', ?, 60, 1, ?, ?, 0, 1, ?, ?)`,
+    ).bind(
+      "reachable_403_http",
+      "Reachable 403 HTTP",
+      "https://example.com/forbidden",
+      JSON.stringify({ status_code: 200 }),
+      JSON.stringify({ url: "https://example.com/forbidden", expected_status: 200 }),
+      now - 600,
+      now - 600,
+    ).run();
+
+    const count = await import("../../src/services/checkRunner").then(({ runDueMonitorChecks }) => runDueMonitorChecks(
+      { DB: db },
+      now,
+      { fetchImpl: async () => new Response(null, { status: 403 }) },
+    ));
+
+    expect(count).toBeGreaterThan(0);
+    const result = await db.prepare("SELECT * FROM check_results WHERE monitor_id = ?").bind("reachable_403_http").first() as any;
+    expect(result).toMatchObject({
+      monitor_id: "reachable_403_http",
+      status: "up",
+      latency_ms: expect.any(Number),
+    });
+    expect(JSON.parse(result.detail_json)).toEqual({ error_text: null, status_code: 403 });
+
+    const latest = await db.prepare("SELECT * FROM monitor_latest WHERE monitor_id = ?").bind("reachable_403_http").first();
+    expect(latest).toMatchObject({
+      monitor_id: "reachable_403_http",
+      status: "online",
+      error_text: null,
+    });
+  });
+
   it("2. Does not fail the cron when cleanup tables are unavailable", async () => {
     const now = Math.floor(Date.now() / 1000);
     const fakeDb = {

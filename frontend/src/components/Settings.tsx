@@ -118,7 +118,7 @@ export function Settings() {
       const response = await api.updatePublicStatusSettings({ ...nextPublicStatus, monitors: monitorVisibility });
       setPublicStatus(response.data.public_status);
       setMonitors((current) => current.map((monitor) => {
-        const visible = monitorVisibility.find((item) => item.id === monitor.id)?.public_visible;
+        const visible = response.data.monitors.find((item) => item.id === monitor.id)?.public_visible;
         return typeof visible === 'boolean' ? { ...monitor, public_visible: visible } : monitor;
       }));
       setPublicSuccess(true);

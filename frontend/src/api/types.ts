@@ -26,6 +26,7 @@ export interface MonitorLatestMetrics {
   readonly cpu_percent: number | null;
   readonly mem_percent: number | null;
   readonly error_text: string | null;
+  readonly status_code?: number | null;
 }
 
 export interface MonitorVisibility {
@@ -75,6 +76,7 @@ export interface PublicMonitor extends BackendSource {
   readonly target_label?: string;
   readonly latency_ms?: number | null;
   readonly uptime_ratio?: number | null;
+  readonly status_code?: number | null;
   readonly updated_at: number;
 }
 
@@ -106,6 +108,11 @@ export interface PublicStatusSettings {
 export interface SettingsResponse {
   readonly is_ui_lock_enabled: boolean;
   readonly public_status: PublicStatusSettings;
+}
+
+export interface PublicMonitorVisibility {
+  readonly id: string;
+  readonly public_visible: boolean;
 }
 
 export interface AlertRule extends BackendSource {

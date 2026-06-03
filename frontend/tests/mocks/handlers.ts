@@ -498,6 +498,7 @@ export const handlers = [
           target_label: monitor.type === "agent" ? "Agent probe" : monitor.type === "tcp" ? "TCP endpoint" : "example.com",
           ...(mockApiState.publicStatus.show_latency ? { latency_ms: monitor.latest.latency_ms } : {}),
           ...(mockApiState.publicStatus.show_uptime ? { uptime_ratio: monitor.latest.uptime_ratio } : {}),
+          ...(monitor.latest.status_code === 403 ? { status_code: 403 } : {}),
           updated_at: monitor.updated_at,
         })),
       incidents: mockApiState.publicStatus.show_incidents ? [] : [],
@@ -663,6 +664,14 @@ export const handlers = [
         return visibility ? { ...monitor, public_visible: visibility.public_visible } : monitor;
       }),
     };
-    return HttpResponse.json({ data: { public_status: mockApiState.publicStatus } });
+    return HttpResponse.json({
+      data: {
+        public_status: mockApiState.publicStatus,
+        monitors: mockApiState.monitors.map((monitor) => ({
+          id: monitor.id,
+          public_visible: monitor.public_visible,
+        })),
+      },
+    });
   }),
 ];
