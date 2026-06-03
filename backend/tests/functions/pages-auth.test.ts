@@ -5,6 +5,7 @@ import { onRequestPost as login } from "../../../functions/api/auth/login";
 import { onRequestPost as logout } from "../../../functions/api/auth/logout";
 import { onRequestGet as status } from "../../../functions/api/auth/status";
 import { onRequest as proxy } from "../../../functions/api/v1/[[path]]";
+import { onRequest as publicStatus } from "../../../functions/api/public/status";
 
 const pagesEnv = {
   PAGES_ADMIN_PASSWORD: "env-password",
@@ -188,6 +189,30 @@ describe("Pages Functions BFF auth boundary", () => {
       expect.objectContaining({ method: "GET" }),
     );
     expect(body.data).toEqual({ internal_key_seen: true, is_ui_lock_enabled: true });
+  });
+
+  it("forwards public status without requiring an admin session", async () => {
+    const fetchMock = vi.fn(async () => Response.json({
+      status: "online",
+      message: "All public systems are operational.",
+      updated_at: 1,
+      monitors: [{ id: "public-http", name: "Public HTTP", status: "online", updated_at: 1 }],
+      incidents: [],
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await publicStatus({
+      request: new Request("https://app.example.test/api/public/status?slug=team"),
+      env: pagesEnv,
+    });
+    const body = await res.json() as { monitors: Array<{ id: string }> };
+
+    expect(res.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://worker.example.test/api/public/status?slug=team",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(body.monitors).toEqual([{ id: "public-http", name: "Public HTTP", status: "online", updated_at: 1 }]);
   });
 });
 

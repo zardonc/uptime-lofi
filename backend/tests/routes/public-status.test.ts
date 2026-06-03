@@ -114,6 +114,106 @@ describe("Public Status Routes (/api/public)", () => {
     expect(body.incidents).toEqual([]);
   });
 
+  it("shows monitors after Public Status settings mark them publicly visible", async () => {
+    const db = (env as any).DB;
+    await seedMonitor({ id: "settings-public-http", publicVisible: false });
+
+    const save = await app.fetch(new Request("http://localhost/api/internal/v1/settings/public-status", {
+      method: "POST",
+      headers: {
+        "x-uptime-lofi-internal-key": "test_internal_key",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        enabled: true,
+        private_slug: null,
+        show_uptime: true,
+        show_latency: true,
+        show_incidents: true,
+        show_monitor_type: true,
+        monitors: [{ id: "settings-public-http", public_visible: true }],
+      }),
+    }), testEnv);
+    const saveBody = await save.json() as any;
+
+    expect(save.status).toBe(200);
+    expect(saveBody.data.monitors).toContainEqual({ id: "settings-public-http", public_visible: true });
+
+    await db.prepare(
+      `INSERT INTO monitor_latest (monitor_id, status, checked_at, latency_ms, uptime_ratio, error_text, updated_at)
+       VALUES ('settings-public-http', 'online', 1000, 42, 99.95, NULL, 1000)`,
+    ).run();
+
+    const res = await app.fetch(new Request("http://localhost/api/public/status"), testEnv);
+    const body = await res.json() as any;
+
+    expect(res.status).toBe(200);
+    expect(body.monitors).toHaveLength(1);
+    expect(body.monitors[0]).toMatchObject({
+      id: "settings-public-http",
+      status: "online",
+    });
+  });
+
+  it("omits monitors that are not publicly visible", async () => {
+    const db = (env as any).DB;
+    await db.prepare("INSERT INTO kv_settings (key, value) VALUES ('public_status_config', ?)")
+      .bind(JSON.stringify({
+        enabled: true,
+        private_slug: null,
+        show_uptime: true,
+        show_latency: true,
+        show_incidents: true,
+        show_monitor_type: true,
+      }))
+      .run();
+    await seedMonitor({ id: "hidden-http", publicVisible: false });
+
+    const res = await app.fetch(new Request("http://localhost/api/public/status"), testEnv);
+    const body = await res.json() as any;
+
+    expect(res.status).toBe(200);
+    expect(body.monitors).toEqual([]);
+  });
+
+  it("persists Public Status settings without duplicating monitor visibility ids", async () => {
+    const db = (env as any).DB;
+    await seedMonitor({ id: "save-public-http", publicVisible: false });
+
+    const res = await app.fetch(new Request("http://localhost/api/internal/v1/settings/public-status", {
+      method: "POST",
+      headers: {
+        "x-uptime-lofi-internal-key": "test_internal_key",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        enabled: true,
+        private_slug: null,
+        show_uptime: true,
+        show_latency: true,
+        show_incidents: true,
+        show_monitor_type: true,
+        monitors: [{ id: "save-public-http", public_visible: true }],
+      }),
+    }), testEnv);
+
+    const body = await res.json() as any;
+    const stored = await db.prepare("SELECT value FROM kv_settings WHERE key = 'public_status_config'").first("value") as string;
+    const expectedSettings = {
+      enabled: true,
+      private_slug: null,
+      show_uptime: true,
+      show_latency: true,
+      show_incidents: true,
+      show_monitor_type: true,
+    };
+
+    expect(res.status).toBe(200);
+    expect(body.data.public_status).toEqual(expectedSettings);
+    expect(JSON.parse(stored)).toEqual(expectedSettings);
+    expect(body.data.monitors).toContainEqual({ id: "save-public-http", public_visible: true });
+  });
+
   it("does not accept write methods on public routes", async () => {
     const res = await app.fetch(new Request("http://localhost/api/public/status", { method: "POST" }), testEnv);
 
