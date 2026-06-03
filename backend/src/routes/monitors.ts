@@ -26,6 +26,7 @@ const DEFAULT_PROBE_RELEASE_TAG = "probe-latest";
 const probeConfigSchema = z.object({
   name: z.string().trim().min(1).max(80),
   platform: z.enum(["linux/amd64", "linux/arm64", "darwin/amd64", "darwin/arm64"]).optional().default("linux/amd64"),
+  public_visible: z.boolean().optional().default(true),
 });
 
 monitorsApi.get("/", async (c) => {
@@ -48,7 +49,7 @@ monitorsApi.post(
     }
   }),
   async (c) => {
-    const { name, platform } = c.req.valid("json");
+    const { name, platform, public_visible: publicVisible } = c.req.valid("json");
     if (await activeNameExists(c.env.DB, name)) {
       return c.json(structuredError("monitor_name_exists", "A monitor with this name already exists"), 409);
     }
@@ -66,7 +67,7 @@ monitorsApi.post(
       `INSERT INTO monitors (
          id, backend_id, name, type, target, interval_sec, timeout_sec,
          expected_json, config_json, salt, paused, public_visible, created_at, updated_at
-       ) VALUES (?, 'default', ?, 'agent', 'Agent probe', 60, 10, NULL, ?, ?, 0, 1, ?, ?)`,
+       ) VALUES (?, 'default', ?, 'agent', 'Agent probe', 60, 10, NULL, ?, ?, 0, ?, ?, ?)`,
     ).bind(
       monitorId,
       name,
@@ -76,6 +77,7 @@ monitorsApi.post(
         credential_version: 1,
       }),
       salt,
+      publicVisible ? 1 : 0,
       now,
       now,
     ).run();

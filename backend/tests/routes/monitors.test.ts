@@ -107,6 +107,31 @@ describe("Internal Monitor Routes (/api/internal/v1/monitors)", () => {
     expect(count).toBe(0);
   });
 
+  it("creates an Agent Probe config with an install command and monitor credential", async () => {
+    const res = await request("/api/internal/v1/monitors/probe-config", {
+      method: "POST",
+      body: JSON.stringify({ name: "Installable Agent", platform: "linux/arm64", public_visible: false }),
+    });
+    const body = await res.json() as any;
+
+    expect(res.status).toBe(200);
+    expect(body.data.monitor_id).toEqual(expect.any(String));
+    expect(body.data.monitor_secret).toMatch(/^[0-9a-f]{64}$/);
+    expect(body.data.install_command).toContain("UPTIME_PLATFORM='linux/arm64'");
+    expect(body.data.install_command).toContain(`UPTIME_MONITOR_ID='${body.data.monitor_id}'`);
+    expect(body.data.install_command).toContain(`UPTIME_MONITOR_SECRET='${body.data.monitor_secret}'`);
+    expect(body.data.install_command).toContain("releases/download/probe-latest/install-probe.sh");
+    expect(body.data.install_command).not.toContain("test_admin_key");
+    expect(body.data.config_yaml).toContain(`monitor_id: ${body.data.monitor_id}`);
+    expect(body.data.config_yaml).toContain(`psk: ${body.data.monitor_secret}`);
+
+    const row = await (env as any).DB.prepare("SELECT type, salt, public_visible FROM monitors WHERE id = ?")
+      .bind(body.data.monitor_id)
+      .first() as { type: string; salt: string; public_visible: number } | null;
+    expect(row).toMatchObject({ type: "agent", public_visible: 0 });
+    expect(row?.salt).toEqual(expect.any(String));
+  });
+
   it("updates safe fields, pauses, resumes, and archives without deleting history", async () => {
     const created = await request("/api/internal/v1/monitors", {
       method: "POST",

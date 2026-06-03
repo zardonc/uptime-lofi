@@ -702,7 +702,8 @@ h1, h2, h3, h4, h5, h6 {
 
 .monitors-toolbar input,
 .monitors-toolbar select,
-.monitor-form input {
+.monitor-form input,
+.monitor-form select {
   width: 100%;
   min-height: 44px;
   border: 1px solid var(--border-mid);
@@ -758,6 +759,11 @@ h1, h2, h3, h4, h5, h6 {
 .monitor-form__checkbox input {
   width: auto;
   min-height: auto;
+}
+
+.monitor-form__probe-result {
+  grid-column: 1 / -1;
+  padding: 0;
 }
 
 .monitors-list {

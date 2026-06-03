@@ -163,30 +163,13 @@ describe("Settings", () => {
     expect(screen.queryByText("telegram-secret")).not.toBeInTheDocument();
   });
 
-  it("generates probe installation config", async () => {
-    const user = userEvent.setup();
-    Object.defineProperty(navigator, "clipboard", {
-      configurable: true,
-      value: { writeText: vi.fn().mockResolvedValue(undefined) },
-    });
+  it("does not include Probe Installation in settings", async () => {
     setMockAuthState({ isUiLockEnabled: false, authenticated: true });
 
     renderWithAuth(<Settings />);
 
-    const nameInput = await screen.findByLabelText(/monitor name/i);
-    await user.clear(nameInput);
-    await user.type(nameInput, "prod-vps-1");
-    await user.click(screen.getByRole("button", { name: /generate install command/i }));
-
-    expect(await screen.findByRole("heading", { name: /run this on your server/i })).toBeInTheDocument();
-    expect(screen.getByTestId("probe-install-command")).toHaveTextContent("monitor-generated-1");
-    expect(screen.queryByText("monitor-secret-generated")).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: /show manual setup/i }));
-
-    expect(screen.getByText("monitor-generated-1")).toBeInTheDocument();
-    expect(screen.getByText("monitor-secret-generated")).toBeInTheDocument();
-    expect(screen.getByText("https://uptime-lofi-probe.example.workers.dev/api/push")).toBeInTheDocument();
-    expect(screen.getByText("config.yaml")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /public status/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /generate install command/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/probe installation/i)).not.toBeInTheDocument();
   });
 });

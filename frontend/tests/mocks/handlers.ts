@@ -592,22 +592,42 @@ export const handlers = [
     return HttpResponse.json({ data: check });
   }),
   http.post("/api/v1/monitors/probe-config", async ({ request }) => {
-    const body = (await request.json()) as { name?: string; platform?: string };
+    const body = (await request.json()) as { name?: string; platform?: string; public_visible?: boolean };
     const monitorName = body.name?.trim();
 
     if (!monitorName) {
       return HttpResponse.json({ error: "Name is required" }, { status: 400 });
     }
+    const now = Math.floor(Date.now() / 1000);
+    const monitorId = `monitor-generated-${mockApiState.monitors.length + 1}`;
+    const monitor: Monitor = {
+      id: monitorId,
+      backend_id: "default",
+      backend_label: "Default backend",
+      backend_type: "cloudflare_worker",
+      name: monitorName,
+      type: "agent",
+      status: "unknown",
+      target: { label: "Agent probe" },
+      interval_sec: 60,
+      timeout_sec: 10,
+      public_visible: body.public_visible ?? true,
+      latest: { checked_at: null, latency_ms: null, uptime_ratio: null, cpu_percent: null, mem_percent: null, error_text: null },
+      visibility: { public: body.public_visible ?? true, show_uptime: true, show_latency: true, show_incidents: true },
+      created_at: now,
+      updated_at: now,
+    };
+    mockApiState = { ...mockApiState, monitors: [monitor, ...mockApiState.monitors] };
 
     return HttpResponse.json({
       data: {
-        monitor_id: "monitor-generated-1",
+        monitor_id: monitorId,
         monitor_name: monitorName,
         monitor_secret: "monitor-secret-generated",
         probe_push_url: "https://uptime-lofi-probe.example.workers.dev/api/push",
-        install_command: "curl -fsSL 'https://github.com/example/uptime-lofi/releases/download/probe-latest/install-probe.sh' | UPTIME_PLATFORM='linux/amd64' UPTIME_PROBE_PUSH_URL='https://uptime-lofi-probe.example.workers.dev/api/push' UPTIME_MONITOR_ID='monitor-generated-1' UPTIME_MONITOR_SECRET='monitor-secret-generated' UPTIME_RELEASE_REPO='example/uptime-lofi' UPTIME_RELEASE_TAG='probe-latest' bash",
+        install_command: `curl -fsSL 'https://github.com/example/uptime-lofi/releases/download/probe-latest/install-probe.sh' | UPTIME_PLATFORM='${body.platform ?? "linux/amd64"}' UPTIME_PROBE_PUSH_URL='https://uptime-lofi-probe.example.workers.dev/api/push' UPTIME_MONITOR_ID='${monitorId}' UPTIME_MONITOR_SECRET='monitor-secret-generated' UPTIME_RELEASE_REPO='example/uptime-lofi' UPTIME_RELEASE_TAG='probe-latest' bash`,
         install_script_url: "https://github.com/example/uptime-lofi/releases/download/probe-latest/install-probe.sh",
-        config_yaml: "api_url: https://uptime-lofi-probe.example.workers.dev/api/push\nmonitor_id: monitor-generated-1\npsk: monitor-secret-generated\nenable_docker: true\n",
+        config_yaml: `api_url: https://uptime-lofi-probe.example.workers.dev/api/push\nmonitor_id: ${monitorId}\npsk: monitor-secret-generated\nenable_docker: true\n`,
         downloads: {
           linux_amd64: "https://github.com/example/uptime-lofi/releases/latest/download/probe-linux-amd64.tar.gz",
           linux_arm64: "https://github.com/example/uptime-lofi/releases/latest/download/probe-linux-arm64.tar.gz",
