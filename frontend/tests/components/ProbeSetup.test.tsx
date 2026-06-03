@@ -33,21 +33,21 @@ describe("ProbeSetup", () => {
 
     expect(screen.getByRole("button", { name: "Generate Install Command" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Manual setup" })).not.toBeInTheDocument();
-    expect(screen.queryByText("node-secret-generated")).not.toBeInTheDocument();
+    expect(screen.queryByText("monitor-secret-generated")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Generate Install Command" }));
 
     expect(await screen.findByRole("heading", { name: "Run this on your server" })).toBeInTheDocument();
-    expect(screen.getByText("This command uses a node-specific credential. It never includes your master API secret.")).toBeInTheDocument();
+    expect(screen.getByText("This command uses a monitor-specific credential. It never includes your master API secret.")).toBeInTheDocument();
 
     const commandBlock = screen.getByTestId("probe-install-command");
-    expect(commandBlock).toHaveTextContent("UPTIME_NODE_ID='node-generated-1'");
-    expect(commandBlock).toHaveTextContent("UPTIME_NODE_SECRET='node-secret-generated'");
+    expect(commandBlock).toHaveTextContent("UPTIME_MONITOR_ID='monitor-generated-1'");
+    expect(commandBlock).toHaveTextContent("UPTIME_MONITOR_SECRET='monitor-secret-generated'");
     expect(commandBlock).toHaveTextContent("releases/download/probe-latest/install-probe.sh");
     expect(commandBlock).not.toHaveTextContent("API_SECRET_KEY");
 
     await user.click(screen.getByRole("button", { name: "Copy Command" }));
-    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining("UPTIME_NODE_SECRET='node-secret-generated'"));
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining("UPTIME_MONITOR_SECRET='monitor-secret-generated'"));
     expect(screen.getByText("Command copied")).toBeInTheDocument();
   });
 
@@ -66,8 +66,8 @@ describe("ProbeSetup", () => {
 
     const manual = screen.getByRole("region", { name: "Manual setup" });
     expect(within(manual).getByRole("heading", { name: "Manual setup" })).toBeInTheDocument();
-    expect(within(manual).getByText("node-generated-1")).toBeInTheDocument();
-    expect(within(manual).getByText("node-secret-generated")).toBeInTheDocument();
+    expect(within(manual).getByText("monitor-generated-1")).toBeInTheDocument();
+    expect(within(manual).getByText("monitor-secret-generated")).toBeInTheDocument();
     expect(within(manual).getByRole("button", { name: "Copy Config" })).toBeInTheDocument();
     expect(within(manual).getByRole("button", { name: "Download config.yaml" })).toBeInTheDocument();
   });

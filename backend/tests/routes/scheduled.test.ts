@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, vi } from "vitest";
 import { env } from "cloudflare:workers";
-import worker, { scheduled } from "../../src/index";
+import worker, { scheduled, shouldRefreshStatistics } from "../../src/index";
 
 describe("Scheduled Tasks (Cron)", () => {
   let testEnv: any;
@@ -12,8 +12,10 @@ describe("Scheduled Tasks (Cron)", () => {
     await db.prepare("DELETE FROM refresh_tokens").run();
     await db.prepare("DELETE FROM login_attempts").run();
     await db.prepare("DELETE FROM audit_log").run();
-    await db.prepare("DELETE FROM raw_metrics").run();
-    await db.prepare("DELETE FROM nodes").run();
+    await db.prepare("DELETE FROM monitor_latest").run();
+    await db.prepare("DELETE FROM agent_metrics").run();
+    await db.prepare("DELETE FROM check_results").run();
+    await db.prepare("DELETE FROM monitors").run();
 
     const now = Math.floor(Date.now() / 1000);
 
@@ -30,13 +32,17 @@ describe("Scheduled Tasks (Cron)", () => {
     await db.prepare("INSERT INTO audit_log (action, ip_hash, created_at) VALUES ('login', 'hash2', ?)").bind(now - 8000000).run();
 
     await db.prepare(
-      "INSERT INTO nodes (id, name, type, status, config_json, last_heartbeat) VALUES (?, ?, ?, ?, ?, ?)",
+      `INSERT INTO monitors (
+         id, backend_id, name, type, target, interval_sec, timeout_sec,
+         expected_json, config_json, paused, public_visible, created_at, updated_at
+       ) VALUES (?, 'default', ?, 'http', ?, 60, 1, ?, ?, 0, 1, ?, ?)`,
     ).bind(
-      "due_agentless_http",
-      "Due Agentless HTTP",
-      "agentless_http",
-      "offline",
-      JSON.stringify({ url: "https://example.invalid/health", interval: 300, timeout: 1, expected_status: 200 }),
+      "due_v2_http",
+      "Due V2 HTTP",
+      "http://127.0.0.1/health",
+      JSON.stringify({ status_code: 200 }),
+      JSON.stringify({ url: "http://127.0.0.1/health", expected_status: 200 }),
+      now - 600,
       now - 600,
     ).run();
   });
@@ -49,6 +55,14 @@ describe("Scheduled Tasks (Cron)", () => {
   it("0b. Default export fetch handles HTTP requests", async () => {
     const response = await worker.fetch(new Request("http://localhost/"), testEnv, {} as any);
     expect(response.status).toBe(200);
+  });
+
+  it("0c. Limits scheduled statistics refreshes to one cron window per hour", () => {
+    expect(shouldRefreshStatistics(0)).toBe(true);
+    expect(shouldRefreshStatistics(299)).toBe(true);
+    expect(shouldRefreshStatistics(300)).toBe(false);
+    expect(shouldRefreshStatistics(3599)).toBe(false);
+    expect(shouldRefreshStatistics(3600)).toBe(true);
   });
 
   it("1. Run scheduled task — deletes expired entries but keeps active ones", async () => {
@@ -75,14 +89,60 @@ describe("Scheduled Tasks (Cron)", () => {
     expect(logs.results.length).toBe(1);
     expect(logs.results[0].ip_hash).toBe('hash1');
 
-    const metrics = await db.prepare("SELECT * FROM raw_metrics WHERE node_id = ?").bind("due_agentless_http").all();
-    expect(metrics.results.length).toBe(1);
-    expect(metrics.results[0].is_up).toBe(0);
-    expect(metrics.results[0].error_text).toEqual(expect.any(String));
+    const v2Result = await db.prepare("SELECT * FROM check_results WHERE monitor_id = ?").bind("due_v2_http").first();
+    expect(v2Result).toMatchObject({
+      monitor_id: "due_v2_http",
+      status: "down",
+      latency_ms: null,
+    });
 
-    const node = await db.prepare("SELECT status, last_heartbeat FROM nodes WHERE id = ?").bind("due_agentless_http").first();
-    expect(node.status).toBe("offline");
-    expect(node.last_heartbeat).toEqual(expect.any(Number));
+    const v2Latest = await db.prepare("SELECT * FROM monitor_latest WHERE monitor_id = ?").bind("due_v2_http").first();
+    expect(v2Latest).toMatchObject({
+      monitor_id: "due_v2_http",
+      status: "offline",
+      latency_ms: null,
+    });
+    expect(v2Latest.error_text).toContain("private network");
+  });
+
+  it("records reachable HTTP 403 monitors as online without alert-worthy warning text", async () => {
+    const now = Math.floor(Date.now() / 1000);
+    await db.prepare(
+      `INSERT INTO monitors (
+         id, backend_id, name, type, target, interval_sec, timeout_sec,
+         expected_json, config_json, paused, public_visible, created_at, updated_at
+       ) VALUES (?, 'default', ?, 'http', ?, 60, 1, ?, ?, 0, 1, ?, ?)`,
+    ).bind(
+      "reachable_403_http",
+      "Reachable 403 HTTP",
+      "https://example.com/forbidden",
+      JSON.stringify({ status_code: 200 }),
+      JSON.stringify({ url: "https://example.com/forbidden", expected_status: 200 }),
+      now - 600,
+      now - 600,
+    ).run();
+
+    const count = await import("../../src/services/checkRunner").then(({ runDueMonitorChecks }) => runDueMonitorChecks(
+      { DB: db },
+      now,
+      { fetchImpl: async () => new Response(null, { status: 403 }) },
+    ));
+
+    expect(count).toBeGreaterThan(0);
+    const result = await db.prepare("SELECT * FROM check_results WHERE monitor_id = ?").bind("reachable_403_http").first() as any;
+    expect(result).toMatchObject({
+      monitor_id: "reachable_403_http",
+      status: "up",
+      latency_ms: expect.any(Number),
+    });
+    expect(JSON.parse(result.detail_json)).toEqual({ error_text: null, status_code: 403 });
+
+    const latest = await db.prepare("SELECT * FROM monitor_latest WHERE monitor_id = ?").bind("reachable_403_http").first();
+    expect(latest).toMatchObject({
+      monitor_id: "reachable_403_http",
+      status: "online",
+      error_text: null,
+    });
   });
 
   it("2. Does not fail the cron when cleanup tables are unavailable", async () => {

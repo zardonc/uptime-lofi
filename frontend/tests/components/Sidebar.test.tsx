@@ -8,7 +8,8 @@ describe("Sidebar", () => {
     render(<Sidebar activeId="dashboard" onNavigate={vi.fn()} />);
 
     expect(screen.getByRole("button", { name: /dashboard/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /nodes/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /monitors/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /agentless/i })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /settings/i })).toBeInTheDocument();
   });
 
@@ -30,10 +31,10 @@ describe("Sidebar", () => {
     const user = userEvent.setup();
     const onNavigate = vi.fn();
 
-    render(<Sidebar activeId="nodes" onNavigate={onNavigate} />);
+    render(<Sidebar activeId="monitors" onNavigate={onNavigate} />);
 
-    const nodesButton = screen.getByRole("button", { name: /nodes/i });
-    expect(nodesButton).toHaveAttribute("aria-current", "page");
+    const monitorsButton = screen.getByRole("button", { name: /monitors/i });
+    expect(monitorsButton).toHaveAttribute("aria-current", "page");
 
     await user.click(screen.getByRole("button", { name: /settings/i }));
 

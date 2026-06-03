@@ -2,9 +2,245 @@
 // Shared API response types — Uptime LoFi
 // ═══════════════════════════════════════════
 
-export type NodeStatus = 'online' | 'degraded' | 'offline' | 'paused';
+export interface BackendSource {
+  readonly backend_id: string;
+  readonly backend_label: string;
+  readonly backend_type?: 'cloudflare_worker' | 'custom';
+}
 
-export type NodeType = 'agent_push' | 'agentless_http' | 'agentless_tcp';
+export type MonitorType = 'agent' | 'http' | 'tcp';
+
+export type MonitorStatus = 'online' | 'degraded' | 'offline' | 'paused' | 'unknown';
+
+export interface MonitorTargetSummary {
+  readonly label: string;
+  readonly host?: string;
+  readonly port?: number;
+  readonly url?: string;
+}
+
+export interface MonitorLatestMetrics {
+  readonly checked_at: number | null;
+  readonly latency_ms: number | null;
+  readonly uptime_ratio: number | null;
+  readonly cpu_percent: number | null;
+  readonly mem_percent: number | null;
+  readonly error_text: string | null;
+  readonly status_code?: number | null;
+}
+
+export interface MonitorVisibility {
+  readonly public: boolean;
+  readonly show_uptime: boolean;
+  readonly show_latency: boolean;
+  readonly show_incidents: boolean;
+}
+
+export interface Monitor extends BackendSource {
+  readonly id: string;
+  readonly name: string;
+  readonly type: MonitorType;
+  readonly status: MonitorStatus;
+  readonly target: MonitorTargetSummary;
+  readonly interval_sec: number;
+  readonly timeout_sec: number;
+  readonly public_visible: boolean;
+  readonly latest: MonitorLatestMetrics;
+  readonly visibility: MonitorVisibility;
+  readonly created_at: number;
+  readonly updated_at: number;
+}
+
+export interface CreateMonitorRequest {
+  readonly name: string;
+  readonly type: MonitorType;
+  readonly interval_sec?: number;
+  readonly timeout_sec?: number;
+  readonly config?: Record<string, unknown>;
+  readonly public_visible?: boolean;
+}
+
+export interface UpdateMonitorRequest {
+  readonly name?: string;
+  readonly interval_sec?: number;
+  readonly timeout_sec?: number;
+  readonly config?: Record<string, unknown>;
+  readonly public_visible?: boolean;
+}
+
+export interface PublicMonitor extends BackendSource {
+  readonly id: string;
+  readonly name: string;
+  readonly type?: MonitorType;
+  readonly status: MonitorStatus;
+  readonly target_label?: string;
+  readonly latency_ms?: number | null;
+  readonly uptime_ratio?: number | null;
+  readonly status_code?: number | null;
+  readonly updated_at: number;
+}
+
+export interface PublicIncident {
+  readonly id: string;
+  readonly title: string;
+  readonly status: 'investigating' | 'identified' | 'monitoring' | 'resolved';
+  readonly started_at: number;
+  readonly resolved_at: number | null;
+}
+
+export interface PublicStatusResponse {
+  readonly status: MonitorStatus;
+  readonly message: string;
+  readonly updated_at: number;
+  readonly monitors: ReadonlyArray<PublicMonitor>;
+  readonly incidents: ReadonlyArray<PublicIncident>;
+}
+
+export interface PublicStatusSettings {
+  readonly enabled: boolean;
+  readonly private_slug: string | null;
+  readonly show_uptime: boolean;
+  readonly show_latency: boolean;
+  readonly show_incidents: boolean;
+  readonly show_monitor_type: boolean;
+}
+
+export interface SettingsResponse {
+  readonly is_ui_lock_enabled: boolean;
+  readonly public_status: PublicStatusSettings;
+}
+
+export interface PublicMonitorVisibility {
+  readonly id: string;
+  readonly public_visible: boolean;
+}
+
+export interface AlertRule extends BackendSource {
+  readonly id: string;
+  readonly name: string;
+  readonly monitor_id: string | null;
+  readonly condition: AlertCondition;
+  readonly params: Readonly<Record<string, unknown>>;
+  readonly channel_ids: ReadonlyArray<string>;
+  readonly enabled: boolean;
+  readonly severity: 'info' | 'warning' | 'critical';
+  readonly confirm_for_sec: number;
+  readonly repeat_interval_sec: number;
+  readonly silent_hours: { readonly start: string; readonly end: string } | null;
+  readonly timezone: string;
+  readonly created_at: number;
+  readonly updated_at: number;
+}
+
+export type AlertCondition = 'offline' | 'latency' | 'http_status' | 'cpu' | 'memory';
+
+export interface CreateAlertRuleRequest {
+  readonly name: string;
+  readonly monitor_id: string;
+  readonly condition: AlertCondition;
+  readonly params?: Record<string, unknown>;
+  readonly channel_ids?: ReadonlyArray<string>;
+  readonly enabled?: boolean;
+  readonly severity?: 'info' | 'warning' | 'critical';
+  readonly confirm_for_sec?: number;
+  readonly repeat_interval_sec?: number;
+  readonly silent_hours?: { readonly start: string; readonly end: string } | null;
+  readonly timezone?: string;
+}
+
+export type UpdateAlertRuleRequest = Partial<CreateAlertRuleRequest>;
+
+export interface AlertEvent extends BackendSource {
+  readonly id: string;
+  readonly rule_id: string;
+  readonly monitor_id: string;
+  readonly monitor_name: string;
+  readonly rule_name: string;
+  readonly event_type: 'pending' | 'firing' | 'suppressed' | 'recovered';
+  readonly severity: 'info' | 'warning' | 'critical';
+  readonly message: string;
+  readonly notification_status: 'pending' | 'suppressed' | 'not_required';
+  readonly created_at: number;
+}
+
+export interface NotificationChannel extends BackendSource {
+  readonly id: string;
+  readonly name: string;
+  readonly type: 'webhook' | 'telegram' | 'email';
+  readonly enabled: boolean;
+  readonly has_secret: boolean;
+  readonly redacted_label: string | null;
+  readonly delivery_status: 'untested' | 'ok' | 'failing' | 'disabled';
+  readonly updated_at: number;
+}
+
+export interface CreateNotificationChannelRequest {
+  readonly name: string;
+  readonly type: NotificationChannel['type'];
+  readonly enabled?: boolean;
+  readonly config: Record<string, unknown>;
+}
+
+export type UpdateNotificationChannelRequest = Partial<Omit<CreateNotificationChannelRequest, 'type'>>;
+
+export interface StatisticsSummary extends BackendSource {
+  readonly range: StatisticsRange;
+  readonly generated_at: number;
+  readonly total_monitors: number;
+  readonly online_monitors: number;
+  readonly incident_count: number;
+  readonly total_downtime_sec: number;
+  readonly avg_latency_ms: number | null;
+  readonly uptime_ratio: number | null;
+}
+
+export type StatisticsRange = '24h' | '7d' | '30d';
+
+export interface StatisticsLeaderboardEntry {
+  readonly monitor_id: string;
+  readonly monitor_name: string;
+  readonly monitor_type: MonitorType;
+  readonly value: number;
+  readonly label: string;
+  readonly sample_count: number;
+}
+
+export interface StatisticsLeaderboards extends BackendSource {
+  readonly range: StatisticsRange;
+  readonly generated_at: number;
+  readonly downtime: ReadonlyArray<StatisticsLeaderboardEntry>;
+  readonly slowest: ReadonlyArray<StatisticsLeaderboardEntry>;
+  readonly resource_heavy: ReadonlyArray<StatisticsLeaderboardEntry>;
+}
+
+export interface AvailabilityTrendPoint {
+  readonly date: string;
+  readonly uptime_ratio: number | null;
+  readonly down_count: number;
+  readonly check_count: number;
+}
+
+export interface SystemLoadTrendPoint {
+  readonly time: string;
+  readonly cpu_percent: number | null;
+  readonly mem_percent: number | null;
+  readonly sample_count: number;
+}
+
+export interface StatisticsTrends extends BackendSource {
+  readonly range: StatisticsRange;
+  readonly generated_at: number;
+  readonly availability: ReadonlyArray<AvailabilityTrendPoint>;
+  readonly system_load: ReadonlyArray<SystemLoadTrendPoint>;
+}
+
+export interface StructuredApiError {
+  readonly error: {
+    readonly code: string;
+    readonly message: string;
+    readonly request_id?: string;
+  };
+}
 
 export interface AgentlessHttpConfig {
   readonly url: string;
@@ -24,7 +260,7 @@ export interface AgentlessTcpConfig {
   readonly timeout_seconds?: number;
 }
 
-export type AgentlessCheckType = Extract<NodeType, 'agentless_http' | 'agentless_tcp'>;
+export type AgentlessCheckType = Extract<MonitorType, 'http' | 'tcp'>;
 
 export interface AgentlessLatestResult {
   readonly timestamp: number | null;
@@ -37,7 +273,7 @@ export interface AgentlessCheck {
   readonly id: string;
   readonly name: string;
   readonly type: AgentlessCheckType;
-  readonly status: NodeStatus;
+  readonly status: MonitorStatus;
   readonly config?: AgentlessHttpConfig | AgentlessTcpConfig | null;
   readonly config_json?: string;
   readonly target?: string;
@@ -71,32 +307,6 @@ export interface CreateTcpCheckRequest {
   readonly timeout: number;
 }
 
-export type NodeConfig = Record<string, unknown> | AgentlessHttpConfig | AgentlessTcpConfig;
-
-export interface ApiNode {
-  readonly id: string;
-  readonly name: string;
-  readonly type: NodeType;
-  readonly status: NodeStatus;
-  readonly last_heartbeat: number | null;
-  readonly ping_ms: number | null;
-  readonly cpu_usage: number | null;
-  readonly mem_usage: number | null;
-  readonly uptime_ratio: number | null;
-  readonly config: NodeConfig | null;
-}
-
-export interface UpdateNodeRequest {
-  readonly name?: string;
-  readonly status?: Extract<NodeStatus, 'offline' | 'paused'>;
-  readonly config?: NodeConfig;
-}
-
-export interface DeleteNodeResponse {
-  readonly id: string;
-  readonly archived_at: number;
-}
-
 export interface ApiContainerMetric {
   readonly id?: string;
   readonly name?: string;
@@ -110,19 +320,12 @@ export interface ApiContainerMetric {
 
 export interface ApiMetric {
   readonly id: number;
-  readonly node_id: string;
+  readonly monitor_id: string;
   readonly timestamp: number;
   readonly cpu_percent: number | null;
   readonly mem_percent: number | null;
   readonly ping_ms: number | null;
   readonly containers: ReadonlyArray<ApiContainerMetric> | null;
-}
-
-export interface OverviewStats {
-  readonly totalNodes: number;
-  readonly onlineNodes: number;
-  readonly avgUptimeRatio: number;
-  readonly avgPing: number;
 }
 
 export interface ApiResponse<T> {
@@ -134,7 +337,14 @@ export interface ApiError {
 }
 
 export interface LoginResponse {
-  readonly access_token: string;
+  readonly access_token?: string;
+  readonly authenticated?: boolean;
+}
+
+export interface AuthStatusResponse {
+  readonly authenticated?: boolean;
+  readonly is_ui_lock_enabled?: boolean;
+  readonly has_refresh_cookie?: boolean;
 }
 
 export interface TrendPoint {
@@ -154,9 +364,9 @@ export interface ProbeConfigRequest {
 }
 
 export interface ProbeConfigData {
-  readonly node_id: string;
-  readonly node_name: string;
-  readonly node_secret: string;
+  readonly monitor_id: string;
+  readonly monitor_name: string;
+  readonly monitor_secret: string;
   readonly probe_push_url: string;
   readonly install_command: string;
   readonly install_script_url: string;

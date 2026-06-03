@@ -10,7 +10,7 @@ import (
 )
 
 type MetricPayload struct {
-	NodeID         string  `json:"node_id"`
+	MonitorID      string  `json:"monitor_id"`
 	Timestamp      int64   `json:"timestamp"`
 	PingMs         int     `json:"ping,omitempty"`
 	CpuUsage       float64 `json:"cpu"`

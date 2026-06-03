@@ -1,12 +1,12 @@
 import { Hono } from "hono";
-import type { Context } from "hono";
 import { z } from "zod";
-import { Bindings } from "./api";
 import { isHttpTargetAllowed, isTcpTargetAllowed } from "../agentless/checks";
+import { createMonitor, getMonitor, listMonitors, setMonitorPaused } from "../services/monitorRepository";
+import type { Bindings } from "./api";
 
 const agentlessApi = new Hono<{ Bindings: Bindings }>();
 
-const NODE_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
+const MONITOR_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
 
 const httpPayloadSchema = z.object({
   name: z.string().trim().min(1).max(80),
@@ -24,141 +24,126 @@ const tcpPayloadSchema = z.object({
   interval: z.number().int().min(30).max(86400),
 }).strict();
 
-type CreateCheckInput = {
-  readonly name: string;
-  readonly type: "agentless_http" | "agentless_tcp";
-  readonly config: Record<string, unknown>;
-};
-type AgentlessContext = Context<{ Bindings: Bindings }>;
-
-function validNodeId(id: string) {
-  return NODE_ID_PATTERN.test(id);
-}
-
-async function readJson(c: AgentlessContext) {
-  return c.req.json().catch(() => null);
-}
-
-async function createCheck(db: D1Database, input: CreateCheckInput) {
-  const now = Math.floor(Date.now() / 1000);
-  const node = {
-    id: crypto.randomUUID(),
-    name: input.name,
-    type: input.type,
-    status: "offline",
-    config: input.config,
-    created_at: now,
-    updated_at: now,
-  };
-  await db.prepare(
-    `INSERT INTO nodes (id, name, type, status, config_json, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-  ).bind(node.id, node.name, node.type, node.status, JSON.stringify(node.config), now, now).run();
-  return node;
-}
-
-async function activeNameExists(db: D1Database, name: string) {
-  const row = await db.prepare(
-    `SELECT id FROM nodes WHERE archived_at IS NULL AND lower(name) = ? LIMIT 1`,
-  ).bind(name.trim().toLowerCase()).first<{ id: string }>();
-  return Boolean(row);
-}
-
-async function updateCheckStatus(db: D1Database, id: string, status: "paused" | "offline") {
-  const now = Math.floor(Date.now() / 1000);
-  const result = await db.prepare(
-    `UPDATE nodes SET status = ?, updated_at = ?
-     WHERE id = ? AND archived_at IS NULL AND type IN ('agentless_http', 'agentless_tcp')`,
-  ).bind(status, now, id).run();
-  return result.meta.changes ? { id, status, updated_at: now } : null;
-}
-
 agentlessApi.get("/", async (c) => {
-  const { results } = await c.env.DB.prepare(
-    `SELECT
-       n.id,
-       n.name,
-       n.type,
-       n.status,
-       n.config_json,
-       n.created_at,
-       n.updated_at,
-       lm.ping_ms AS latest_ping_ms,
-       lm.is_up AS latest_is_up,
-       lm.error_text AS latest_error_text,
-       lm.timestamp AS latest_timestamp
-     FROM nodes n
-     LEFT JOIN raw_metrics lm ON lm.id = (
-       SELECT id FROM raw_metrics WHERE node_id = n.id ORDER BY timestamp DESC, id DESC LIMIT 1
-     )
-     WHERE n.archived_at IS NULL AND n.type IN ('agentless_http', 'agentless_tcp')
-     ORDER BY n.created_at DESC`,
-  ).all();
-
-  return c.json({
-    data: results.map((row: any) => {
-      const config = row.config_json ? JSON.parse(row.config_json) : null;
-      return {
-        ...row,
-        config,
-        target: row.type === "agentless_tcp" && config ? `${config.host}:${config.port}` : config?.url ?? null,
-        latest_result: row.latest_timestamp == null ? null : {
-          timestamp: row.latest_timestamp,
-          is_up: typeof row.latest_is_up === "number" ? row.latest_is_up === 1 : row.latest_is_up,
-          latency_ms: row.latest_ping_ms,
-          error_text: row.latest_error_text,
-        },
-      };
-    }),
-  });
+  const monitors = await listMonitors(c.env.DB);
+  return c.json({ data: monitors.filter((monitor) => monitor.type === "http" || monitor.type === "tcp").map(toAgentlessCheck) });
 });
 
 agentlessApi.post("/http", async (c) => {
-  const parsed = httpPayloadSchema.safeParse(await readJson(c));
+  const parsed = httpPayloadSchema.safeParse(await readJson(c.req.raw));
   if (!parsed.success) return c.json({ error: "Invalid agentless HTTP payload" }, 400);
   const allowed = isHttpTargetAllowed(parsed.data.url);
   if (!allowed.allowed) return c.json({ error: allowed.reason ?? "HTTP target is not allowed" }, 400);
-  const { name, ...config } = parsed.data;
-  if (await activeNameExists(c.env.DB, name)) return c.json({ error: "A node with this name already exists" }, 409);
-  const node = await createCheck(c.env.DB, { name, type: "agentless_http", config });
-  return c.json({ data: node });
+  if (await activeNameExists(c.env.DB, parsed.data.name)) return c.json({ error: "A monitor with this name already exists" }, 409);
+
+  const monitor = await createMonitor(c.env.DB, {
+    name: parsed.data.name,
+    type: "http",
+    interval_sec: parsed.data.interval,
+    timeout_sec: parsed.data.timeout,
+    config: {
+      url: parsed.data.url,
+      expected_status: parsed.data.expected_status,
+    },
+    public_visible: true,
+  });
+  return c.json({ data: toAgentlessCheck(monitor) });
 });
 
 agentlessApi.post("/tcp", async (c) => {
-  const parsed = tcpPayloadSchema.safeParse(await readJson(c));
+  const parsed = tcpPayloadSchema.safeParse(await readJson(c.req.raw));
   if (!parsed.success) return c.json({ error: "Invalid agentless TCP payload" }, 400);
   const allowed = isTcpTargetAllowed(parsed.data.host, parsed.data.port);
   if (!allowed.allowed) return c.json({ error: allowed.reason ?? "TCP target is not allowed" }, 400);
-  const { name, ...config } = parsed.data;
-  if (await activeNameExists(c.env.DB, name)) return c.json({ error: "A node with this name already exists" }, 409);
-  const node = await createCheck(c.env.DB, { name, type: "agentless_tcp", config });
-  return c.json({ data: node });
+  if (await activeNameExists(c.env.DB, parsed.data.name)) return c.json({ error: "A monitor with this name already exists" }, 409);
+
+  const monitor = await createMonitor(c.env.DB, {
+    name: parsed.data.name,
+    type: "tcp",
+    interval_sec: parsed.data.interval,
+    timeout_sec: parsed.data.timeout,
+    config: {
+      host: parsed.data.host,
+      port: parsed.data.port,
+    },
+    public_visible: true,
+  });
+  return c.json({ data: toAgentlessCheck(monitor) });
 });
 
 agentlessApi.post("/:id/pause", async (c) => {
   const id = c.req.param("id");
-  if (!validNodeId(id)) return c.json({ error: "Invalid node id" }, 400);
-  const node = await updateCheckStatus(c.env.DB, id, "paused");
-  return node ? c.json({ data: node }) : c.json({ error: "Agentless check not found" }, 404);
+  if (!validMonitorId(id)) return c.json({ error: "Invalid monitor id" }, 400);
+  const monitor = await setMonitorPaused(c.env.DB, id, true);
+  return monitor && (monitor.type === "http" || monitor.type === "tcp")
+    ? c.json({ data: toAgentlessCheck(monitor) })
+    : c.json({ error: "Agentless check not found" }, 404);
 });
 
 agentlessApi.post("/:id/resume", async (c) => {
   const id = c.req.param("id");
-  if (!validNodeId(id)) return c.json({ error: "Invalid node id" }, 400);
-  const node = await updateCheckStatus(c.env.DB, id, "offline");
-  return node ? c.json({ data: node }) : c.json({ error: "Agentless check not found" }, 404);
+  if (!validMonitorId(id)) return c.json({ error: "Invalid monitor id" }, 400);
+  const monitor = await setMonitorPaused(c.env.DB, id, false);
+  return monitor && (monitor.type === "http" || monitor.type === "tcp")
+    ? c.json({ data: toAgentlessCheck(monitor) })
+    : c.json({ error: "Agentless check not found" }, 404);
 });
 
 agentlessApi.delete("/:id", async (c) => {
   const id = c.req.param("id");
-  if (!validNodeId(id)) return c.json({ error: "Invalid node id" }, 400);
+  if (!validMonitorId(id)) return c.json({ error: "Invalid monitor id" }, 400);
+  const current = await getMonitor(c.env.DB, id);
+  if (!current || (current.type !== "http" && current.type !== "tcp")) {
+    return c.json({ error: "Agentless check not found" }, 404);
+  }
   const now = Math.floor(Date.now() / 1000);
-  const result = await c.env.DB.prepare(
-    `UPDATE nodes SET archived_at = ?, status = 'paused', updated_at = ?
-     WHERE id = ? AND archived_at IS NULL AND type IN ('agentless_http', 'agentless_tcp')`,
+  await c.env.DB.prepare(
+    "UPDATE monitors SET archived_at = ?, paused = 1, updated_at = ? WHERE id = ? AND archived_at IS NULL",
   ).bind(now, now, id).run();
-  if (!result.meta.changes) return c.json({ error: "Agentless check not found" }, 404);
   return c.json({ data: { id, status: "paused", archived_at: now, updated_at: now } });
 });
+
+async function readJson(request: Request) {
+  return request.json().catch(() => null);
+}
+
+function validMonitorId(id: string) {
+  return MONITOR_ID_PATTERN.test(id);
+}
+
+async function activeNameExists(db: D1Database, name: string) {
+  const row = await db.prepare(
+    "SELECT id FROM monitors WHERE archived_at IS NULL AND lower(name) = ? LIMIT 1",
+  ).bind(name.trim().toLowerCase()).first<{ id: string }>();
+  return Boolean(row);
+}
+
+function toAgentlessCheck(monitor: Awaited<ReturnType<typeof listMonitors>>[number]) {
+  const latest = monitor.latest.checked_at == null ? null : {
+    timestamp: monitor.latest.checked_at,
+    is_up: monitor.status === "online" || monitor.status === "degraded",
+    latency_ms: monitor.latest.latency_ms,
+    error_text: monitor.latest.error_text,
+  };
+  return {
+    id: monitor.id,
+    name: monitor.name,
+    type: monitor.type === "http" ? "http" : "tcp",
+    status: monitor.status,
+    target: monitor.target.label,
+    interval_seconds: monitor.interval_sec,
+    interval: monitor.interval_sec,
+    timeout_seconds: monitor.timeout_sec,
+    timeout: monitor.timeout_sec,
+    expected_status: monitor.type === "http" ? 200 : undefined,
+    latest_ping_ms: monitor.latest.latency_ms,
+    latest_is_up: latest?.is_up ?? null,
+    latest_error_text: monitor.latest.error_text,
+    latest_timestamp: monitor.latest.checked_at,
+    latest_result: latest,
+    tcp_available: true,
+    disabled_reason: null,
+  };
+}
 
 export { agentlessApi };

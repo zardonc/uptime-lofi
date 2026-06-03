@@ -2,6 +2,8 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { compress } from "../utils/compression";
+import { evaluateAlerts } from "../services/alertEngine";
+import { updateMonitorLatestFromAgentMetric } from "../services/monitorLatest";
 
 const pushApi = new Hono<{ Bindings: { DB: D1Database } }>();
 
@@ -10,7 +12,7 @@ const MAX_BATCH_SIZE = 100
 
 // Validation for a single metrics entry
 const metricSchema = z.object({
-  node_id: z.string().regex(/^[a-zA-Z0-9_-]+$/, { message: 'node_id must match ^[a-zA-Z0-9_-]+$' }),
+  monitor_id: z.string().regex(/^[a-zA-Z0-9_-]+$/, { message: 'monitor_id must match ^[a-zA-Z0-9_-]+$' }),
   timestamp: z.number().int(),
   ping: z.number().max(60000, { message: 'ping must be <= 60000' }).optional(),
   cpu: z.number().min(0, { message: 'cpu must be >= 0' }).max(100, { message: 'cpu must be <= 100' }),
@@ -33,6 +35,7 @@ const metricSchema = z.object({
 })
 
 const batchPayloadSchema = z.array(metricSchema).max(MAX_BATCH_SIZE, { message: 'Batch size must be <= 100' })
+type CompressedMetric = Omit<z.infer<typeof metricSchema>, "containers_json"> & { containers_json: string | null };
 
 pushApi.post(
   "/",
@@ -57,47 +60,10 @@ pushApi.post(
       }))
     );
 
-    // 2. Prepare raw_metrics table insertions
-    const insertStmt = db.prepare(
-      `INSERT INTO raw_metrics (node_id, timestamp, ping_ms, cpu_usage, mem_usage, is_up, containers_json) 
-       VALUES (?, ?, ?, ?, ?, ?, ?)`
-    );
-
-    const batchStmts = compressedPayload.map((m) =>
-      insertStmt.bind(
-        m.node_id,
-        m.timestamp,
-        m.ping ?? null,
-        m.cpu,
-        m.mem,
-        m.is_up ? 1 : 0,
-        m.containers_json ?? null
-      )
-    );
-
-    // 3. Identify the most chronological update per node to adjust the parent nodes table
-    const latestMetrics = new Map<string, typeof compressedPayload[number]>();
-    for (const m of compressedPayload) {
-      const existing = latestMetrics.get(m.node_id);
-      if (!existing || m.timestamp > existing.timestamp) {
-        latestMetrics.set(m.node_id, m);
-      }
-    }
-
-    const updateStmts = Array.from(latestMetrics.values()).map((m) => {
-      const isUpStatus = m.is_up ? "online" : "offline";
-      return db.prepare(
-        `UPDATE nodes 
-         SET status = ?, last_heartbeat = ?
-         WHERE id = ? AND archived_at IS NULL AND type = 'agent_push'`
-      ).bind(isUpStatus, m.timestamp, m.node_id);
-    });
-
     try {
-      // Execute 100+ writes safely in a single high-performance Edge roundtrip
-      await db.batch([...batchStmts, ...updateStmts]);
+      await writeAgentMetrics(db, compressedPayload);
     } catch (err: any) {
-      console.error("D1 Transaction Batch Failed:", err.message);
+      console.error("Agent metric write failed:", err?.message ?? String(err));
       return c.json({ error: "Failed executing database batch" }, 500);
     }
 
@@ -110,5 +76,38 @@ pushApi.post(
     });
   }
 );
+
+async function writeAgentMetrics(db: D1Database, payload: CompressedMetric[]) {
+  for (const metric of payload) {
+    const monitorId = await findAgentMonitorId(db, metric.monitor_id);
+    if (!monitorId) throw new Error(`Unknown agent monitor ${metric.monitor_id}`);
+
+    await updateMonitorLatestFromAgentMetric(db, {
+      monitorId,
+      timestamp: metric.timestamp,
+      isUp: metric.is_up,
+      latencyMs: metric.ping ?? null,
+      cpuPercent: metric.cpu,
+      memPercent: metric.mem,
+      payloadJson: JSON.stringify({
+        monitor_id: metric.monitor_id,
+        containers_json: metric.containers_json,
+      }),
+    });
+    await evaluateAlerts(db, monitorId, metric.timestamp);
+  }
+}
+
+async function findAgentMonitorId(db: D1Database, monitorId: string): Promise<string | null> {
+  const row = await db.prepare(
+    `SELECT id
+     FROM monitors
+     WHERE archived_at IS NULL
+       AND type = 'agent'
+       AND id = ?
+     LIMIT 1`,
+  ).bind(monitorId).first<{ id: string }>();
+  return row?.id ?? null;
+}
 
 export { pushApi };

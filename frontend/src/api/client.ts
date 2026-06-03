@@ -5,17 +5,31 @@
 
 import type {
   LoginResponse,
+  AuthStatusResponse,
   ApiResponse,
-  ApiNode,
-  ApiMetric,
-  OverviewStats,
   ProbeConfigRequest,
   ProbeConfigResponse,
-  UpdateNodeRequest,
-  DeleteNodeResponse,
   AgentlessCheck,
   CreateHttpCheckRequest,
   CreateTcpCheckRequest,
+  CreateMonitorRequest,
+  AlertEvent,
+  AlertRule,
+  CreateAlertRuleRequest,
+  CreateNotificationChannelRequest,
+  Monitor,
+  NotificationChannel,
+  PublicMonitorVisibility,
+  PublicStatusResponse,
+  PublicStatusSettings,
+  SettingsResponse,
+  StatisticsLeaderboards,
+  StatisticsRange,
+  StatisticsSummary,
+  StatisticsTrends,
+  UpdateAlertRuleRequest,
+  UpdateMonitorRequest,
+  UpdateNotificationChannelRequest,
 } from './types';
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
@@ -112,7 +126,7 @@ async function tryRefresh(): Promise<string | null> {
         return null;
       }
       const body = (await res.json()) as LoginResponse;
-      accessToken = body.access_token;
+      accessToken = body.access_token ?? null;
       return accessToken;
     } catch {
       accessToken = null;
@@ -127,11 +141,22 @@ async function tryRefresh(): Promise<string | null> {
 
 async function safeText(res: Response): Promise<string> {
   try {
-    const json = await res.json();
-    return (json as Record<string, string>).error ?? JSON.stringify(json);
+    const json = await res.json() as unknown;
+    return errorMessage(json) ?? JSON.stringify(json);
   } catch {
     return res.statusText;
   }
+}
+
+function errorMessage(value: unknown): string | null {
+  if (!value || typeof value !== 'object' || !('error' in value)) return null;
+
+  const error = (value as { readonly error?: unknown }).error;
+  if (typeof error === 'string') return error;
+  if (!error || typeof error !== 'object') return null;
+
+  const message = (error as { readonly message?: unknown }).message;
+  return typeof message === 'string' && message.trim() ? message : null;
 }
 
 // ── Error class ──
@@ -148,7 +173,9 @@ export class ApiClientError extends Error {
 // ── Public API methods ──
 export const api = {
   getAuthStatus: () =>
-    apiFetch<{ is_ui_lock_enabled: boolean; has_refresh_cookie?: boolean }>('/auth/status', { auth: false }),
+    apiFetch<AuthStatusResponse>('/auth/status', { auth: false }),
+
+  getSettings: () => apiFetch<ApiResponse<SettingsResponse>>('/v1/settings'),
 
   login: (password: string) =>
     apiFetch<LoginResponse>('/auth/login', {
@@ -168,20 +195,79 @@ export const api = {
       method: 'POST',
     }),
 
-  getNodes: () => apiFetch<{ data: ApiNode[] }>('/nodes'),
-  updateNode: (id: string, payload: UpdateNodeRequest) =>
-    apiFetch<ApiResponse<ApiNode>>(`/nodes/${id}`, {
+  getAgentlessChecks: () => apiFetch<ApiResponse<AgentlessCheck[]>>('/agentless'),
+  getMonitors: () => apiFetch<ApiResponse<Monitor[]>>('/v1/monitors'),
+  createMonitor: (payload: CreateMonitorRequest) =>
+    apiFetch<ApiResponse<Monitor>>('/v1/monitors', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  updateMonitor: (id: string, payload: UpdateMonitorRequest) =>
+    apiFetch<ApiResponse<Monitor>>(`/v1/monitors/${id}`, {
       method: 'PUT',
       body: JSON.stringify(payload),
     }),
-  deleteNode: (id: string) =>
-    apiFetch<ApiResponse<DeleteNodeResponse>>(`/nodes/${id}`, {
+  pauseMonitor: (id: string) =>
+    apiFetch<ApiResponse<Monitor>>(`/v1/monitors/${id}/pause`, {
+      method: 'POST',
+    }),
+  resumeMonitor: (id: string) =>
+    apiFetch<ApiResponse<Monitor>>(`/v1/monitors/${id}/resume`, {
+      method: 'POST',
+    }),
+  deleteMonitor: (id: string) =>
+    apiFetch<ApiResponse<Monitor>>(`/v1/monitors/${id}`, {
       method: 'DELETE',
     }),
-  getOverview: () => apiFetch<{ data: OverviewStats }>('/stats/overview'),
-  getMetrics: (nodeId: string, hours = 24) =>
-    apiFetch<{ data: ApiMetric[] }>(`/nodes/${nodeId}/metrics?hours=${hours}`),
-  getAgentlessChecks: () => apiFetch<ApiResponse<AgentlessCheck[]>>('/agentless'),
+  getAlertRules: () => apiFetch<ApiResponse<AlertRule[]>>('/v1/alerts/rules'),
+  createAlertRule: (payload: CreateAlertRuleRequest) =>
+    apiFetch<ApiResponse<AlertRule>>('/v1/alerts/rules', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  updateAlertRule: (id: string, payload: UpdateAlertRuleRequest) =>
+    apiFetch<ApiResponse<AlertRule>>(`/v1/alerts/rules/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }),
+  enableAlertRule: (id: string) =>
+    apiFetch<ApiResponse<AlertRule>>(`/v1/alerts/rules/${id}/enable`, {
+      method: 'POST',
+    }),
+  disableAlertRule: (id: string) =>
+    apiFetch<ApiResponse<AlertRule>>(`/v1/alerts/rules/${id}/disable`, {
+      method: 'POST',
+    }),
+  deleteAlertRule: (id: string) =>
+    apiFetch<ApiResponse<AlertRule>>(`/v1/alerts/rules/${id}`, {
+      method: 'DELETE',
+    }),
+  getAlertHistory: () => apiFetch<ApiResponse<AlertEvent[]>>('/v1/alerts/history'),
+  getStatisticsSummary: (range: StatisticsRange) =>
+    apiFetch<ApiResponse<StatisticsSummary>>(`/v1/statistics/summary?range=${encodeURIComponent(range)}`),
+  getStatisticsLeaderboards: (range: StatisticsRange) =>
+    apiFetch<ApiResponse<StatisticsLeaderboards>>(`/v1/statistics/leaderboards?range=${encodeURIComponent(range)}`),
+  getStatisticsTrends: (range: StatisticsRange) =>
+    apiFetch<ApiResponse<StatisticsTrends>>(`/v1/statistics/trends?range=${encodeURIComponent(range)}`),
+  getNotificationChannels: () => apiFetch<ApiResponse<NotificationChannel[]>>('/v1/notifications/channels'),
+  createNotificationChannel: (payload: CreateNotificationChannelRequest) =>
+    apiFetch<ApiResponse<NotificationChannel>>('/v1/notifications/channels', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  updateNotificationChannel: (id: string, payload: UpdateNotificationChannelRequest) =>
+    apiFetch<ApiResponse<NotificationChannel>>(`/v1/notifications/channels/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }),
+  deleteNotificationChannel: (id: string) =>
+    apiFetch<ApiResponse<NotificationChannel>>(`/v1/notifications/channels/${id}`, {
+      method: 'DELETE',
+    }),
+  testNotificationChannel: (id: string) =>
+    apiFetch<ApiResponse<NotificationChannel>>(`/v1/notifications/channels/${id}/test`, {
+      method: 'POST',
+    }),
   createHttpCheck: (payload: CreateHttpCheckRequest) =>
     apiFetch<ApiResponse<AgentlessCheck>>('/agentless/http', {
       method: 'POST',
@@ -194,13 +280,24 @@ export const api = {
     }),
 
   updateSecuritySettings: (payload: { enabled: boolean; password?: string }) =>
-    apiFetch<{ success: boolean }>('/settings/security', {
+    apiFetch<{ success: boolean }>('/v1/settings/security', {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
 
+  updatePublicStatusSettings: (payload: PublicStatusSettings & { readonly monitors?: ReadonlyArray<PublicMonitorVisibility> }) =>
+    apiFetch<ApiResponse<{ public_status: PublicStatusSettings; monitors: ReadonlyArray<PublicMonitorVisibility> }>>('/v1/settings/public-status', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  getPublicStatus: (slug?: string | null) => {
+    const query = slug ? `?slug=${encodeURIComponent(slug)}` : '';
+    return apiFetch<PublicStatusResponse>(`/public/status${query}`, { auth: false });
+  },
+
   createProbeConfig: (payload: ProbeConfigRequest) =>
-    apiFetch<ProbeConfigResponse>('/nodes/probe-config', {
+    apiFetch<ProbeConfigResponse>('/v1/monitors/probe-config', {
       method: 'POST',
       body: JSON.stringify(payload),
     }),

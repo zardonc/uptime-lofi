@@ -115,7 +115,23 @@ describe("LoginGate", () => {
   });
 
   it("shows children immediately when refresh resumes an authenticated session", async () => {
-    setMockAuthState({ authenticated: true });
+    setMockAuthState({ authenticated: true, hasRefreshCookie: true });
+
+    renderWithAuth(
+      <LoginGate>
+        <div>Protected dashboard</div>
+      </LoginGate>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(/protected dashboard/i)).toBeInTheDocument();
+    });
+
+    expect(screen.queryByRole("form", { name: /login form/i })).not.toBeInTheDocument();
+  });
+
+  it("shows children immediately when a Pages session cookie is already valid", async () => {
+    setMockAuthState({ authenticated: true, hasRefreshCookie: false });
 
     renderWithAuth(
       <LoginGate>

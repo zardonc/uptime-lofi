@@ -20,8 +20,10 @@ describe("Stats Routes (/api/stats)", () => {
     };
 
     const db = (env as any).DB;
-    await db.prepare("DELETE FROM nodes").run();
-    await db.prepare("DELETE FROM raw_metrics").run();
+    await db.prepare("DELETE FROM monitor_latest").run();
+    await db.prepare("DELETE FROM check_results").run();
+    await db.prepare("DELETE FROM daily_summaries").run();
+    await db.prepare("DELETE FROM monitors").run();
     await db.prepare("DELETE FROM refresh_tokens").run();
 
     const sessionId = crypto.randomUUID();
@@ -38,8 +40,10 @@ describe("Stats Routes (/api/stats)", () => {
 
   afterAll(async () => {
     const db = (env as any).DB;
-    await db.prepare("DELETE FROM nodes").run();
-    await db.prepare("DELETE FROM raw_metrics").run();
+    await db.prepare("DELETE FROM monitor_latest").run();
+    await db.prepare("DELETE FROM check_results").run();
+    await db.prepare("DELETE FROM daily_summaries").run();
+    await db.prepare("DELETE FROM monitors").run();
     await db.prepare("DELETE FROM refresh_tokens").run();
   });
 
@@ -52,21 +56,25 @@ describe("Stats Routes (/api/stats)", () => {
     );
     expect(res.status).toBe(200);
     const json: any = await res.json();
-    expect(json.data.totalNodes).toBe(0);
-    expect(json.data.onlineNodes).toBe(0);
+    expect(json.data.totalMonitors).toBe(0);
+    expect(json.data.onlineMonitors).toBe(0);
   });
 
   it("2. Overview with data — returns aggregated stats", async () => {
     const db = (env as any).DB;
-    await db.prepare("DELETE FROM nodes").run();
-    await db.prepare("INSERT INTO nodes (id, name, type, salt, status) VALUES (?, ?, ?, ?, ?)")
-      .bind("node_a", "Node A", "vps", "s1", "online").run();
-    
-    await db.prepare("INSERT INTO nodes (id, name, type, salt, status) VALUES (?, ?, ?, ?, ?)")
-      .bind("node_b", "Node B", "vps", "s2", "offline").run();
-
-    await db.prepare("INSERT INTO nodes (id, name, type, salt, status, archived_at) VALUES (?, ?, ?, ?, ?, ?)")
-      .bind("node_archived", "Archived", "agent_push", "s3", "online", Math.floor(Date.now() / 1000)).run();
+    await db.prepare("DELETE FROM monitor_latest").run();
+    await db.prepare("DELETE FROM monitors").run();
+    const now = Math.floor(Date.now() / 1000);
+    await db.prepare("INSERT INTO monitors (id, name, type, target, interval_sec, timeout_sec, config_json) VALUES (?, ?, 'agent', 'Agent probe', 60, 10, '{}')")
+      .bind("monitor_a", "Monitor A").run();
+    await db.prepare("INSERT INTO monitors (id, name, type, target, interval_sec, timeout_sec, config_json) VALUES (?, ?, 'http', 'https://example.com', 60, 10, '{\"url\":\"https://example.com\"}')")
+      .bind("monitor_b", "Monitor B").run();
+    await db.prepare("INSERT INTO monitors (id, name, type, target, interval_sec, timeout_sec, config_json, archived_at) VALUES (?, ?, 'agent', 'Agent probe', 60, 10, '{}', ?)")
+      .bind("monitor_archived", "Archived", now).run();
+    await db.prepare("INSERT INTO monitor_latest (monitor_id, status, checked_at, updated_at) VALUES (?, 'online', ?, ?)")
+      .bind("monitor_a", now, now).run();
+    await db.prepare("INSERT INTO monitor_latest (monitor_id, status, checked_at, updated_at) VALUES (?, 'offline', ?, ?)")
+      .bind("monitor_b", now, now).run();
 
     const res = await app.fetch(
       new Request("http://localhost/api/stats/overview", {
@@ -76,8 +84,8 @@ describe("Stats Routes (/api/stats)", () => {
     );
     expect(res.status).toBe(200);
     const json: any = await res.json();
-    expect(json.data.totalNodes).toBe(2);
-    expect(json.data.onlineNodes).toBe(1);
+    expect(json.data.totalMonitors).toBe(2);
+    expect(json.data.onlineMonitors).toBe(1);
   });
 
   it("3. Unauthenticated GET /api/stats/overview returns 401", async () => {
@@ -85,12 +93,15 @@ describe("Stats Routes (/api/stats)", () => {
     expect(res.status).toBe(401);
   });
 
-  it("4. Counts recently batched probe nodes as online", async () => {
+  it("4. Counts recently batched probe monitors as online", async () => {
     const db = (env as any).DB;
     const now = Math.floor(Date.now() / 1000);
-    await db.prepare("DELETE FROM nodes").run();
-    await db.prepare("INSERT INTO nodes (id, name, type, salt, status, last_heartbeat) VALUES (?, ?, ?, ?, ?, ?)")
-      .bind("batched_node", "Batched Node", "agent_push", "s1", "online", now - 300).run();
+    await db.prepare("DELETE FROM monitor_latest").run();
+    await db.prepare("DELETE FROM monitors").run();
+    await db.prepare("INSERT INTO monitors (id, name, type, target, interval_sec, timeout_sec, config_json) VALUES (?, ?, 'agent', 'Agent probe', 60, 10, '{}')")
+      .bind("batched_monitor", "Batched Monitor").run();
+    await db.prepare("INSERT INTO monitor_latest (monitor_id, status, checked_at, updated_at) VALUES (?, 'online', ?, ?)")
+      .bind("batched_monitor", now - 300, now - 300).run();
 
     const res = await app.fetch(
       new Request("http://localhost/api/stats/overview", {
@@ -99,6 +110,6 @@ describe("Stats Routes (/api/stats)", () => {
       testEnv
     );
     const json: any = await res.json();
-    expect(json.data.onlineNodes).toBe(1);
+    expect(json.data.onlineMonitors).toBe(1);
   });
 });

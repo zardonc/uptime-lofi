@@ -1,1 +1,0 @@
-export const AGENT_PUSH_STALE_AFTER_SECONDS = 10 * 60;

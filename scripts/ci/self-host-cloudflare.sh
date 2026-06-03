@@ -2,7 +2,8 @@
 set -euo pipefail
 
 RESOURCE_PREFIX="${RESOURCE_PREFIX:-}"
-KV_NAMESPACE_NAME="SESSION_BLACKLIST"
+SESSION_KV_NAMESPACE_NAME="${SESSION_KV_NAMESPACE_NAME:-}"
+STATISTICS_KV_NAMESPACE_NAME="${STATISTICS_KV_NAMESPACE_NAME:-}"
 GITHUB_REPO_SLUG="${GITHUB_REPOSITORY:-example/uptime-lofi}"
 
 log() {
@@ -30,7 +31,7 @@ summary_preflight_failure() {
 preflight_required_secrets() {
   local missing=()
   local name
-  for name in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID API_SECRET_KEY; do
+  for name in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID API_SECRET_KEY INTERNAL_API_KEY PAGES_SESSION_SECRET; do
     if [ -z "${!name:-}" ]; then
       missing+=("$name")
     fi
@@ -185,8 +186,10 @@ validate_resource_prefix() {
   DASHBOARD_WORKER_NAME="${RESOURCE_PREFIX}-backend"
   PROBE_WORKER_NAME="${RESOURCE_PREFIX}-probe"
   PAGES_PROJECT_NAME="${RESOURCE_PREFIX}"
+  SESSION_KV_NAMESPACE_NAME="${SESSION_KV_NAMESPACE_NAME:-${RESOURCE_PREFIX}-sessions}"
+  STATISTICS_KV_NAMESPACE_NAME="${STATISTICS_KV_NAMESPACE_NAME:-${RESOURCE_PREFIX}-statistics}"
 
-  export RESOURCE_PREFIX D1_DATABASE_NAME KV_NAMESPACE_NAME DASHBOARD_WORKER_NAME PROBE_WORKER_NAME PAGES_PROJECT_NAME GITHUB_REPO_SLUG
+  export RESOURCE_PREFIX D1_DATABASE_NAME SESSION_KV_NAMESPACE_NAME STATISTICS_KV_NAMESPACE_NAME DASHBOARD_WORKER_NAME PROBE_WORKER_NAME PAGES_PROJECT_NAME GITHUB_REPO_SLUG
 }
 
 get_workers_subdomain() {
@@ -252,18 +255,18 @@ find_or_create_d1() {
 }
 
 find_or_create_kv() {
-  local name="$KV_NAMESPACE_NAME"
+  local name="$1"
   local list_response existing create_response created
 
   list_response=$(cf_api GET "/storage/kv/namespaces")
   existing=$(printf '%s' "$list_response" | json_result_match title "$name" id)
   if [ -n "$existing" ]; then
-    log "Reusing fixed KV namespace ${name}"
+    log "Reusing KV namespace ${name}"
     printf '%s' "$existing"
     return 0
   fi
 
-  log "Creating fixed KV namespace ${name}"
+  log "Creating KV namespace ${name}"
   create_response=$(cf_api POST "/storage/kv/namespaces" "$(json_payload title="$name")")
   created=$(printf '%s' "$create_response" | json_result_deep_any id)
   if [ -n "$created" ]; then
@@ -274,14 +277,14 @@ find_or_create_kv() {
   list_response=$(cf_api GET "/storage/kv/namespaces")
   existing=$(printf '%s' "$list_response" | json_result_match title "$name" id)
   if [ -n "$existing" ]; then
-    log "Reusing fixed KV namespace ${name} after create conflict"
+    log "Reusing KV namespace ${name} after create conflict"
     printf '%s' "$existing"
     return 0
   fi
 
   printf '%s\n' "$create_response" >&2
   summarize_cloudflare_api_failure
-  fail "Could not create or find fixed KV namespace ${name}"
+  fail "Could not create or find KV namespace ${name}"
 }
 
 ensure_pages_project() {
@@ -330,8 +333,10 @@ values = {
     "__PROBE_WORKER_NAME__": os.environ["PROBE_WORKER_NAME"],
     "__D1_DATABASE_NAME__": os.environ["D1_DATABASE_NAME"],
     "__D1_DATABASE_ID__": os.environ["D1_DATABASE_ID"],
-    "__KV_NAMESPACE_ID__": os.environ["KV_NAMESPACE_ID"],
-    "__KV_PREVIEW_ID__": os.environ["KV_PREVIEW_ID"],
+    "__SESSION_KV_NAMESPACE_ID__": os.environ["SESSION_KV_NAMESPACE_ID"],
+    "__SESSION_KV_PREVIEW_ID__": os.environ["SESSION_KV_PREVIEW_ID"],
+    "__STATISTICS_KV_NAMESPACE_ID__": os.environ["STATISTICS_KV_NAMESPACE_ID"],
+    "__STATISTICS_KV_PREVIEW_ID__": os.environ["STATISTICS_KV_PREVIEW_ID"],
     "__PAGES_URL__": os.environ["PAGES_URL"],
     "__PROBE_WORKER_URL__": os.environ["PROBE_WORKER_URL"],
     "__GITHUB_REPO_SLUG__": os.environ["GITHUB_REPO_SLUG"],
@@ -348,13 +353,16 @@ ensure_self_host_resources() {
   fi
 
   D1_DATABASE_ID="$(find_or_create_d1 "$D1_DATABASE_NAME")"
-  KV_NAMESPACE_ID="$(find_or_create_kv)"
-  KV_PREVIEW_ID="$KV_NAMESPACE_ID"
+  SESSION_KV_NAMESPACE_ID="$(find_or_create_kv "$SESSION_KV_NAMESPACE_NAME")"
+  SESSION_KV_PREVIEW_ID="$SESSION_KV_NAMESPACE_ID"
+  STATISTICS_KV_NAMESPACE_ID="$(find_or_create_kv "$STATISTICS_KV_NAMESPACE_NAME")"
+  STATISTICS_KV_PREVIEW_ID="$STATISTICS_KV_NAMESPACE_ID"
   DASHBOARD_WORKER_URL="https://${DASHBOARD_WORKER_NAME}.${ACCOUNT_SUBDOMAIN}.workers.dev"
   PROBE_WORKER_URL="https://${PROBE_WORKER_NAME}.${ACCOUNT_SUBDOMAIN}.workers.dev"
   PAGES_URL="${SELF_HOST_PAGES_URL:-https://${PAGES_PROJECT_NAME}.pages.dev}"
+  PUBLIC_STATUS_URL="${PAGES_URL%/}/status"
 
-  export D1_DATABASE_ID KV_NAMESPACE_ID KV_PREVIEW_ID DASHBOARD_WORKER_URL PROBE_WORKER_URL PAGES_URL
+  export D1_DATABASE_ID SESSION_KV_NAMESPACE_ID SESSION_KV_PREVIEW_ID STATISTICS_KV_NAMESPACE_ID STATISTICS_KV_PREVIEW_ID DASHBOARD_WORKER_URL PROBE_WORKER_URL PAGES_URL PUBLIC_STATUS_URL
 
   ensure_pages_project "$PAGES_PROJECT_NAME"
   render_template backend/wrangler.self-host.template.toml backend/wrangler.self-host.generated.toml
@@ -362,10 +370,12 @@ ensure_self_host_resources() {
 
   write_output d1_database_name "$D1_DATABASE_NAME"
   write_output d1_database_id "$D1_DATABASE_ID"
-  write_output kv_namespace_id "$KV_NAMESPACE_ID"
+  write_output session_kv_namespace_id "$SESSION_KV_NAMESPACE_ID"
+  write_output statistics_kv_namespace_id "$STATISTICS_KV_NAMESPACE_ID"
   write_output dashboard_worker_url "$DASHBOARD_WORKER_URL"
   write_output probe_worker_url "$PROBE_WORKER_URL"
   write_output pages_url "$PAGES_URL"
+  write_output public_status_url "$PUBLIC_STATUS_URL"
   write_output pages_project_name "$PAGES_PROJECT_NAME"
 
   append_summary "## Uptime-LoFi Self-Hosted Deployment"
@@ -374,9 +384,13 @@ ensure_self_host_resources() {
   append_summary "|--------|-------|"
   append_summary "| Resource prefix | ${RESOURCE_PREFIX} |"
   append_summary "| Dashboard URL | ${PAGES_URL} |"
-  append_summary "| API URL | ${DASHBOARD_WORKER_URL} |"
+  append_summary "| Public Status URL | ${PUBLIC_STATUS_URL} |"
+  append_summary "| Worker API URL | ${DASHBOARD_WORKER_URL} |"
   append_summary "| Probe URL | ${PROBE_WORKER_URL} |"
-  append_summary "| Fixed KV namespace | ${KV_NAMESPACE_NAME} |"
+  append_summary "| Session KV namespace | ${SESSION_KV_NAMESPACE_NAME} |"
+  append_summary "| Statistics KV namespace | ${STATISTICS_KV_NAMESPACE_NAME} |"
   append_summary ""
-  append_summary "Next: open the Dashboard URL, log in, then go to Nodes -> Add Node -> Agent Probe and click Generate Install Command."
+  append_summary "Pages Functions must be deployed with BACKEND_URL, INTERNAL_API_KEY, API_SECRET_KEY, PAGES_SESSION_SECRET, and PAGES_ADMIN_PASSWORD configured as Pages secrets. Do not print or paste secret values into logs."
+  append_summary ""
+  append_summary "Next: open the Dashboard URL, log in, then go to Monitors -> Add Monitor -> Agent Probe to generate install details."
 }

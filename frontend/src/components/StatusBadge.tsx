@@ -1,13 +1,16 @@
-import type { NodeStatus } from '../api/types';
+import type { MonitorStatus } from '../api/types';
 
-const statusConfig: Record<NodeStatus, { label: string; className: string }> = {
+type StatusBadgeStatus = MonitorStatus;
+
+const statusConfig: Record<StatusBadgeStatus, { label: string; className: string }> = {
   online:   { label: 'Online',   className: 'badge-online'   },
   degraded: { label: 'Degraded', className: 'badge-warning'  },
   offline:  { label: 'Offline',  className: 'badge-danger'   },
   paused:   { label: 'Paused',   className: 'badge-paused'   },
+  unknown:  { label: 'Unknown',  className: 'badge-unknown'  },
 };
 
-export function StatusBadge({ status }: { status: NodeStatus }) {
+export function StatusBadge({ status }: { status: StatusBadgeStatus }) {
   const config = statusConfig[status];
   return <span className={`status-badge ${config.className}`}>{config.label}</span>;
 }

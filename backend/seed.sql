@@ -1,31 +1,35 @@
 -- Seed Data: seed.sql
--- Description: Example insertion to verify table constraints and schema typing
+-- Description: Example insertion to verify monitor schema constraints and typing.
 
-INSERT INTO nodes (id, name, type, status, last_heartbeat, config_json)
+INSERT INTO monitors (id, name, type, target, interval_sec, timeout_sec, config_json, salt)
 VALUES (
-    'test-node-1234',
-    'Local Agent Node',
-    'agent_push',
-    'online',
-    strftime('%s', 'now'),
-    '{"psk": "local-dev-psk-123"}'
+    'test-monitor-1234',
+    'Local Agent Monitor',
+    'agent',
+    'Agent probe',
+    60,
+    10,
+    '{"platform": "linux/amd64"}',
+    'local-dev-salt'
 );
 
-INSERT INTO raw_metrics (node_id, timestamp, ping_ms, cpu_usage, mem_usage, is_up)
+INSERT INTO agent_metrics (monitor_id, timestamp, cpu_percent, mem_percent, payload_json)
 VALUES (
-    'test-node-1234',
+    'test-monitor-1234',
     strftime('%s', 'now'),
-    45,
     15.5,
     40.2,
-    1
+    '{}'
 );
 
-INSERT INTO daily_stats (node_id, date, uptime_ratio, avg_ping_ms, down_events)
+INSERT INTO monitor_latest (monitor_id, status, checked_at, latency_ms, uptime_ratio, cpu_percent, mem_percent, updated_at)
 VALUES (
-    'test-node-1234',
-    date('now'),
-    100.0,
+    'test-monitor-1234',
+    'online',
+    strftime('%s', 'now'),
     45,
-    0
+    100.0,
+    15.5,
+    40.2,
+    strftime('%s', 'now')
 );

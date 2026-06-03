@@ -23,6 +23,15 @@ describe("Agentless check runners", () => {
     expect(mismatch.errorText).toContain("Expected HTTP 200, got 503");
   });
 
+  it("treats reachable HTTP 403 responses as accessible", async () => {
+    const result = await runHttpCheck(
+      { url: "https://example.com/health", expected_status: 200, timeout: 5 },
+      async () => new Response(null, { status: 403 }),
+    );
+
+    expect(result).toMatchObject({ isUp: true, latencyMs: expect.any(Number), errorText: null, statusCode: 403 });
+  });
+
   it("returns down with clear errors when HTTP fetch rejects", async () => {
     const rejected = await runHttpCheck(
       { url: "https://example.com/health", expected_status: 200, timeout: 5 },

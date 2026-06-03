@@ -40,7 +40,7 @@ describe("ErrorBanner", () => {
     const user = userEvent.setup();
     const onRetry = vi.fn();
 
-    render(<ErrorBanner message="Nodes request failed" onRetry={onRetry} />);
+    render(<ErrorBanner message="Monitors request failed" onRetry={onRetry} />);
 
     await user.click(screen.getByRole("button", { name: /retry/i }));
 

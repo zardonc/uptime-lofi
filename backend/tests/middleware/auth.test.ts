@@ -23,10 +23,10 @@ async function generateSignature(psk: string, timestamp: number, body: string): 
 }
 
 // Derive PSK just like middleware
-async function derivePsk(masterSecret: string, nodeId: string, salt: string): Promise<string> {
+async function derivePsk(masterSecret: string, monitorId: string, salt: string): Promise<string> {
   const encoder = new TextEncoder();
   const keyData = encoder.encode(masterSecret);
-  const msgData = encoder.encode(`${nodeId}:${salt}`);
+  const msgData = encoder.encode(`${monitorId}:${salt}`);
 
   const cryptoKey = await crypto.subtle.importKey(
     "raw",
@@ -46,21 +46,24 @@ describe("Probe Auth Middleware (HMAC)", () => {
   app.use("*", probeAuthMiddleware);
   app.post("/push", (c) => c.json({ success: true }));
 
-  const nodeId = "auth_test_node";
+  const monitorId = "auth_test_monitor";
   const salt = "random_salt_123";
   let masterSecret: string;
   let psk: string;
 
   beforeAll(async () => {
-    // Insert a test node
+    // Insert a test monitor
     await (env as any).DB.prepare(
-      "INSERT INTO nodes (id, name, type, salt, status) VALUES (?, ?, ?, ?, ?)"
+      `INSERT INTO monitors (
+         id, backend_id, name, type, target, interval_sec, timeout_sec,
+         config_json, salt, paused, public_visible
+       ) VALUES (?, 'default', ?, 'agent', 'Agent probe', 60, 10, '{}', ?, 0, 1)`
     )
-      .bind(nodeId, "Auth Node Test", "agent_push", salt, "online")
+      .bind(monitorId, "Auth Monitor Test", salt)
       .run();
 
     masterSecret = (env as any).API_SECRET_KEY || "default_test_secret";
-    psk = await derivePsk(masterSecret, nodeId, salt);
+    psk = await derivePsk(masterSecret, monitorId, salt);
   });
 
   it("Passes with valid X-Signature", async () => {
@@ -73,7 +76,7 @@ describe("Probe Auth Middleware (HMAC)", () => {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${signature}`,
-        "X-Node-Id": nodeId,
+        "X-Monitor-Id": monitorId,
         "X-Timestamp": timestamp.toString(),
       },
       body: bodyStr,
@@ -94,7 +97,7 @@ describe("Probe Auth Middleware (HMAC)", () => {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${signature}`,
-        "X-Node-Id": nodeId,
+        "X-Monitor-Id": monitorId,
         "X-Timestamp": timestamp.toString(),
       },
       body: bodyStr,
@@ -109,7 +112,7 @@ describe("Probe Auth Middleware (HMAC)", () => {
     const req = new Request("http://localhost/push", {
       method: "POST",
       headers: {
-        "X-Node-Id": nodeId,
+        "X-Monitor-Id": monitorId,
         "X-Timestamp": timestamp.toString(),
       },
       body: "{}",
@@ -119,7 +122,7 @@ describe("Probe Auth Middleware (HMAC)", () => {
     expect(res.status).toBe(401);
   });
 
-  it("Fails if X-Node-Id is missing", async () => {
+  it("Fails if X-Monitor-Id is missing", async () => {
     const timestamp = Math.floor(Date.now() / 1000);
     const bodyStr = "{}";
     const signature = await generateSignature(psk, timestamp, bodyStr);
@@ -146,7 +149,7 @@ describe("Probe Auth Middleware (HMAC)", () => {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${signature}`,
-        "X-Node-Id": nodeId,
+        "X-Monitor-Id": monitorId,
         "X-Timestamp": staleTimestamp.toString(),
       },
       body: bodyStr,
@@ -165,7 +168,7 @@ describe("Probe Auth Middleware (HMAC)", () => {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${signature}`,
-        "X-Node-Id": nodeId,
+        "X-Monitor-Id": monitorId,
         "X-Timestamp": futureTimestamp.toString(),
       },
       body: bodyStr,

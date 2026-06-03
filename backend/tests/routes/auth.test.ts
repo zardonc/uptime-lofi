@@ -252,14 +252,14 @@ describe("Auth Routes (/api/auth)", () => {
 
       expect(refreshRes.status).toBe(200);
       const refreshBody: any = await refreshRes.json();
-      const nodesRes = await app.fetch(
-        new Request("http://localhost/api/nodes", {
+      const monitorsRes = await app.fetch(
+        new Request("http://localhost/api/v1/monitors", {
           headers: { "Authorization": `Bearer ${refreshBody.access_token}` }
         }),
         testEnv
       );
 
-      expect(nodesRes.status).toBe(200);
+      expect(monitorsRes.status).toBe(200);
     });
 
     it("Expired refresh token — returns 401", async () => {

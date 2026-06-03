@@ -4,10 +4,17 @@ import { HTTPException } from 'hono/http-exception'
 import type { ExportedHandlerScheduledHandler } from '@cloudflare/workers-types'
 import { api, Bindings } from './routes/api'
 import { securityHeadersMiddleware } from './middleware/securityHeaders'
-import { runDueAgentlessChecks } from './agentless/checks'
+import { runDueMonitorChecks } from './services/checkRunner'
+import { refreshStatistics } from './services/statisticsRollup'
 
 // Payload size enforcement
 const MAX_BODY_SIZE = 1024 * 1024 // 1 MB
+const CRON_INTERVAL_SECONDS = 5 * 60
+const STATISTICS_REFRESH_INTERVAL_SECONDS = 60 * 60
+
+export function shouldRefreshStatistics(nowSeconds: number): boolean {
+  return nowSeconds % STATISTICS_REFRESH_INTERVAL_SECONDS < CRON_INTERVAL_SECONDS
+}
 
 const app = new Hono<{ Bindings: Bindings }>()
 
@@ -33,7 +40,7 @@ app.use('*', async (c, next) => {
       return undefined
     },
     allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowHeaders: ['Content-Type', 'Authorization', 'X-Node-Id', 'X-Timestamp', 'X-Signature'],
+    allowHeaders: ['Content-Type', 'Authorization', 'X-Monitor-Id', 'X-Timestamp', 'X-Signature'],
     credentials: true,
     maxAge: 86400,
   })(c, next)
@@ -149,14 +156,24 @@ export const scheduled: ExportedHandlerScheduledHandler<Bindings> = async (contr
     "DELETE FROM audit_log WHERE created_at < (strftime('%s', 'now') - 7776000)"
   );
 
-  let agentlessChecks = 0;
+  let monitorChecks = 0;
   try {
-    agentlessChecks = await runDueAgentlessChecks(env, nowSeconds);
+    monitorChecks = await runDueMonitorChecks(env, nowSeconds);
   } catch (error) {
-    console.error("Cron Agentless checks failed:", error instanceof Error ? error.message : String(error));
+    console.error("Cron v2 monitor checks failed:", error instanceof Error ? error.message : String(error));
   }
 
-  console.log(`Cron cleanup: ${tokenChanges} tokens, ${attemptChanges} attempts, ${auditChanges} audit entries removed; ${agentlessChecks} agentless checks run`);
+  let statisticsRefreshed = false;
+  try {
+    if (shouldRefreshStatistics(nowSeconds)) {
+      await refreshStatistics(env, nowSeconds);
+      statisticsRefreshed = true;
+    }
+  } catch (error) {
+    console.error("Cron statistics refresh failed:", error instanceof Error ? error.message : String(error));
+  }
+
+  console.log(`Cron cleanup: ${tokenChanges} tokens, ${attemptChanges} attempts, ${auditChanges} audit entries removed; ${monitorChecks} monitor checks run; statistics ${statisticsRefreshed ? "refreshed" : "skipped"}`);
 };
 
 export default {

@@ -2,8 +2,26 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { hashPassword, generateSalt } from "../utils/crypto";
+import {
+  listPublicMonitorVisibility,
+  readPublicStatusSettings,
+  savePublicStatusSettings,
+  updatePublicMonitorVisibility,
+} from "../services/publicStatusService";
 
 const settingsApi = new Hono<{ Bindings: { DB: D1Database; API_SECRET_KEY: string } }>();
+
+settingsApi.get("/", async (c) => {
+  const db = c.env.DB;
+  const uiLock = await db.prepare("SELECT value FROM kv_settings WHERE key = 'ui_lock_enabled'").first<{ value: string }>();
+
+  return c.json({
+    data: {
+      is_ui_lock_enabled: uiLock?.value === "true",
+      public_status: await readPublicStatusSettings(db),
+    },
+  });
+});
 
 settingsApi.post("/security", zValidator("json", z.object({ 
   enabled: z.boolean(), 
@@ -29,6 +47,27 @@ settingsApi.post("/security", zValidator("json", z.object({
   }
 
   return c.json({ success: true });
+});
+
+settingsApi.post("/public-status", zValidator("json", z.object({
+  enabled: z.boolean(),
+  private_slug: z.string().trim().max(80).nullable().optional(),
+  show_uptime: z.boolean(),
+  show_latency: z.boolean(),
+  show_incidents: z.boolean(),
+  show_monitor_type: z.boolean(),
+  monitors: z.array(z.object({
+    id: z.string().trim().min(1),
+    public_visible: z.boolean(),
+  }).strict()).optional().default([]),
+}).strict()), async (c) => {
+  const { monitors, ...settings } = c.req.valid("json");
+  const db = c.env.DB;
+
+  const publicStatus = await savePublicStatusSettings(db, settings);
+  await updatePublicMonitorVisibility(db, monitors);
+
+  return c.json({ data: { public_status: publicStatus, monitors: await listPublicMonitorVisibility(db) } });
 });
 
 export { settingsApi };
