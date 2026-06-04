@@ -27,6 +27,7 @@ export interface MonitorLatestMetrics {
   readonly mem_percent: number | null;
   readonly error_text: string | null;
   readonly status_code?: number | null;
+  readonly containers?: ReadonlyArray<ApiContainerMetric> | null;
 }
 
 export interface MonitorVisibility {

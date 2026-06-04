@@ -254,4 +254,43 @@ describe("Monitors page", () => {
     await user.click(within(detail).getByRole("button", { name: "Monitors" }));
     expect(await screen.findByRole("article", { name: "Homepage monitor" })).toBeInTheDocument();
   });
+
+  it("renders Docker containers from the latest agent report", async () => {
+    setMockMonitors([{
+      id: "monitor-agent-docker",
+      backend_id: "default",
+      backend_label: "Default backend",
+      backend_type: "cloudflare_worker",
+      name: "prod-agent",
+      type: "agent",
+      status: "online",
+      target: { label: "Agent probe" },
+      interval_sec: 60,
+      timeout_sec: 10,
+      public_visible: true,
+      latest: {
+        checked_at: 1_800_000_000,
+        latency_ms: 18,
+        uptime_ratio: null,
+        cpu_percent: 24,
+        mem_percent: 58,
+        error_text: null,
+        containers: [{ id: "abc1234567", name: "/web", image: "nginx:1.27", state: "running", status: "Up 5 minutes", cpu_percent: 12.3, mem_percent: 45.6 }],
+      },
+      visibility: { public: true, show_uptime: true, show_latency: true, show_incidents: true },
+      created_at: 1,
+      updated_at: 1,
+    }]);
+    const user = await openMonitorsPage();
+
+    await user.click((await screen.findAllByRole("button", { name: "Details" }))[0]);
+
+    const detail = await screen.findByRole("region", { name: "prod-agent detail" });
+    expect(within(detail).getByRole("heading", { name: "Docker containers" })).toBeInTheDocument();
+    expect(within(detail).getByText("web")).toBeInTheDocument();
+    expect(within(detail).getByText("nginx:1.27")).toBeInTheDocument();
+    expect(within(detail).getByText("running")).toBeInTheDocument();
+    expect(within(detail).getByText("CPU 12.3% · MEM 45.6%")).toBeInTheDocument();
+    expect(within(detail).queryByText("No runtime data yet")).not.toBeInTheDocument();
+  });
 });

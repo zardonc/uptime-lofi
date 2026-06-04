@@ -24,6 +24,15 @@ export const monitorLatestMetricsSchema = z.object({
   mem_percent: z.number().min(0).max(100).nullable(),
   error_text: z.string().nullable(),
   status_code: z.number().int().min(100).max(599).nullable().optional(),
+  containers: z.array(z.object({
+    id: z.string().optional(),
+    name: z.string().optional(),
+    image: z.string().optional(),
+    state: z.string().optional(),
+    status: z.string().optional(),
+    cpu_percent: z.number().min(0).nullable().optional(),
+    mem_percent: z.number().min(0).max(100).nullable().optional(),
+  }).strict()).nullable().optional(),
 }).strict();
 
 export const monitorVisibilitySchema = z.object({

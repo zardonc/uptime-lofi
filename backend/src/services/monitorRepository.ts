@@ -10,6 +10,7 @@ import {
   type MonitorType,
   type UpdateMonitorInput,
 } from "../schemas/v2";
+import { decompress } from "../utils/compression";
 
 type MonitorRow = {
   id: string;
@@ -33,6 +34,7 @@ type MonitorRow = {
   mem_percent: number | null;
   error_text: string | null;
   last_detail_json: string | null;
+  last_agent_payload_json: string | null;
 };
 
 type NormalizedConfig = {
@@ -61,7 +63,7 @@ export async function listMonitors(db: D1Database, source: BackendSource = DEFAU
      ORDER BY m.created_at DESC`,
   ).all<MonitorRow>();
 
-  return results.map((row) => rowToMonitor(row, source));
+  return Promise.all(results.map((row) => rowToMonitor(row, source)));
 }
 
 export async function getMonitor(db: D1Database, id: string, source: BackendSource = DEFAULT_SOURCE): Promise<Monitor | null> {
@@ -169,7 +171,14 @@ function selectMonitorSql() {
          WHERE cr.monitor_id = m.id
          ORDER BY cr.timestamp DESC, cr.id DESC
          LIMIT 1
-       ) AS last_detail_json
+       ) AS last_detail_json,
+       (
+         SELECT am.payload_json
+         FROM agent_metrics am
+         WHERE am.monitor_id = m.id
+         ORDER BY am.timestamp DESC, am.id DESC
+         LIMIT 1
+       ) AS last_agent_payload_json
      FROM monitors m
      LEFT JOIN monitor_latest ml ON ml.monitor_id = m.id`;
 }
@@ -200,7 +209,7 @@ function normalizeConfig(type: MonitorType, value: unknown): NormalizedConfig {
   };
 }
 
-function rowToMonitor(row: MonitorRow, source: BackendSource): Monitor {
+async function rowToMonitor(row: MonitorRow, source: BackendSource): Promise<Monitor> {
   const status = row.paused ? "paused" : row.latest_status ?? "unknown";
   return monitorSchema.parse({
     backend_id: row.backend_id || source.backend_id,
@@ -222,6 +231,7 @@ function rowToMonitor(row: MonitorRow, source: BackendSource): Monitor {
       mem_percent: row.mem_percent,
       error_text: row.error_text,
       status_code: latestStatusCode(row.last_detail_json),
+      containers: row.type === "agent" ? await latestContainers(row.last_agent_payload_json) : null,
     },
     visibility: {
       public: Boolean(row.public_visible),
@@ -232,6 +242,19 @@ function rowToMonitor(row: MonitorRow, source: BackendSource): Monitor {
     created_at: row.created_at,
     updated_at: row.updated_at,
   });
+}
+
+async function latestContainers(payloadJson: string | null) {
+  const containersJson = safeJson(payloadJson).containers_json;
+  if (typeof containersJson !== "string" || containersJson.trim().length === 0) return null;
+
+  try {
+    const decompressed = await decompress(containersJson);
+    const containers = JSON.parse(decompressed) as unknown;
+    return Array.isArray(containers) ? containers : null;
+  } catch {
+    return null;
+  }
 }
 
 function latestStatusCode(detailJson: string | null): number | null {
