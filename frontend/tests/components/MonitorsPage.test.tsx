@@ -1,4 +1,5 @@
 import { render, screen, within } from "@testing-library/react";
+import { http, HttpResponse } from "msw";
 import userEvent from "@testing-library/user-event";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
@@ -170,6 +171,27 @@ describe("Monitors page", () => {
     expect(await screen.findByRole("article", { name: "prod-vps-1 monitor" })).toBeInTheDocument();
   });
 
+  it("shows the backend probe configuration error when command generation fails", async () => {
+    server.use(
+      http.post("/api/v1/monitors/probe-config", () => HttpResponse.json({
+        error: {
+          code: "probe_secret_not_configured",
+          message: "Probe credential generation is not configured. Set API_SECRET_KEY on the dashboard Worker and redeploy.",
+        },
+      }, { status: 500 })),
+    );
+    const user = await openMonitorsPage();
+
+    await user.click(screen.getByRole("button", { name: "Add Monitor" }));
+    await user.click(screen.getByRole("menuitem", { name: "Agent Probe" }));
+    const form = await screen.findByRole("form", { name: "Monitor form" });
+    await user.type(within(form).getByLabelText("Name"), "prod-vps-1");
+    await user.click(within(form).getByRole("button", { name: "Create Probe & Generate Command" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Probe credential generation is not configured. Set API_SECRET_KEY on the dashboard Worker and redeploy.");
+    expect(screen.queryByRole("heading", { name: "Run this on your server" })).not.toBeInTheDocument();
+  });
+
   it("requires confirmation before deleting a monitor", async () => {
     const user = await openMonitorsPage();
 
@@ -231,5 +253,44 @@ describe("Monitors page", () => {
 
     await user.click(within(detail).getByRole("button", { name: "Monitors" }));
     expect(await screen.findByRole("article", { name: "Homepage monitor" })).toBeInTheDocument();
+  });
+
+  it("renders Docker containers from the latest agent report", async () => {
+    setMockMonitors([{
+      id: "monitor-agent-docker",
+      backend_id: "default",
+      backend_label: "Default backend",
+      backend_type: "cloudflare_worker",
+      name: "prod-agent",
+      type: "agent",
+      status: "online",
+      target: { label: "Agent probe" },
+      interval_sec: 60,
+      timeout_sec: 10,
+      public_visible: true,
+      latest: {
+        checked_at: 1_800_000_000,
+        latency_ms: 18,
+        uptime_ratio: null,
+        cpu_percent: 24,
+        mem_percent: 58,
+        error_text: null,
+        containers: [{ id: "abc1234567", name: "/web", image: "nginx:1.27", state: "running", status: "Up 5 minutes", cpu_percent: 12.3, mem_percent: 45.6 }],
+      },
+      visibility: { public: true, show_uptime: true, show_latency: true, show_incidents: true },
+      created_at: 1,
+      updated_at: 1,
+    }]);
+    const user = await openMonitorsPage();
+
+    await user.click((await screen.findAllByRole("button", { name: "Details" }))[0]);
+
+    const detail = await screen.findByRole("region", { name: "prod-agent detail" });
+    expect(within(detail).getByRole("heading", { name: "Docker containers" })).toBeInTheDocument();
+    expect(within(detail).getByText("web")).toBeInTheDocument();
+    expect(within(detail).getByText("nginx:1.27")).toBeInTheDocument();
+    expect(within(detail).getByText("running")).toBeInTheDocument();
+    expect(within(detail).getByText("CPU 12.3% · MEM 45.6%")).toBeInTheDocument();
+    expect(within(detail).queryByText("No runtime data yet")).not.toBeInTheDocument();
   });
 });

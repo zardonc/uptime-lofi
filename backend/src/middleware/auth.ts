@@ -72,8 +72,8 @@ export const probeAuthMiddleware = async (c: Context, next: Next) => {
   const monitorRecord = await db.prepare(
     "SELECT salt FROM monitors WHERE id = ? AND archived_at IS NULL AND paused = 0 AND type = 'agent'",
   ).bind(monitorId).first<{ salt: string | null }>();
-  
-  if (!monitorRecord || !monitorRecord.salt) {
+
+  if (!monitorRecord?.salt) {
     // If salt is missing, the probe is not natively initialized to authenticate
     throw new HTTPException(401, { message: "Monitor auth mismatch or missing salt" });
   }

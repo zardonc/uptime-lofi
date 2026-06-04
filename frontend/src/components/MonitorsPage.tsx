@@ -551,7 +551,7 @@ function probeConfigErrorMessage(error: unknown): string {
   if (error instanceof ApiClientError) {
     if (error.status === 409) return 'A monitor with this name already exists. Choose another name.';
     if (error.status === 401 || error.status === 403) return 'Your session expired. Sign in again before generating the probe command.';
-    if (error.status >= 500) return 'Could not create the probe install command. Check backend probe configuration and try again.';
+    if (error.status >= 500) return error.message || 'Could not create the probe install command. Check backend probe configuration and try again.';
     return error.message;
   }
   return 'Could not create the probe install command. Try again.';
@@ -783,7 +783,19 @@ function buildMonitorDetail(monitor: Monitor) {
   const latency = monitor.latest.latency_ms;
   const hasCheckData = monitor.latest.checked_at !== null;
   const latestState = monitor.status === 'online' ? 'up' : monitor.status === 'offline' || monitor.status === 'degraded' ? 'down' : 'no';
-  const workloads: MonitorDetailWorkload[] = [];
+  const workloads: MonitorDetailWorkload[] = (monitor.latest.containers ?? []).map((container) => {
+    const name = normalizeContainerName(container.name ?? container.id ?? 'Container');
+    const state = normalizeContainerState(container.state);
+    const stats = container.cpu_percent == null && container.mem_percent == null
+      ? 'No resource sample'
+      : `CPU ${formatMetric(container.cpu_percent ?? null, '%')} · MEM ${formatMetric(container.mem_percent ?? null, '%')}`;
+    return {
+      name,
+      meta: container.image ?? container.status ?? noData,
+      state,
+      stats,
+    };
+  });
   const alertRules: MonitorDetailRule[] = [];
   const checks: MonitorDetailCheck[] = hasCheckData ? [{
     status: monitor.status === 'online' ? 'UP' : 'DOWN',
@@ -815,5 +827,16 @@ function buildMonitorDetail(monitor: Monitor) {
     alertRules,
     checks,
   };
+}
+
+function normalizeContainerName(name: string) {
+  const trimmed = name.trim();
+  return trimmed.startsWith('/') ? trimmed.slice(1) || trimmed : trimmed;
+}
+
+function normalizeContainerState(state: string | undefined): MonitorDetailWorkload['state'] {
+  if (state === 'running') return 'running';
+  if (state === 'paused') return 'paused';
+  return 'exited';
 }
 

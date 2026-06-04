@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { env } from "cloudflare:workers";
 import probeApp from "../../src/probe-index";
+import app from "../../src/index";
 
 async function derivePsk(masterSecret: string, monitorId: string, salt: string): Promise<string> {
   const encoder = new TextEncoder();
@@ -31,6 +32,7 @@ describe("Docker container data path", () => {
     testEnv = {
       ...env,
       API_SECRET_KEY: masterSecret,
+      INTERNAL_API_KEY: "test_internal_key",
       JWT_AUDIENCE: "test_aud",
       JWT_ISSUER: "test_iss",
       SESSION_BLACKLIST: {
@@ -89,5 +91,16 @@ describe("Docker container data path", () => {
     const payload = JSON.parse(stored.payload_json);
     expect(payload.monitor_id).toBe(monitorId);
     expect(payload.containers_json).toEqual(expect.stringMatching(/^gz:/));
+
+    const monitorsRes = await app.fetch(new Request("http://localhost/api/internal/v1/monitors", {
+      headers: {
+        "x-uptime-lofi-internal-key": "test_internal_key",
+      },
+    }), { ...testEnv, INTERNAL_API_KEY: "test_internal_key" });
+    const monitorsBody = await monitorsRes.json() as any;
+    const monitor = monitorsBody.data.find((item: any) => item.id === monitorId);
+
+    expect(monitorsRes.status).toBe(200);
+    expect(monitor.latest.containers).toEqual(containers);
   });
 });

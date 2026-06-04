@@ -132,6 +132,27 @@ describe("Internal Monitor Routes (/api/internal/v1/monitors)", () => {
     expect(row?.salt).toEqual(expect.any(String));
   });
 
+  it("returns a structured error when probe credential generation is not configured", async () => {
+    const res = await app.fetch(
+      new Request("http://localhost/api/internal/v1/monitors/probe-config", {
+        method: "POST",
+        headers: {
+          "x-uptime-lofi-internal-key": "test_internal_key",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ name: "Missing Secret Agent", platform: "linux/amd64" }),
+      }),
+      { ...testEnv, API_SECRET_KEY: "" },
+    );
+    const body = await res.json() as any;
+
+    expect(res.status).toBe(500);
+    expect(body.error).toEqual({
+      code: "probe_secret_not_configured",
+      message: "Probe credential generation is not configured. Set API_SECRET_KEY on the dashboard Worker and redeploy.",
+    });
+  });
+
   it("updates safe fields, pauses, resumes, and archives without deleting history", async () => {
     const created = await request("/api/internal/v1/monitors", {
       method: "POST",

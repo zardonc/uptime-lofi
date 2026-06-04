@@ -62,7 +62,9 @@ var rootCmd = &cobra.Command{
 			// Safely attempt IPC integration with Docker Engine
 			if cfg.EnableDocker {
 				containers, dErr := collector.CollectDockerMetrics()
-				if dErr == nil && len(containers) > 0 {
+				if dErr != nil {
+					log.Printf("[Docker Warn] collection failed: %v", dErr)
+				} else {
 					payload.ContainersJson = containers
 				}
 			}
